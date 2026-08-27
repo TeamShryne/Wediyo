@@ -1,0 +1,36 @@
+# Wediyo — gitignore
+
+# Android / Gradle (CI-only builds — but DO commit Rust outputs)
+.gradle/
+build/
+app/build/
+# app/src/main/jniLibs/ is COMMITTED via rust workflow — do NOT ignore
+# app/src/main/kotlin/uniffi/ is COMMITTED via rust workflow — do NOT ignore
+app/build/generated/uniffi/ # ephemeral fallback, not committed
+local.properties
+*.keystore
+*.jks
+
+# Rust
+rust/target/
+**/*.rs.bk
+# Keep Cargo.lock for reproducible CI (was ignored before)
+# Cargo.lock
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# UniFFI committed bindings live in app/src/main/kotlin/uniffi/ — tracked
+# GH Actions
+# (gradle wrapper jar is intentionally tracked for CI)
+!gradle/wrapper/gradle-wrapper.jar

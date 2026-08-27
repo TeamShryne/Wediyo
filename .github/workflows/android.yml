@@ -1,0 +1,75 @@
+name: Android — APK (uses committed Rust outputs)
+
+# No Rust build here. Uses libs + Kotlin bindings already committed by rust.yml.
+# So app changes don't trigger a Rust rebuild, and Rust changes get committed
+# once then reused.
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "app/**"
+      - "gradle/**"
+      - "gradle.properties"
+      - "settings.gradle.kts"
+      - "build.gradle.kts"
+      - ".github/workflows/android.yml"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "app/**"
+      - "gradle/**"
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install platforms
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Cache Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Verify committed Rust outputs present
+        run: |
+          echo "=== jniLibs ==="
+          ls -R app/src/main/jniLibs || echo "MISSING jniLibs — run rust workflow first"
+          echo "=== UniFFI kotlin ==="
+          ls -R app/src/main/kotlin/uniffi || echo "MISSING uniffi — run rust workflow first"
+          test -f app/src/main/jniLibs/arm64-v8a/libwediyo_engine.so || (echo "::error::arm64 lib missing — did rust.yml run?" && exit 1)
+          test -f app/src/main/kotlin/uniffi/uniffi/wediyo_engine/wediyo_engine.kt || (echo "::error::Kotlin bindings missing" && exit 1)
+
+      - name: Assemble Debug (GH Action only — not local)
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Assemble Release
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: wediyo-apks
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
+
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "✅ Local Gradle disabled — builds run only here."
+          echo "Rust outputs are committed by rust.yml → android.yml just consumes them."
+          echo "Highly compatible: minSdk 21, target 35, NDK 27, ABIs arm64-v8a/armeabi-v7a/x86_64"
