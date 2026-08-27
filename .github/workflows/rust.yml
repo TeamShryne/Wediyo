@@ -66,6 +66,14 @@ jobs:
       - name: Cargo check android targets (minSdk 21)
         working-directory: rust
         run: |
+          export CC_aarch64_linux_android=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang
+          export CC_armv7_linux_androideabi=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang
+          export CC_x86_64_linux_android=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android21-clang
+          export CC_i686_linux_android=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-linux-android21-clang
+          export AR_aarch64_linux_android=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
+          export AR_armv7_linux_androideabi=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
+          export AR_x86_64_linux_android=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
+          export AR_i686_linux_android=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
           cargo check -p wediyo_engine --target aarch64-linux-android
           cargo check -p wediyo_engine --target armv7-linux-androideabi
           cargo check -p wediyo_engine --target x86_64-linux-android
@@ -102,7 +110,7 @@ jobs:
             echo "No changes to commit."
             exit 0
           fi
-          git commit -m "chore(rust): rebuild wediyo_engine libs + UniFFI bindings [skip ci]"
+          git commit -m "chore(rust): rebuild wediyo_engine libs + UniFFI bindings"
           git push
 
       - name: Upload artifacts (for PRs / inspection)
