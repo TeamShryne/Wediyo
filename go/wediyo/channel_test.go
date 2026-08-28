@@ -1,0 +1,121 @@
+package wediyo
+
+import (
+ "encoding/json"
+ "os"
+ "path/filepath"
+ "testing"
+)
+
+func TestChannelHomeFixture(t *testing.T) {
+ p := filepath.Join("..", "..", "research", "channels", "channel-home.json")
+ data, err := os.ReadFile(p)
+ if err != nil {
+  t.Fatalf("read fixture: %v", err)
+ }
+ var j map[string]interface{}
+ if err := json.Unmarshal(data, &j); err != nil {
+  t.Fatalf("unmarshal: %v", err)
+ }
+ res, err := collectChannelHome(j)
+ if err != nil {
+  t.Fatalf("collect: %v", err)
+ }
+ if res.Header == nil {
+  t.Fatal("header nil")
+ }
+ if res.Header.Title != "MrBeast" {
+  t.Fatalf("title %q want MrBeast", res.Header.Title)
+ }
+ if res.Header.Handle != "@MrBeast" {
+  t.Fatalf("handle %q want @MrBeast", res.Header.Handle)
+ }
+ if res.Header.ChannelID != "UCX6OQ3DkcsbYNE6H8uQQuVA" {
+  t.Fatalf("id %q", res.Header.ChannelID)
+ }
+ if !res.Header.Verified {
+  t.Fatal("verified false")
+ }
+ if len(res.Header.Avatars) < 3 {
+  t.Fatalf("avatars %d want >=3", len(res.Header.Avatars))
+ }
+ // check all https
+ for _, th := range res.Header.Avatars {
+  if th.URL == "" || th.URL[:8] != "https://" {
+   t.Fatalf("avatar not https %s", th.URL)
+  }
+ }
+ if len(res.Header.Banners) < 6 {
+  t.Fatalf("banners %d want 6 got %v", len(res.Header.Banners), res.Header.Banners)
+ }
+ for _, th := range res.Header.Banners {
+  if th.URL[:8] != "https://" {
+   t.Fatalf("banner not https %s", th.URL)
+  }
+ }
+ if res.Header.SubscriberCountText != "514M subscribers" {
+  t.Fatalf("subs %q", res.Header.SubscriberCountText)
+ }
+ if res.Header.VideoCountText != "999 videos" {
+  t.Fatalf("videoCount %q", res.Header.VideoCountText)
+ }
+ if len(res.Tabs) < 5 {
+  t.Fatalf("tabs %d", len(res.Tabs))
+ }
+ if res.Tabs[0].Title != "Home" || !res.Tabs[0].Selected {
+  t.Fatalf("first tab %v", res.Tabs[0])
+ }
+ // params should be decoded
+ if res.Tabs[0].Params != "EghmZWF0dXJlZAoOCAAQAg==" && res.Tabs[0].Params != "EghmZWF0dXJlZPIGBAoCMgA=" {
+  // accept either, check contains Eghm
+  if len(res.Tabs[0].Params) < 5 {
+   t.Logf("home params %q", res.Tabs[0].Params)
+  }
+ }
+ if len(res.Shelves) < 3 {
+  t.Fatalf("shelves %d want >=3", len(res.Shelves))
+ }
+ // find New Uploads
+ var newUploads *ChannelShelf
+ for i := range res.Shelves {
+  if res.Shelves[i].Title == "New Uploads" {
+   newUploads = &res.Shelves[i]
+   break
+  }
+ }
+ if newUploads == nil {
+  t.Fatalf("New Uploads shelf missing titles %v", func() []string { var s []string; for _, sh := range res.Shelves { s = append(s, sh.Title) }; return s }())
+ }
+ if len(newUploads.Videos) < 10 {
+  t.Fatalf("New Uploads videos %d", len(newUploads.Videos))
+ }
+ v := newUploads.Videos[0]
+ if v.ID == "" || v.Title == "" {
+  t.Fatalf("video missing id/title %v", v)
+ }
+ if len(v.Thumbnails) == 0 || len(v.Thumbnails) < 2 {
+  t.Fatalf("thumbnails %d", len(v.Thumbnails))
+ }
+ for _, th := range v.Thumbnails {
+  if th.URL[:8] != "https://" {
+   t.Fatalf("video thumb not https %s", th.URL)
+  }
+ }
+ if v.ThumbnailURL[:8] != "https://" {
+  t.Fatalf("thumb url not https %s", v.ThumbnailURL)
+ }
+ if len(v.ChannelAvatars) == 0 {
+  t.Fatalf("channel avatars missing")
+ }
+ if v.DurationText == "" {
+  t.Fatalf("duration empty")
+ }
+ // banner/ avatar highest url check
+ if res.Header.AvatarURL == "" || res.Header.BannerURL == "" {
+  t.Fatalf("avatar/banner url empty")
+ }
+ t.Logf("header %+v tabs %d shelves %d newUploads %d first video %s %s %s", res.Header.Title, len(res.Tabs), len(res.Shelves), len(newUploads.Videos), v.Title, v.ID, v.DurationText)
+ for _, s := range res.Shelves {
+  t.Logf("shelf %q %d videos first %s", s.Title, len(s.Videos), s.Videos[0].Title)
+ }
+}

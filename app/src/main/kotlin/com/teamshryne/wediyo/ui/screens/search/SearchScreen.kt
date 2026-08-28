@@ -21,7 +21,7 @@ import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchScreen(onBack: () -> Unit, vm: SearchViewModel = viewModel()) {
+fun SearchScreen(onBack: () -> Unit, onChannelClick: (String) -> Unit = {}, vm: SearchViewModel = viewModel()) {
     val state by vm.state.collectAsState()
     val ctx = LocalContext.current
     val settings = remember { SettingsManager(ctx) }
@@ -169,7 +169,7 @@ fun SearchScreen(onBack: () -> Unit, vm: SearchViewModel = viewModel()) {
                     }
 
                     // Channels
-                    items(r.channels.size) { idx -> ChannelCard(r.channels[idx], thumbQ) {} }
+                    items(r.channels.size) { idx -> ChannelCard(r.channels[idx], thumbQ) { onChannelClick(r.channels[idx].channelId) } }
 
                     // Playlists
                     items(r.playlists.size) { idx -> PlaylistCard(r.playlists[idx], thumbQ) {} }

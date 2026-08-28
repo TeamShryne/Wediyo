@@ -98,6 +98,44 @@ type SearchResult struct {
 	EstimatedResults string              `json:"estimated_results"` // e.g. "2494772"
 }
 
+// Channel home types — browse channel/featured
+type ChannelHeader struct {
+	ChannelID           string      `json:"channel_id"`
+	Title               string      `json:"title"`
+	Handle              string      `json:"handle"` // "@MrBeast"
+	AvatarURL           string      `json:"avatar_url"` // highest
+	Avatars             []Thumbnail `json:"avatars"`    // s72/s120/s160 etc
+	BannerURL           string      `json:"banner_url"` // highest
+	Banners             []Thumbnail `json:"banners"`    // 1060/1138/.../2560
+	SubscriberCountText string      `json:"subscriber_count_text"` // "514M subscribers"
+	VideoCountText      string      `json:"video_count_text"`      // "999 videos"
+	Description         string      `json:"description"`
+	Verified            bool        `json:"verified"`
+	ChannelURL          string      `json:"channel_url"` // https://youtube.com/channel/UC...
+	RSSUrl              string      `json:"rss_url"`
+	Keywords            string      `json:"keywords"`
+}
+
+type ChannelTab struct {
+	Title            string `json:"title"`              // Home, Videos, Shorts, Playlists, Posts
+	Selected         bool   `json:"selected"`
+	Params           string `json:"params"`             // url-unescaped, e.g. EghmZWF0dXJlZ...
+	BrowseID         string `json:"browse_id"`          // UC...
+	CanonicalBaseURL string `json:"canonical_base_url"` // /@MrBeast
+}
+
+type ChannelShelf struct {
+	Title    string          `json:"title"`     // "New Uploads", "For You", etc
+	BrowseID string          `json:"browse_id"` // VLPL... for playlist shelves
+	Videos   []VideoMetadata `json:"videos"`
+}
+
+type ChannelHomeResult struct {
+	Header  *ChannelHeader `json:"header,omitempty"`
+	Tabs    []ChannelTab   `json:"tabs"`
+	Shelves []ChannelShelf `json:"shelves"`
+}
+
 // InnertubeSession — from GET youtube.com Set-Cookie + ytcfg (stateless: caller holds)
 type InnertubeSession struct {
 	VisitorData            string `json:"visitor_data"`
