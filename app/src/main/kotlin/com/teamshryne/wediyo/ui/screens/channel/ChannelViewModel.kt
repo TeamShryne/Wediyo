@@ -24,6 +24,8 @@ data class ChannelUiState(
     val isVideosLoading: Boolean = false,
     val shorts: UiChannelShorts? = null,
     val shortsList: List<com.teamshryne.wediyo.data.model.UiShort> = emptyList(),
+    val shortsChips: List<UiChannelVideoChip> = emptyList(),
+    val selectedShortsChip: String? = null,
     val shortsContinuation: String = "",
     val isShortsLoading: Boolean = false,
     val selectedTab: String = "Home",
@@ -136,22 +138,60 @@ class ChannelViewModel : ViewModel() {
                     _state.value = _state.value.copy(
                         shorts = res,
                         shortsList = res.shorts,
+                        shortsChips = res.chips,
+                        selectedShortsChip = res.chips.firstOrNull { it.selected }?.title,
                         shortsContinuation = res.continuation,
                         isShortsLoading = false,
                         selectedTab = "Shorts"
                     )
                 } else {
-                    val merged = _state.value.shortsList + res.shorts
-                    val cont = if (res.continuation.isNotBlank()) res.continuation else _state.value.shortsContinuation
-                    _state.value = _state.value.copy(
-                        shorts = res,
-                        shortsList = merged,
-                        shortsContinuation = cont,
-                        isShortsLoading = false
-                    )
+                    // check if this was a chip reload (same as videos)
+                    val isChipReload = res.chips.isNotEmpty() && res.chips.any { it.selected } && res.shorts.isNotEmpty() && _state.value.shortsChips.isNotEmpty()
+                    if (isChipReload && continuation in _state.value.shortsChips.map { it.token }) {
+                        _state.value = _state.value.copy(
+                            shorts = res,
+                            shortsList = res.shorts,
+                            shortsChips = res.chips,
+                            selectedShortsChip = res.chips.firstOrNull { it.selected }?.title,
+                            shortsContinuation = res.continuation,
+                            isShortsLoading = false
+                        )
+                    } else {
+                        val merged = _state.value.shortsList + res.shorts
+                        val chips = if (res.chips.isNotEmpty()) res.chips else _state.value.shortsChips
+                        val cont = if (res.continuation.isNotBlank()) res.continuation else _state.value.shortsContinuation
+                        _state.value = _state.value.copy(
+                            shorts = res,
+                            shortsList = merged,
+                            shortsChips = chips,
+                            selectedShortsChip = chips.firstOrNull { it.selected }?.title ?: _state.value.selectedShortsChip,
+                            shortsContinuation = cont,
+                            isShortsLoading = false
+                        )
+                    }
                 }
             } catch (e: Exception) {
                 _state.value = _state.value.copy(isShortsLoading = false, error = e.message ?: "Failed to load shorts")
+            }
+        }
+    }
+
+    fun selectShortsChip(chip: UiChannelVideoChip) {
+        if (chip.token.isBlank()) return
+        _state.value = _state.value.copy(isShortsLoading = true, selectedShortsChip = chip.title, shortsContinuation = "")
+        viewModelScope.launch {
+            try {
+                val res = repo.fetchShorts(_state.value.browseId, chip.token)
+                _state.value = _state.value.copy(
+                    shorts = res,
+                    shortsList = res.shorts,
+                    shortsChips = res.chips.ifEmpty { _state.value.shortsChips },
+                    selectedShortsChip = res.chips.firstOrNull { it.selected }?.title ?: chip.title,
+                    shortsContinuation = res.continuation,
+                    isShortsLoading = false
+                )
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(isShortsLoading = false, error = e.message ?: "Chip failed")
             }
         }
     }

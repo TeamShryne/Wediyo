@@ -54,6 +54,7 @@ data class UiChannelVideos(
 data class UiChannelShorts(
     val header: UiChannelHeader?,
     val tabs: List<UiChannelTab>,
+    val chips: List<UiChannelVideoChip>,
     val shorts: List<UiShort>,
     val continuation: String
 )

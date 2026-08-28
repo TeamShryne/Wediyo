@@ -89,6 +89,16 @@ object WediyoEngine {
                 }
             }
         }
+        val chips = mutableListOf<UiChannelVideoChip>()
+        r.chipsJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    chips.add(UiChannelVideoChip(o.optString("title"), o.optBoolean("selected"), o.optString("token")))
+                }
+            }
+        }
         val shorts = mutableListOf<UiShort>()
         r.shortsJSON().let { js ->
             if (js != "[]") {
@@ -108,7 +118,7 @@ object WediyoEngine {
             }
         }
         val cont = obj.optString("continuation", "")
-        return UiChannelShorts(header, tabs, shorts, cont)
+        return UiChannelShorts(header, tabs, chips, shorts, cont)
     }
 
     private fun parseChannelVideos(r: com.teamshryne.wediyo.wediyo.ChannelVideosResult): UiChannelVideos {

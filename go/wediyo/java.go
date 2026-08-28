@@ -203,6 +203,13 @@ func (r *ChannelShortsResult) TabsJSON() string {
 	}
 	return string(b)
 }
+func (r *ChannelShortsResult) ChipsJSON() string {
+	b, _ := json.Marshal(r.Chips)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
 func (r *ChannelShortsResult) ToJSON() string {
 	b, _ := json.Marshal(r)
 	return string(b)

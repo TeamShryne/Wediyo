@@ -1125,20 +1125,21 @@ func collectChannelVideos(j map[string]interface{}) (*ChannelVideosResult, error
 
 const channelShortsParams = "EgZzaG9ydHPyBgUKA5oBAA=="
 
-func parseChannelShortsFromRichGrid(j map[string]interface{}) ([]ShortResult, string) {
+func parseChannelShortsFromRichGrid(j map[string]interface{}) ([]ChannelVideoChip, []ShortResult, string) {
+	var chips []ChannelVideoChip
 	var shorts []ShortResult
 	continuation := ""
 	contents, ok := j["contents"].(map[string]interface{})
 	if !ok {
-		return shorts, continuation
+		return chips, shorts, continuation
 	}
 	two, ok := contents["twoColumnBrowseResultsRenderer"].(map[string]interface{})
 	if !ok {
-		return shorts, continuation
+		return chips, shorts, continuation
 	}
 	tabsRaw, ok := two["tabs"].([]interface{})
 	if !ok {
-		return shorts, continuation
+		return chips, shorts, continuation
 	}
 	var richGrid map[string]interface{}
 	for _, t := range tabsRaw {
@@ -1163,7 +1164,10 @@ func parseChannelShortsFromRichGrid(j map[string]interface{}) ([]ShortResult, st
 		}
 	}
 	if richGrid == nil {
-		return shorts, continuation
+		return chips, shorts, continuation
+	}
+	if h, ok := richGrid["header"].(map[string]interface{}); ok {
+		chips = parseChannelVideoChipsFromRichGrid(h)
 	}
 	if arr, ok := richGrid["contents"].([]interface{}); ok {
 		for _, item := range arr {
@@ -1193,15 +1197,16 @@ func parseChannelShortsFromRichGrid(j map[string]interface{}) ([]ShortResult, st
 			}
 		}
 	}
-	return shorts, continuation
+	return chips, shorts, continuation
 }
 
 func collectChannelShorts(j map[string]interface{}) (*ChannelShortsResult, error) {
 	header := parseChannelHeader(j)
 	tabs := parseChannelTabs(j)
-	shorts, continuation := parseChannelShortsFromRichGrid(j)
+	chips, shorts, continuation := parseChannelShortsFromRichGrid(j)
 
-	if len(shorts) == 0 {
+	if len(chips) == 0 && len(shorts) == 0 {
+		var allChips []ChannelVideoChip
 		var allShorts []ShortResult
 		cont := continuation
 		if acts, ok := j["onResponseReceivedActions"].([]interface{}); ok {
@@ -1236,6 +1241,13 @@ func collectChannelShorts(j map[string]interface{}) (*ChannelShortsResult, error
 						if items, ok := reload["continuationItems"].([]interface{}); ok {
 							for _, it := range items {
 								if im, ok := it.(map[string]interface{}); ok {
+									if cb, ok := im["chipBarViewModel"].(map[string]interface{}); ok {
+										chips2 := parseChannelVideoChipsFromRichGrid(map[string]interface{}{"chipBarViewModel": cb})
+										if len(chips2) > 0 {
+											allChips = chips2
+										}
+										continue
+									}
 									if ri, ok := im["richItemRenderer"].(map[string]interface{}); ok {
 										if content, ok := ri["content"].(map[string]interface{}); ok {
 											if sl, ok := content["shortsLockupViewModel"]; ok {
@@ -1254,7 +1266,10 @@ func collectChannelShorts(j map[string]interface{}) (*ChannelShortsResult, error
 					}
 				}
 			}
-			if len(allShorts) > 0 || cont != "" {
+			if len(allShorts) > 0 || len(allChips) > 0 || cont != "" {
+				if len(allChips) > 0 {
+					chips = allChips
+				}
 				if len(allShorts) > 0 {
 					shorts = allShorts
 				}
@@ -1263,7 +1278,7 @@ func collectChannelShorts(j map[string]interface{}) (*ChannelShortsResult, error
 				}
 			}
 		}
-		if cmds, ok := j["onResponseReceivedCommands"].([]interface{}); ok && len(shorts) == 0 {
+		if cmds, ok := j["onResponseReceivedCommands"].([]interface{}); ok && len(shorts) == 0 && len(chips) == 0 {
 			for _, cmd := range cmds {
 				if cm, ok := cmd.(map[string]interface{}); ok {
 					if appendAct, ok := cm["appendContinuationItemsAction"].(map[string]interface{}); ok {
@@ -1281,6 +1296,20 @@ func collectChannelShorts(j map[string]interface{}) (*ChannelShortsResult, error
 													shorts = append(shorts, *s)
 												}
 											}
+										}
+									}
+								}
+							}
+						}
+					}
+					if reload, ok := cm["reloadContinuationItemsCommand"].(map[string]interface{}); ok {
+						if items, ok := reload["continuationItems"].([]interface{}); ok {
+							for _, it := range items {
+								if im, ok := it.(map[string]interface{}); ok {
+									if _, ok := im["chipBarViewModel"]; ok {
+										c2 := parseChannelVideoChipsFromRichGrid(map[string]interface{}{"chipBarViewModel": im["chipBarViewModel"]})
+										if len(c2) > 0 {
+											chips = c2
 										}
 									}
 								}
@@ -1319,10 +1348,10 @@ func collectChannelShorts(j map[string]interface{}) (*ChannelShortsResult, error
 			continuation = findToken(j)
 		}
 	}
-	return &ChannelShortsResult{Header: header, Tabs: tabs, Shorts: shorts, Continuation: continuation}, nil
+	return &ChannelShortsResult{Header: header, Tabs: tabs, Chips: chips, Shorts: shorts, Continuation: continuation}, nil
 }
 
-// FetchChannelShorts fetches channel shorts tab (grid, 3 cols). continuation paginates.
+// FetchChannelShorts fetches channel shorts tab (grid, 3 cols). continuation paginates (chip token or next page).
 func FetchChannelShorts(session *InnertubeSession, browseId string, continuation string) (*ChannelShortsResult, error) {
 	if strings.TrimSpace(browseId) == "" && strings.TrimSpace(continuation) == "" {
 		return nil, fmt.Errorf("browseId and continuation empty")
