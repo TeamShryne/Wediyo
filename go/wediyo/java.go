@@ -118,3 +118,47 @@ func (r *SearchResult) ToJSON() string {
 	b, _ := json.Marshal(r)
 	return string(b)
 }
+
+func (h *ChannelHeader) AvatarsJSON() string {
+	b, _ := json.Marshal(h.Avatars)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (h *ChannelHeader) BannersJSON() string {
+	b, _ := json.Marshal(h.Banners)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (t *ChannelTab) ToJSON() string {
+	b, _ := json.Marshal(t)
+	return string(b)
+}
+func (s *ChannelShelf) VideosJSON() string {
+	b, _ := json.Marshal(s.Videos)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *ChannelHomeResult) TabsJSON() string {
+	b, _ := json.Marshal(r.Tabs)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *ChannelHomeResult) ShelvesJSON() string {
+	b, _ := json.Marshal(r.Shelves)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *ChannelHomeResult) ToJSON() string {
+	b, _ := json.Marshal(r)
+	return string(b)
+}
