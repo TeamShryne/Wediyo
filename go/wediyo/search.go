@@ -656,12 +656,69 @@ func extractContinuationToken(v interface{}) string {
 	return ""
 }
 
-func collect(json map[string]interface{}) ([]VideoMetadata, []ChannelResult, []ShortResult, []PlaylistResult, *TopicCard, string, string) {
+func parseFilterChips(data interface{}) []FilterChip {
+	// find chipCloudRenderer anywhere (header.searchHeaderRenderer.chipBar.chipCloudRenderer)
+	var findRenderer func(v interface{}) map[string]interface{}
+	findRenderer = func(v interface{}) map[string]interface{} {
+		if m, ok := v.(map[string]interface{}); ok {
+			if cc, ok := m["chipCloudRenderer"]; ok {
+				if ccm, ok := cc.(map[string]interface{}); ok {
+					return ccm
+				}
+			}
+			for _, val := range m {
+				if res := findRenderer(val); res != nil {
+					return res
+				}
+			}
+		} else if arr, ok := v.([]interface{}); ok {
+			for _, el := range arr {
+				if res := findRenderer(el); res != nil {
+					return res
+				}
+			}
+		}
+		return nil
+	}
+	cc := findRenderer(data)
+	if cc == nil {
+		return nil
+	}
+	chipsRaw, _ := cc["chips"].([]interface{})
+	var out []FilterChip
+	for _, c := range chipsRaw {
+		if cm, ok := c.(map[string]interface{}); ok {
+			if r, ok := cm["chipCloudChipRenderer"].(map[string]interface{}); ok {
+				title := getText(r["text"])
+				if title == "" {
+					continue
+				}
+				// exclude Watched/Unwatched per product requirement
+				low := strings.ToLower(title)
+				if low == "watched" || low == "unwatched" {
+					continue
+				}
+				selected, _ := r["isSelected"].(bool)
+				token := ""
+				if ne, ok := r["navigationEndpoint"].(map[string]interface{}); ok {
+					if ccCmd, ok := ne["continuationCommand"].(map[string]interface{}); ok {
+						token, _ = ccCmd["token"].(string)
+					}
+				}
+				out = append(out, FilterChip{Title: title, Selected: selected, Token: token})
+			}
+		}
+	}
+	return out
+}
+
+func collect(json map[string]interface{}) ([]VideoMetadata, []ChannelResult, []ShortResult, []PlaylistResult, *TopicCard, []FilterChip, string, string) {
 	var videos []VideoMetadata
 	var channels []ChannelResult
 	var shorts []ShortResult
 	var playlists []PlaylistResult
 	var topicCard *TopicCard
+	chips := parseFilterChips(json)
 	continuation := ""
 	estimated := ""
 	if er, ok := json["estimatedResults"].(string); ok {
@@ -756,10 +813,105 @@ func collect(json map[string]interface{}) ([]VideoMetadata, []ChannelResult, []S
 			}
 		}
 	}
-	// page2 continuation
+	// helper to process itemSectionRenderer contents (shared for append/reload)
+	processItemSection := func(items []interface{}) {
+		for _, sub := range items {
+			if tok := extractContinuationToken(sub); tok != "" {
+				continuation = tok
+				continue
+			}
+			if sm, ok := sub.(map[string]interface{}); ok {
+				if vr, ok := sm["videoRenderer"]; ok {
+					if vm := parseVideoRenderer(vr); vm != nil {
+						videos = append(videos, *vm)
+					}
+				} else if cr, ok := sm["channelRenderer"]; ok {
+					if ch := parseChannelRenderer(cr); ch != nil {
+						channels = append(channels, *ch)
+					}
+				} else if lockup, ok := sm["lockupViewModel"]; ok {
+					if pl := parsePlaylistLockup(lockup); pl != nil {
+						playlists = append(playlists, *pl)
+					}
+				} else if card, ok := sm["officialCardViewModel"]; ok {
+					if topicCard == nil {
+						topicCard = parseOfficialCard(card)
+					}
+				} else if grid, ok := sm["gridShelfViewModel"]; ok {
+					if gm, ok := grid.(map[string]interface{}); ok {
+						if contents, ok := gm["contents"].([]interface{}); ok {
+							for _, sh := range contents {
+								if sm2, ok := sh.(map[string]interface{}); ok {
+									if sl, ok := sm2["shortsLockupViewModel"]; ok {
+										if s := parseShortLockup(sl); s != nil {
+											shorts = append(shorts, *s)
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	var processSectionList func(arr []interface{})
+	processSectionList = func(arr []interface{}) {
+		for _, sec := range arr {
+			if tok := extractContinuationToken(sec); tok != "" {
+				continuation = tok
+				continue
+			}
+			if sm, ok := sec.(map[string]interface{}); ok {
+				if itemSec, ok := sm["itemSectionRenderer"].(map[string]interface{}); ok {
+					if items, ok := itemSec["contents"].([]interface{}); ok {
+						processItemSection(items)
+					}
+				} else if vr, ok := sm["videoRenderer"]; ok {
+					if vm := parseVideoRenderer(vr); vm != nil {
+						videos = append(videos, *vm)
+					}
+				} else if cr, ok := sm["channelRenderer"]; ok {
+					if ch := parseChannelRenderer(cr); ch != nil {
+						channels = append(channels, *ch)
+					}
+				} else if lockup, ok := sm["lockupViewModel"]; ok {
+					if pl := parsePlaylistLockup(lockup); pl != nil {
+						playlists = append(playlists, *pl)
+					}
+				} else if grid, ok := sm["gridShelfViewModel"]; ok {
+					if gm, ok := grid.(map[string]interface{}); ok {
+						if contents, ok := gm["contents"].([]interface{}); ok {
+							for _, sh := range contents {
+								if sm2, ok := sh.(map[string]interface{}); ok {
+									if sl, ok := sm2["shortsLockupViewModel"]; ok {
+										if s := parseShortLockup(sl); s != nil {
+											shorts = append(shorts, *s)
+										}
+									}
+								}
+							}
+						}
+					}
+				} else if two, ok := sm["twoColumnSearchResultsRenderer"]; ok {
+					if tm, ok := two.(map[string]interface{}); ok {
+						if primary, ok := tm["primaryContents"].(map[string]interface{}); ok {
+							if section, ok := primary["sectionListRenderer"].(map[string]interface{}); ok {
+								if arr2, ok := section["contents"].([]interface{}); ok {
+									processSectionList(arr2)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	// page2 / reload continuation
 	if cmds, ok := json["onResponseReceivedCommands"].([]interface{}); ok {
 		for _, cmd := range cmds {
 			if cm, ok := cmd.(map[string]interface{}); ok {
+				// appendContinuationItemsAction (normal pagination)
 				if action, ok := cm["appendContinuationItemsAction"].(map[string]interface{}); ok {
 					if items, ok := action["continuationItems"].([]interface{}); ok {
 						for _, item := range items {
@@ -770,45 +922,7 @@ func collect(json map[string]interface{}) ([]VideoMetadata, []ChannelResult, []S
 							if im, ok := item.(map[string]interface{}); ok {
 								if itemSec, ok := im["itemSectionRenderer"].(map[string]interface{}); ok {
 									if contents, ok := itemSec["contents"].([]interface{}); ok {
-										for _, sub := range contents {
-											if tok := extractContinuationToken(sub); tok != "" {
-												continuation = tok
-												continue
-											}
-											if sm, ok := sub.(map[string]interface{}); ok {
-												if vr, ok := sm["videoRenderer"]; ok {
-													if vm := parseVideoRenderer(vr); vm != nil {
-														videos = append(videos, *vm)
-													}
-												} else if cr, ok := sm["channelRenderer"]; ok {
-													if ch := parseChannelRenderer(cr); ch != nil {
-														channels = append(channels, *ch)
-													}
-												} else if lockup, ok := sm["lockupViewModel"]; ok {
-													if pl := parsePlaylistLockup(lockup); pl != nil {
-														playlists = append(playlists, *pl)
-													}
-												} else if card, ok := sm["officialCardViewModel"]; ok {
-													if topicCard == nil {
-														topicCard = parseOfficialCard(card)
-													}
-												} else if grid, ok := sm["gridShelfViewModel"]; ok {
-													if gm, ok := grid.(map[string]interface{}); ok {
-														if contents, ok := gm["contents"].([]interface{}); ok {
-															for _, sh := range contents {
-																if sm2, ok := sh.(map[string]interface{}); ok {
-																	if sl, ok := sm2["shortsLockupViewModel"]; ok {
-																		if s := parseShortLockup(sl); s != nil {
-																			shorts = append(shorts, *s)
-																		}
-																	}
-																}
-															}
-														}
-													}
-												}
-											}
-										}
+										processItemSection(contents)
 									}
 								} else if vr, ok := im["videoRenderer"]; ok {
 									if vm := parseVideoRenderer(vr); vm != nil {
@@ -839,6 +953,44 @@ func collect(json map[string]interface{}) ([]VideoMetadata, []ChannelResult, []S
 								} else if card, ok := im["officialCardViewModel"]; ok {
 									if topicCard == nil {
 										topicCard = parseOfficialCard(card)
+									}
+								} else if two, ok := im["twoColumnSearchResultsRenderer"]; ok {
+									if tm, ok := two.(map[string]interface{}); ok {
+										if primary, ok := tm["primaryContents"].(map[string]interface{}); ok {
+											if section, ok := primary["sectionListRenderer"].(map[string]interface{}); ok {
+												if arr, ok := section["contents"].([]interface{}); ok {
+													processSectionList(arr)
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				// reloadContinuationItemsCommand (filter chips -> returns twoColumn + chipBar)
+				if reload, ok := cm["reloadContinuationItemsCommand"].(map[string]interface{}); ok {
+					if items, ok := reload["continuationItems"].([]interface{}); ok {
+						for _, item := range items {
+							if tok := extractContinuationToken(item); tok != "" {
+								continuation = tok
+								continue
+							}
+							if im, ok := item.(map[string]interface{}); ok {
+								if two, ok := im["twoColumnSearchResultsRenderer"]; ok {
+									if tm, ok := two.(map[string]interface{}); ok {
+										if primary, ok := tm["primaryContents"].(map[string]interface{}); ok {
+											if section, ok := primary["sectionListRenderer"].(map[string]interface{}); ok {
+												if arr, ok := section["contents"].([]interface{}); ok {
+													processSectionList(arr)
+												}
+											}
+										}
+									}
+								} else if itemSec, ok := im["itemSectionRenderer"].(map[string]interface{}); ok {
+									if contents, ok := itemSec["contents"].([]interface{}); ok {
+										processItemSection(contents)
 									}
 								}
 							}
@@ -873,7 +1025,7 @@ func collect(json map[string]interface{}) ([]VideoMetadata, []ChannelResult, []S
 		}
 		continuation = findToken(json)
 	}
-	return videos, channels, shorts, playlists, topicCard, continuation, estimated
+	return videos, channels, shorts, playlists, topicCard, chips, continuation, estimated
 }
 
 // Search performs innertube search with session cookies, handles pagination via continuation
@@ -963,7 +1115,7 @@ func Search(session *InnertubeSession, query string, continuation string) (*Sear
 	if err := json.NewDecoder(resp.Body).Decode(&j); err != nil {
 		return nil, fmt.Errorf("parse search json: %w", err)
 	}
-	videos, channels, shorts, playlists, topicCard, cont, estimated := collect(j)
+	videos, channels, shorts, playlists, topicCard, chips, cont, estimated := collect(j)
 	q := query
 	if strings.TrimSpace(query) == "" {
 		q = continuation
@@ -975,6 +1127,7 @@ func Search(session *InnertubeSession, query string, continuation string) (*Sear
 		Shorts:           shorts,
 		Playlists:        playlists,
 		TopicCard:        topicCard,
+		Chips:            chips,
 		Continuation:     cont,
 		EstimatedResults: estimated,
 	}, nil
