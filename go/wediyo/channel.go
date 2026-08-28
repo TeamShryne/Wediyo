@@ -1121,6 +1121,296 @@ func collectChannelVideos(j map[string]interface{}) (*ChannelVideosResult, error
 	return &ChannelVideosResult{Header: header, Tabs: tabs, Chips: chips, Videos: videos, Continuation: continuation}, nil
 }
 
+// ---------- channel shorts ----------
+
+const channelShortsParams = "EgZzaG9ydHPyBgUKA5oBAA=="
+
+func parseChannelShortsFromRichGrid(j map[string]interface{}) ([]ShortResult, string) {
+	var shorts []ShortResult
+	continuation := ""
+	contents, ok := j["contents"].(map[string]interface{})
+	if !ok {
+		return shorts, continuation
+	}
+	two, ok := contents["twoColumnBrowseResultsRenderer"].(map[string]interface{})
+	if !ok {
+		return shorts, continuation
+	}
+	tabsRaw, ok := two["tabs"].([]interface{})
+	if !ok {
+		return shorts, continuation
+	}
+	var richGrid map[string]interface{}
+	for _, t := range tabsRaw {
+		if tm, ok := t.(map[string]interface{}); ok {
+			if tr, ok := tm["tabRenderer"].(map[string]interface{}); ok {
+				selected, _ := tr["selected"].(bool)
+				title := ""
+				if s, ok := tr["title"].(string); ok {
+					title = s
+				} else {
+					title = getText(tr["title"])
+				}
+				if selected && strings.EqualFold(title, "Shorts") {
+					if c, ok := tr["content"].(map[string]interface{}); ok {
+						if rg, ok := c["richGridRenderer"].(map[string]interface{}); ok {
+							richGrid = rg
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+	if richGrid == nil {
+		return shorts, continuation
+	}
+	if arr, ok := richGrid["contents"].([]interface{}); ok {
+		for _, item := range arr {
+			if tok := extractContinuationToken(item); tok != "" {
+				continuation = tok
+				continue
+			}
+			if im, ok := item.(map[string]interface{}); ok {
+				if ri, ok := im["richItemRenderer"].(map[string]interface{}); ok {
+					if content, ok := ri["content"].(map[string]interface{}); ok {
+						if sl, ok := content["shortsLockupViewModel"]; ok {
+							if s := parseShortLockup(sl); s != nil {
+								shorts = append(shorts, *s)
+							}
+						} else if lockup, ok := content["lockupViewModel"]; ok {
+							// fallback
+							if s := parseShortLockup(lockup); s != nil {
+								shorts = append(shorts, *s)
+							}
+						}
+					}
+				} else if sl, ok := im["shortsLockupViewModel"]; ok {
+					if s := parseShortLockup(sl); s != nil {
+						shorts = append(shorts, *s)
+					}
+				}
+			}
+		}
+	}
+	return shorts, continuation
+}
+
+func collectChannelShorts(j map[string]interface{}) (*ChannelShortsResult, error) {
+	header := parseChannelHeader(j)
+	tabs := parseChannelTabs(j)
+	shorts, continuation := parseChannelShortsFromRichGrid(j)
+
+	if len(shorts) == 0 {
+		var allShorts []ShortResult
+		cont := continuation
+		if acts, ok := j["onResponseReceivedActions"].([]interface{}); ok {
+			for _, a := range acts {
+				if am, ok := a.(map[string]interface{}); ok {
+					if appendAct, ok := am["appendContinuationItemsAction"].(map[string]interface{}); ok {
+						if items, ok := appendAct["continuationItems"].([]interface{}); ok {
+							for _, it := range items {
+								if tok := extractContinuationToken(it); tok != "" {
+									cont = tok
+									continue
+								}
+								if im, ok := it.(map[string]interface{}); ok {
+									if ri, ok := im["richItemRenderer"].(map[string]interface{}); ok {
+										if content, ok := ri["content"].(map[string]interface{}); ok {
+											if sl, ok := content["shortsLockupViewModel"]; ok {
+												if s := parseShortLockup(sl); s != nil {
+													allShorts = append(allShorts, *s)
+												}
+											}
+										}
+									} else if sl, ok := im["shortsLockupViewModel"]; ok {
+										if s := parseShortLockup(sl); s != nil {
+											allShorts = append(allShorts, *s)
+										}
+									}
+								}
+							}
+						}
+					}
+					if reload, ok := am["reloadContinuationItemsCommand"].(map[string]interface{}); ok {
+						if items, ok := reload["continuationItems"].([]interface{}); ok {
+							for _, it := range items {
+								if im, ok := it.(map[string]interface{}); ok {
+									if ri, ok := im["richItemRenderer"].(map[string]interface{}); ok {
+										if content, ok := ri["content"].(map[string]interface{}); ok {
+											if sl, ok := content["shortsLockupViewModel"]; ok {
+												if s := parseShortLockup(sl); s != nil {
+													allShorts = append(allShorts, *s)
+												}
+											}
+										}
+									}
+								}
+								if tok := extractContinuationToken(it); tok != "" {
+									cont = tok
+								}
+							}
+						}
+					}
+				}
+			}
+			if len(allShorts) > 0 || cont != "" {
+				if len(allShorts) > 0 {
+					shorts = allShorts
+				}
+				if cont != "" {
+					continuation = cont
+				}
+			}
+		}
+		if cmds, ok := j["onResponseReceivedCommands"].([]interface{}); ok && len(shorts) == 0 {
+			for _, cmd := range cmds {
+				if cm, ok := cmd.(map[string]interface{}); ok {
+					if appendAct, ok := cm["appendContinuationItemsAction"].(map[string]interface{}); ok {
+						if items, ok := appendAct["continuationItems"].([]interface{}); ok {
+							for _, it := range items {
+								if tok := extractContinuationToken(it); tok != "" {
+									continuation = tok
+									continue
+								}
+								if im, ok := it.(map[string]interface{}); ok {
+									if ri, ok := im["richItemRenderer"].(map[string]interface{}); ok {
+										if content, ok := ri["content"].(map[string]interface{}); ok {
+											if sl, ok := content["shortsLockupViewModel"]; ok {
+												if s := parseShortLockup(sl); s != nil {
+													shorts = append(shorts, *s)
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	if continuation == "" {
+		continuation = extractContinuationToken(j)
+		if continuation == "" {
+			var findToken func(v interface{}) string
+			findToken = func(v interface{}) string {
+				if m, ok := v.(map[string]interface{}); ok {
+					if tok, ok := m["token"].(string); ok {
+						if _, hasReq := m["request"]; hasReq {
+							return tok
+						}
+					}
+					for _, val := range m {
+						if res := findToken(val); res != "" {
+							return res
+						}
+					}
+				} else if arr, ok := v.([]interface{}); ok {
+					for _, el := range arr {
+						if res := findToken(el); res != "" {
+							return res
+						}
+					}
+				}
+				return ""
+			}
+			continuation = findToken(j)
+		}
+	}
+	return &ChannelShortsResult{Header: header, Tabs: tabs, Shorts: shorts, Continuation: continuation}, nil
+}
+
+// FetchChannelShorts fetches channel shorts tab (grid, 3 cols). continuation paginates.
+func FetchChannelShorts(session *InnertubeSession, browseId string, continuation string) (*ChannelShortsResult, error) {
+	if strings.TrimSpace(browseId) == "" && strings.TrimSpace(continuation) == "" {
+		return nil, fmt.Errorf("browseId and continuation empty")
+	}
+	client := &http.Client{Timeout: 15 * time.Second}
+	urlStr := fmt.Sprintf("https://www.youtube.com/youtubei/v1/browse?prettyPrint=false&key=%s", session.APIKey)
+	tz := "UTC"
+	if idx := strings.Index(session.Pref, "tz="); idx != -1 {
+		rest := session.Pref[idx+3:]
+		if amp := strings.Index(rest, "&"); amp != -1 {
+			tz = rest[:amp]
+		} else {
+			tz = rest
+		}
+	}
+	originalURL := ""
+	if strings.TrimSpace(browseId) != "" {
+		if strings.HasPrefix(browseId, "@") {
+			originalURL = "https://www.youtube.com/" + browseId + "/shorts"
+		} else if strings.HasPrefix(browseId, "UC") {
+			originalURL = "https://www.youtube.com/channel/" + browseId + "/shorts"
+		} else {
+			originalURL = "https://www.youtube.com/channel/" + browseId + "/shorts"
+		}
+	} else {
+		originalURL = "https://www.youtube.com"
+	}
+	context := map[string]interface{}{
+		"client": map[string]interface{}{
+			"hl": "en", "gl": "IN", "remoteHost": "", "deviceMake": "", "deviceModel": "",
+			"visitorData": session.VisitorData, "userAgent": userAgent + ",gzip(gfe)", "clientName": session.ClientName, "clientVersion": session.ClientVersion,
+			"osName": "Windows", "osVersion": "10.0", "originalUrl": originalURL, "screenPixelDensity": 2, "platform": "DESKTOP", "clientFormFactor": "UNKNOWN_FORM_FACTOR",
+			"configInfo": map[string]interface{}{}, "timeZone": tz, "browserName": "Chrome", "browserVersion": "124.0.0.0",
+			"acceptHeader": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "screenWidthPoints": 1280, "screenHeightPoints": 720, "utcOffsetMinutes": 0, "userInterfaceTheme": "USER_INTERFACE_THEME_LIGHT",
+		},
+		"user":    map[string]interface{}{"lockedSafetyMode": false},
+		"request": map[string]interface{}{"useSsl": true, "internalExperimentFlags": []interface{}{}, "consistencyTokenJars": []interface{}{}},
+	}
+	if session.RolloutToken != "" {
+		if c, ok := context["client"].(map[string]interface{}); ok {
+			c["rolloutToken"] = session.RolloutToken
+		}
+	}
+	bodyMap := map[string]interface{}{"context": context}
+	if strings.TrimSpace(continuation) != "" {
+		bodyMap["continuation"] = continuation
+	} else {
+		bodyMap["browseId"] = browseId
+		bodyMap["params"] = channelShortsParams
+	}
+	bodyBytes, _ := json.Marshal(bodyMap)
+	referer := originalURL
+	req, err := http.NewRequest("POST", urlStr, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Origin", "https://www.youtube.com")
+	req.Header.Set("Referer", referer)
+	req.Header.Set("X-Goog-Visitor-Id", session.VisitorData)
+	req.Header.Set("X-Youtube-Client-Name", "1")
+	req.Header.Set("X-Youtube-Client-Version", session.ClientVersion)
+	req.Header.Set("X-Youtube-Bootstrap-Logged-In", "false")
+	req.Header.Set("Cookie", session.CookieHeader)
+	req.Header.Set("User-Agent", userAgent)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("browse POST: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(resp.Body)
+		s := buf.String()
+		if len(s) > 500 {
+			s = s[:500]
+		}
+		return nil, fmt.Errorf("browse status %d: %s", resp.StatusCode, s)
+	}
+	var j map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&j); err != nil {
+		return nil, fmt.Errorf("parse browse json: %w", err)
+	}
+	return collectChannelShorts(j)
+}
+
 // FetchChannelVideos fetches channel videos tab (Latest by default). If continuation != "" it paginates or applies chip filter (continuation is chip token or next page token).
 func FetchChannelVideos(session *InnertubeSession, browseId string, continuation string) (*ChannelVideosResult, error) {
 	if strings.TrimSpace(browseId) == "" && strings.TrimSpace(continuation) == "" {

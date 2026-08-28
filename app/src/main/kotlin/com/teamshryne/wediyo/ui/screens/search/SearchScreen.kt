@@ -1,8 +1,11 @@
 package com.teamshryne.wediyo.ui.screens.search
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -10,13 +13,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.teamshryne.wediyo.data.prefs.SettingsManager
 import com.teamshryne.wediyo.ui.components.*
+import com.teamshryne.wediyo.util.bestThumbUrl
 import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -130,27 +139,44 @@ fun SearchScreen(onBack: () -> Unit, onChannelClick: (String) -> Unit = {}, vm: 
             val r = state.result
             if (r != null) {
                 LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
-                    // Topic card — polished
+                    // Official card / Topic card — avatar, handle, subs•videos
                     r.topicTitle?.let { t ->
                         item {
                             Card(
                                 Modifier
                                     .fillMaxWidth()
-                                    .padding(12.dp),
+                                    .padding(12.dp)
+                                    .let { m -> if (!r.topicBrowseId.isNullOrBlank()) m.clickable { onChannelClick(r.topicBrowseId!!) } else m },
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                             ) {
                                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        Modifier
-                                            .size(40.dp)
-                                            .padding(0.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) { Text("◉", color = MaterialTheme.colorScheme.tertiary) }
+                                    AsyncImage(
+                                        model = bestThumbUrl(r.topicAvatarsJson ?: "[]", r.topicAvatar ?: "", "high"),
+                                        contentDescription = t,
+                                        modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFF222222)),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    Spacer(Modifier.width(12.dp))
                                     Column(Modifier.weight(1f)) {
-                                        Text(t, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold))
-                                        if (!r.topicBrowseId.isNullOrBlank()) {
-                                            Text(r.topicBrowseId, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                t,
+                                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            if (r.topicVerified) {
+                                                Spacer(Modifier.width(4.dp))
+                                                Text("✓", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                                            }
+                                        }
+                                        r.topicHandle?.let { h ->
+                                            Text(h, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        }
+                                        val meta = listOfNotNull(r.topicSubs, r.topicVideoCount).filter { it.isNotBlank() }.joinToString(" • ")
+                                        if (meta.isNotBlank()) {
+                                            Text(meta, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                                         }
                                     }
                                 }

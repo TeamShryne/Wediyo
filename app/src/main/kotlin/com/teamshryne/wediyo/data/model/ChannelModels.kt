@@ -50,3 +50,10 @@ data class UiChannelVideos(
     val videos: List<UiVideo>,
     val continuation: String
 )
+
+data class UiChannelShorts(
+    val header: UiChannelHeader?,
+    val tabs: List<UiChannelTab>,
+    val shorts: List<UiShort>,
+    val continuation: String
+)
