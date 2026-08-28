@@ -32,7 +32,7 @@ import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChannelScreen(browseId: String, onBack: () -> Unit, onPlaylistClick: (String) -> Unit = {}, onCourseClick: (String) -> Unit = {}, onShowClick: (String) -> Unit = {}, vm: ChannelViewModel = viewModel()) {
+fun ChannelScreen(browseId: String, onBack: () -> Unit, onPlaylistClick: (String) -> Unit = {}, onCourseClick: (String) -> Unit = {}, onShowClick: (String) -> Unit = {}, onPodcastClick: (String) -> Unit = {}, vm: ChannelViewModel = viewModel()) {
     val state by vm.state.collectAsState()
     val ctx = LocalContext.current
     val settings = remember { SettingsManager(ctx) }
@@ -235,7 +235,7 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, onPlaylistClick: (String
                             if (state.podcastsList.isNotEmpty()) {
                                 items(state.podcastsList.size) { idx ->
                                     val p = state.podcastsList[idx]
-                                    Row(Modifier.fillMaxWidth().clickable { }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Row(Modifier.fillMaxWidth().clickable { onPodcastClick(p.browseId.ifBlank { p.podcastId }) }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF111111))) {
                                             AsyncImage(model = bestThumbUrl(p.thumbsJson, p.thumbUrl, "high"), contentDescription = p.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                             if (p.episodeCountText.isNotBlank()) Box(Modifier.align(Alignment.BottomEnd).padding(4.dp).background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 2.dp)) { Text(p.episodeCountText, color = Color.White, style = MaterialTheme.typography.labelSmall) }

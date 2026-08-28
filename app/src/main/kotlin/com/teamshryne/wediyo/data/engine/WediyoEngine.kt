@@ -129,6 +129,117 @@ object WediyoEngine {
         parseShowDetail(r)
     }
 
+    suspend fun fetchPodcast(playlistId: String, continuation: String = ""): UiPodcastDetail = withContext(Dispatchers.IO) {
+        val s = getSession()
+        // Use playlist fetch as base; podcast is playlist with square thumb. Until AAR rebuilt with FetchPodcast, fallback to FetchPlaylist.
+        // After CI builds new AAR, this can be switched to Wediyo.fetchPodcast
+        try {
+            val cls = Wediyo::class.java
+            val method = cls.methods.find { it.name == "fetchPodcast" }
+            if (method != null) {
+                val r = method.invoke(null, s, playlistId, continuation)
+                if (r != null) return@withContext parsePodcastDetailGeneric(r)
+            }
+        } catch (_: Exception) {}
+        // Fallback: use playlist API and map to podcast (header will be populated via playlist but podcast episodes are same)
+        val r2 = Wediyo.fetchPlaylist(s, playlistId, continuation)
+        parsePodcastViaPlaylist(r2, playlistId, continuation)
+    }
+
+    private fun parsePodcastViaPlaylist(r: com.teamshryne.wediyo.wediyo.PlaylistDetailResult, pid: String, cont: String): UiPodcastDetail {
+        // Map playlist detail to podcast detail (common structure: lockupViewModel episodes)
+        val jsonStr = r.toJSON()
+        val obj = JSONObject(jsonStr)
+        val headerObj = obj.optJSONObject("header")
+        val header = headerObj?.let { h ->
+            UiPodcastHeader(
+                title = h.optString("title", ""),
+                description = h.optString("description", ""),
+                thumbUrl = h.optString("thumbnail_url", ""),
+                thumbsJson = h.optJSONArray("thumbnails")?.toString() ?: "[]",
+                channelName = h.optString("channel_name", ""),
+                channelId = h.optString("channel_id", ""),
+                channelHandle = h.optString("channel_handle", ""),
+                channelAvatarUrl = h.optString("channel_avatar_url", ""),
+                channelAvatarsJson = h.optJSONArray("channel_avatars")?.toString() ?: "[]",
+                episodeCountText = h.optString("video_count_text", ""),
+                episodeCount = h.optInt("video_count", 0),
+                updatedText = h.optString("last_updated_text", "")
+            )
+        }
+        val episodes = mutableListOf<UiPodcastEpisode>()
+        r.videosJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    episodes.add(
+                        UiPodcastEpisode(
+                            videoId = o.optString("video_id", ""),
+                            title = o.optString("title", ""),
+                            thumbUrl = o.optString("thumbnail_url", ""),
+                            thumbsJson = o.optJSONArray("thumbnails")?.toString() ?: "[]",
+                            durationText = o.optString("duration_text", ""),
+                            durationSecs = 0,
+                            channelName = o.optString("channel_name", ""),
+                            channelId = o.optString("channel_id", ""),
+                            publishedText = o.optString("published_time_text", ""),
+                            viewCountText = o.optString("view_count_text", "")
+                        )
+                    )
+                }
+            }
+        }
+        return UiPodcastDetail(header, episodes, obj.optString("continuation", ""), obj.optString("playlist_id", pid))
+    }
+
+    private fun parsePodcastDetailGeneric(r: Any): UiPodcastDetail {
+        val jsonStr = try { r::class.java.getMethod("toJSON").invoke(r) as String } catch (_: Exception) { "{}" }
+        val obj = JSONObject(jsonStr)
+        val headerObj = obj.optJSONObject("header")
+        val header = headerObj?.let { h ->
+            UiPodcastHeader(
+                title = h.optString("title", ""),
+                description = h.optString("description", ""),
+                thumbUrl = h.optString("thumbnail_url", ""),
+                thumbsJson = h.optJSONArray("thumbnails")?.toString() ?: "[]",
+                channelName = h.optString("channel_name", ""),
+                channelId = h.optString("channel_id", ""),
+                channelHandle = h.optString("channel_handle", ""),
+                channelAvatarUrl = h.optString("channel_avatar_url", ""),
+                channelAvatarsJson = h.optJSONArray("channel_avatars")?.toString() ?: "[]",
+                episodeCountText = h.optString("episode_count_text", ""),
+                episodeCount = h.optInt("episode_count", 0),
+                updatedText = h.optString("updated_text", "")
+            )
+        }
+        val episodes = mutableListOf<UiPodcastEpisode>()
+        val episodesJson = try { r::class.java.getMethod("episodesJSON").invoke(r) as String } catch (_: Exception) { "[]" }
+        episodesJson.let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    episodes.add(
+                        UiPodcastEpisode(
+                            videoId = o.optString("video_id", ""),
+                            title = o.optString("title", ""),
+                            thumbUrl = o.optString("thumbnail_url", ""),
+                            thumbsJson = o.optJSONArray("thumbnails")?.toString() ?: "[]",
+                            durationText = o.optString("duration_text", ""),
+                            durationSecs = o.optInt("duration_secs", 0),
+                            channelName = o.optString("channel_name", ""),
+                            channelId = o.optString("channel_id", ""),
+                            publishedText = o.optString("published_text", ""),
+                            viewCountText = o.optString("view_count_text", "")
+                        )
+                    )
+                }
+            }
+        }
+        return UiPodcastDetail(header, episodes, obj.optString("continuation", ""), obj.optString("playlist_id", ""))
+    }
+
     suspend fun parseCourseDetail(r: com.teamshryne.wediyo.wediyo.CourseDetailResult): UiCourseDetail {
         val jsonStr = r.toJSON()
         val obj = JSONObject(jsonStr)

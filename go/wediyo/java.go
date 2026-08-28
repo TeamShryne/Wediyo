@@ -536,3 +536,36 @@ func (r *ShowDetailResult) ToJSON() string {
 	b, _ := json.Marshal(r)
 	return string(b)
 }
+
+func (v *PodcastEpisode) ThumbnailsJSON() string {
+	b, _ := json.Marshal(v.Thumbnails)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (h *PodcastHeader) ThumbnailsJSON() string {
+	b, _ := json.Marshal(h.Thumbnails)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (h *PodcastHeader) ChannelAvatarsJSON() string {
+	b, _ := json.Marshal(h.ChannelAvatars)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *PodcastDetailResult) EpisodesJSON() string {
+	b, _ := json.Marshal(r.Episodes)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *PodcastDetailResult) ToJSON() string {
+	b, _ := json.Marshal(r)
+	return string(b)
+}

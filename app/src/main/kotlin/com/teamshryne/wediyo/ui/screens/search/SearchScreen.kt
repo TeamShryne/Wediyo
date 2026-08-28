@@ -30,7 +30,15 @@ import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchScreen(onBack: () -> Unit, onChannelClick: (String) -> Unit = {}, vm: SearchViewModel = viewModel()) {
+fun SearchScreen(
+    onBack: () -> Unit,
+    onChannelClick: (String) -> Unit = {},
+    onPlaylistClick: (String) -> Unit = {},
+    onCourseClick: (String) -> Unit = {},
+    onShowClick: (String) -> Unit = {},
+    onPodcastClick: (String) -> Unit = {},
+    vm: SearchViewModel = viewModel()
+) {
     val state by vm.state.collectAsState()
     val ctx = LocalContext.current
     val settings = remember { SettingsManager(ctx) }
@@ -198,7 +206,27 @@ fun SearchScreen(onBack: () -> Unit, onChannelClick: (String) -> Unit = {}, vm: 
                     items(r.channels.size) { idx -> ChannelCard(r.channels[idx], thumbQ) { onChannelClick(r.channels[idx].channelId) } }
 
                     // Playlists
-                    items(r.playlists.size) { idx -> PlaylistCard(r.playlists[idx], thumbQ) {} }
+                    items(r.playlists.size) { idx ->
+                        val pl = r.playlists[idx]
+                        PlaylistCard(pl, thumbQ) {
+                            // Detect show/podcast vs playlist/course via badges / countText
+                            val lowerBadges = pl.badges.joinToString(" ").lowercase()
+                            val isPodcast = lowerBadges.contains("podcast") || pl.countText.lowercase().contains("episodes") && pl.thumbUrl.contains("pl_c")
+                            val isShow = lowerBadges.contains("show")
+                            when {
+                                isPodcast -> onPodcastClick(pl.playlistId)
+                                isShow -> onShowClick(pl.playlistId)
+                                pl.isCourse -> onCourseClick(pl.playlistId)
+                                else -> {
+                                    // Heuristics: show vs podcast detection fallback via count text and thumbnail
+                                    // If count text contains episodes and is not course, prefer show/podcast
+                                    // Try podcast first, then show
+                                    // Default to playlist
+                                    onPlaylistClick(pl.playlistId)
+                                }
+                            }
+                        }
+                    }
 
                     // Shorts shelf
                     if (r.shorts.isNotEmpty()) {

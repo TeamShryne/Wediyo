@@ -10,22 +10,91 @@ import (
 )
 
 func parseShowEpisode(m interface{}, idx int) *ShowEpisode {
-	pvr, ok := m.(map[string]interface{})
+	lm, ok := m.(map[string]interface{})
 	if !ok {
-		if lm, ok := m.(map[string]interface{}); ok {
-			if inner, ok := lm["playlistVideoRenderer"].(map[string]interface{}); ok {
-				pvr = inner
-			} else {
-				return nil
+		return nil
+	}
+	// Unwrap if wrapped
+	if inner, ok := lm["playlistVideoRenderer"].(map[string]interface{}); ok {
+		lm = inner
+	} else if inner, ok := lm["lockupViewModel"].(map[string]interface{}); ok {
+		lm = inner
+	}
+	// Detect lockupViewModel format (contentId, LOCKUP_CONTENT_TYPE_VIDEO)
+	if contentId, ok := lm["contentId"].(string); ok && contentId != "" {
+		ctype, _ := lm["contentType"].(string)
+		if ctype != "" && ctype != "LOCKUP_CONTENT_TYPE_VIDEO" {
+			// still allow if it looks like video
+		}
+		title := ""
+		duration := ""
+		secs := 0
+		var thumbs []Thumbnail
+		thumbURL := ""
+		// contentImage -> thumbnailViewModel
+		if ci, ok := lm["contentImage"].(map[string]interface{}); ok {
+			if tv, ok := ci["thumbnailViewModel"].(map[string]interface{}); ok {
+				if img, ok := tv["image"].(map[string]interface{}); ok {
+					ths := parseSourcesThumbnails(img)
+					if len(ths) > 0 {
+						thumbs = ths
+						thumbURL = ths[len(ths)-1].URL
+					}
+				}
+				if overlays, ok := tv["overlays"].([]interface{}); ok {
+					for _, ov := range overlays {
+						if om, ok := ov.(map[string]interface{}); ok {
+							if bot, ok := om["thumbnailBottomOverlayViewModel"].(map[string]interface{}); ok {
+								if badges, ok := bot["badges"].([]interface{}); ok {
+									for _, b := range badges {
+										if bm, ok := b.(map[string]interface{}); ok {
+											if tb, ok := bm["thumbnailBadgeViewModel"].(map[string]interface{}); ok {
+												if txt, ok := tb["text"].(string); ok && strings.Contains(txt, ":") {
+													duration = txt
+													secs = int(parseDuration(txt))
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
 			}
-		} else {
-			return nil
+		}
+		if meta, ok := lm["metadata"].(map[string]interface{}); ok {
+			if lockup, ok := meta["lockupMetadataViewModel"].(map[string]interface{}); ok {
+				if t, ok := lockup["title"].(map[string]interface{}); ok {
+					if c, ok := t["content"].(string); ok {
+						title = c
+					} else {
+						title = getText(t)
+					}
+				}
+			}
+		}
+		if title == "" {
+			title = contentId
+		}
+		if thumbURL == "" {
+			thumbURL = fmt.Sprintf("https://i.ytimg.com/vi/%s/hqdefault.jpg", contentId)
+			thumbs = []Thumbnail{{URL: thumbURL, Width: 480, Height: 360}}
+		}
+		indexText := fmt.Sprintf("%d", idx+1)
+		return &ShowEpisode{
+			VideoId:      contentId,
+			Title:        title,
+			ThumbnailURL: thumbURL,
+			Thumbnails:   thumbs,
+			DurationText: duration,
+			DurationSecs: secs,
+			IndexText:    indexText,
+			IsUnplayable: false,
 		}
 	}
-	// handle wrapper
-	if inner, ok := pvr["playlistVideoRenderer"].(map[string]interface{}); ok {
-		pvr = inner
-	}
+	// Fallback to old playlistVideoRenderer style
+	pvr := lm
 	vid, _ := pvr["videoId"].(string)
 	if vid == "" {
 		return nil
@@ -72,9 +141,6 @@ func parseShowEpisode(m interface{}, idx int) *ShowEpisode {
 	if b, ok := pvr["isPlayable"].(bool); ok && !b {
 		isUnplayable = true
 	}
-	episodeLabel := ""
-	// try to get from thumbnailOverlays? not needed
-	_ = episodeLabel
 	return &ShowEpisode{
 		VideoId:      vid,
 		Title:        title,
@@ -139,6 +205,57 @@ func parseShowHeader(j map[string]interface{}) *ShowHeader {
 										}
 										if prim, ok := tvo["primaryActionButton"]; ok {
 											_ = prim
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	// fallback modern header: header.pageHeaderRenderer.content.pageHeaderViewModel
+	if h.Title == "" {
+		if hdr, ok := j["header"].(map[string]interface{}); ok {
+			if pr, ok := hdr["pageHeaderRenderer"].(map[string]interface{}); ok {
+				if c, ok := pr["content"].(map[string]interface{}); ok {
+					if vm, ok := c["pageHeaderViewModel"].(map[string]interface{}); ok {
+						if t, ok := vm["title"].(map[string]interface{}); ok {
+							if dyn, ok := t["dynamicTextViewModel"].(map[string]interface{}); ok {
+								if txt, ok := dyn["text"].(map[string]interface{}); ok {
+									if cont, ok := txt["content"].(string); ok {
+										h.Title = cont
+									}
+								}
+							}
+						}
+						if h.Description == "" {
+							if desc, ok := vm["description"].(map[string]interface{}); ok {
+								if dp, ok := desc["descriptionPreviewViewModel"].(map[string]interface{}); ok {
+									_ = dp
+								}
+							}
+						}
+						if hero, ok := vm["heroImage"].(map[string]interface{}); ok {
+							if cp, ok := hero["contentPreviewImageViewModel"].(map[string]interface{}); ok {
+								if img, ok := cp["image"].(map[string]interface{}); ok {
+									ths := parseSourcesThumbnails(img)
+									if len(ths) > 0 {
+										h.Thumbnails = ths
+										h.ThumbnailURL = ths[len(ths)-1].URL
+									}
+								}
+							}
+						}
+						if bg, ok := vm["background"].(map[string]interface{}); ok {
+							if ccvm, ok := bg["cinematicContainerViewModel"].(map[string]interface{}); ok {
+								if bic, ok := ccvm["backgroundImageConfig"].(map[string]interface{}); ok {
+									if img, ok := bic["image"].(map[string]interface{}); ok {
+										ths := parseSourcesThumbnails(img)
+										if len(ths) > 0 && len(h.Thumbnails) == 0 {
+											h.Thumbnails = ths
+											h.ThumbnailURL = ths[len(ths)-1].URL
 										}
 									}
 								}
@@ -283,6 +400,11 @@ func parseShowEpisodes(j map[string]interface{}) ([]ShowEpisode, string) {
 									episodes = append(episodes, *ep)
 									idx++
 								}
+							} else if _, ok := im["lockupViewModel"]; ok {
+								if ep := parseShowEpisode(im, idx); ep != nil {
+									episodes = append(episodes, *ep)
+									idx++
+								}
 							} else if _, ok := im["playlistShowMetadataRenderer"]; ok {
 								// header, skip
 							} else if _, ok := im["continuationItemRenderer"]; ok {
@@ -300,6 +422,27 @@ func parseShowEpisodes(j map[string]interface{}) ([]ShowEpisode, string) {
 			} else {
 				if tok := extractContinuationToken(sm); tok != "" {
 					continuation = tok
+				}
+			}
+		}
+	}
+	// Also handle case where episodes are directly in itemSectionRenderer without playlistVideoListRenderer wrapper (new UI)
+	if len(episodes) == 0 {
+		for _, sec := range arr {
+			if sm, ok := sec.(map[string]interface{}); ok {
+				if isr, ok := sm["itemSectionRenderer"].(map[string]interface{}); ok {
+					if contents2, ok := isr["contents"].([]interface{}); ok {
+						for _, item := range contents2 {
+							if im, ok := item.(map[string]interface{}); ok {
+								if _, ok := im["lockupViewModel"]; ok {
+									if ep := parseShowEpisode(im, idx); ep != nil {
+										episodes = append(episodes, *ep)
+										idx++
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -410,6 +553,10 @@ func collectShowDetail(j map[string]interface{}) (*ShowDetailResult, error) {
 										if ep := parseShowEpisode(im, len(all)); ep != nil {
 											all = append(all, *ep)
 										}
+									} else if _, ok := im["lockupViewModel"]; ok {
+										if ep := parseShowEpisode(im, len(all)); ep != nil {
+											all = append(all, *ep)
+										}
 									}
 									if pvlWrap, ok := im["itemSectionRenderer"]; ok {
 										if sem, ok := pvlWrap.(map[string]interface{}); ok {
@@ -423,6 +570,16 @@ func collectShowDetail(j map[string]interface{}) (*ShowDetailResult, error) {
 																		all = append(all, *ep)
 																	}
 																}
+															}
+														} else if _, ok := sm2["lockupViewModel"]; ok {
+															if ep := parseShowEpisode(sm2, len(all)); ep != nil {
+																all = append(all, *ep)
+															}
+														}
+													} else if _, ok := sub.(map[string]interface{}); ok {
+														if _, hasLockup := sub.(map[string]interface{})["lockupViewModel"]; hasLockup {
+															if ep := parseShowEpisode(sub, len(all)); ep != nil {
+																all = append(all, *ep)
 															}
 														}
 													}

@@ -69,11 +69,22 @@ class ChannelViewModel : ViewModel() {
 
     fun load(browseId: String) {
         if (browseId.isBlank()) return
+        // If already loaded same browseId and not loading, skip to avoid resetting tab on back navigation
+        if (_state.value.browseId == browseId && _state.value.home != null && !_state.value.isLoading) return
         _state.value = _state.value.copy(browseId = browseId, isLoading = true, error = null)
         viewModelScope.launch {
             try {
                 val h = repo.fetchHome(browseId)
-                _state.value = _state.value.copy(home = h, isLoading = false, selectedTab = h.tabs.firstOrNull { it.selected }?.title ?: "Home")
+                val serverTab = h.tabs.firstOrNull { it.selected }?.title ?: "Home"
+                // Preserve user's current tab if they already switched before this load completed
+                val currentTab = _state.value.selectedTab
+                val keepTab = when {
+                    _state.value.home == null && currentTab == "Home" -> serverTab
+                    _state.value.home == null && currentTab != "Home" -> currentTab
+                    _state.value.browseId != browseId -> serverTab
+                    else -> currentTab // already loaded, keep user tab
+                }
+                _state.value = _state.value.copy(home = h, isLoading = false, selectedTab = keepTab)
             } catch (e: Exception) {
                 _state.value = _state.value.copy(isLoading = false, error = e.message ?: "Failed to load channel")
             }

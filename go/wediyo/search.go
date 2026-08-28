@@ -520,9 +520,16 @@ func parsePlaylistLockup(v interface{}) *PlaylistResult {
 		return nil
 	}
 	ct, _ := m["contentType"].(string)
-	if ct != "LOCKUP_CONTENT_TYPE_PLAYLIST" && ct != "LOCKUP_CONTENT_TYPE_COURSE" {
-		// also handle course as playlist
-		if ct != "" && ct != "LOCKUP_CONTENT_TYPE_PLAYLIST" {
+	allowed := map[string]bool{
+		"LOCKUP_CONTENT_TYPE_PLAYLIST": true,
+		"LOCKUP_CONTENT_TYPE_COURSE":   true,
+		"LOCKUP_CONTENT_TYPE_PODCAST":  true,
+		"LOCKUP_CONTENT_TYPE_SHOW":     true,
+	}
+	if ct != "" && !allowed[ct] {
+		// Allow any playlist-like contentType that contains PLAYLIST, COURSE, PODCAST, SHOW
+		lower := strings.ToLower(ct)
+		if !strings.Contains(lower, "playlist") && !strings.Contains(lower, "course") && !strings.Contains(lower, "podcast") && !strings.Contains(lower, "show") {
 			return nil
 		}
 	}
