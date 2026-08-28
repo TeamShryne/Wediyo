@@ -240,3 +240,29 @@ func (r *ChannelLiveResult) ToJSON() string {
 	b, _ := json.Marshal(r)
 	return string(b)
 }
+
+func (p *ChannelPodcast) ThumbnailsJSON() string {
+	b, _ := json.Marshal(p.Thumbnails)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *ChannelPodcastsResult) PodcastsJSON() string {
+	b, _ := json.Marshal(r.Podcasts)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *ChannelPodcastsResult) TabsJSON() string {
+	b, _ := json.Marshal(r.Tabs)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *ChannelPodcastsResult) ToJSON() string {
+	b, _ := json.Marshal(r)
+	return string(b)
+}

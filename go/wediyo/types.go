@@ -170,6 +170,24 @@ type ChannelLiveResult struct {
 	Continuation string             `json:"continuation"`
 }
 
+type ChannelPodcast struct {
+	PodcastID        string      `json:"podcast_id"` // PL...
+	BrowseID         string      `json:"browse_id"`  // VL...
+	Title            string      `json:"title"`
+	ThumbnailURL     string      `json:"thumbnail_url"`
+	Thumbnails       []Thumbnail `json:"thumbnails"`
+	EpisodeCountText string      `json:"episode_count_text"` // 65 episodes
+	EpisodeCount     int         `json:"episode_count"`
+	UpdatedText      string      `json:"updated_text"` // Updated today
+}
+
+type ChannelPodcastsResult struct {
+	Header       *ChannelHeader   `json:"header,omitempty"`
+	Tabs         []ChannelTab     `json:"tabs"`
+	Podcasts     []ChannelPodcast `json:"podcasts"`
+	Continuation string           `json:"continuation"`
+}
+
 // InnertubeSession — from GET youtube.com Set-Cookie + ytcfg (stateless: caller holds)
 type InnertubeSession struct {
 	VisitorData            string `json:"visitor_data"`

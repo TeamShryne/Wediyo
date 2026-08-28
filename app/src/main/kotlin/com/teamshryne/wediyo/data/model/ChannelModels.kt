@@ -66,3 +66,21 @@ data class UiChannelLive(
     val lives: List<UiVideo>,
     val continuation: String
 )
+
+data class UiChannelPodcast(
+    val podcastId: String,
+    val browseId: String,
+    val title: String,
+    val thumbUrl: String,
+    val thumbsJson: String,
+    val episodeCountText: String,
+    val episodeCount: Int,
+    val updatedText: String
+)
+
+data class UiChannelPodcasts(
+    val header: UiChannelHeader?,
+    val tabs: List<UiChannelTab>,
+    val podcasts: List<UiChannelPodcast>,
+    val continuation: String
+)
