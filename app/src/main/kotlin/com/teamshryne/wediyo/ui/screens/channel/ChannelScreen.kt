@@ -242,8 +242,28 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                             }
                         }
                     } else if (state.selectedTab == "Shorts") {
-                        // Shorts grid — 3 per row reactive (title + views only, high-quality thumbs)
-                        if (state.isShortsLoading && state.shortsList.isEmpty()) {
+                        // Chips for Latest/Popular/Oldest in shorts (same as videos)
+                        if (state.shortsChips.isNotEmpty()) {
+                            item {
+                                LazyRow(
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(state.shortsChips.size) { idx ->
+                                        val chip = state.shortsChips[idx]
+                                        FilterChip(
+                                            selected = chip.selected,
+                                            onClick = { vm.selectShortsChip(chip) },
+                                            label = { Text(chip.title) },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer
+                                            )
+                                        )
+                                    }
+                                }
+                                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                            }
+                        } else if (state.isShortsLoading && state.shortsList.isEmpty()) {
                             item {
                                 Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                                     CircularProgressIndicator(modifier = Modifier.size(24.dp))

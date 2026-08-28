@@ -155,10 +155,11 @@ type ChannelVideosResult struct {
 }
 
 type ChannelShortsResult struct {
-	Header       *ChannelHeader `json:"header,omitempty"`
-	Tabs         []ChannelTab   `json:"tabs"`
-	Shorts       []ShortResult  `json:"shorts"`
-	Continuation string         `json:"continuation"` // next page token
+	Header       *ChannelHeader     `json:"header,omitempty"`
+	Tabs         []ChannelTab       `json:"tabs"`
+	Chips        []ChannelVideoChip `json:"chips"` // Latest/Popular/Oldest same as videos
+	Shorts       []ShortResult      `json:"shorts"`
+	Continuation string             `json:"continuation"` // next page token
 }
 
 // InnertubeSession — from GET youtube.com Set-Cookie + ytcfg (stateless: caller holds)

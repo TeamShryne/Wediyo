@@ -235,6 +235,12 @@ func TestChannelShortsFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("collect %v", err)
 	}
+	if len(res.Chips) != 3 {
+		t.Fatalf("chips %d want 3 got %v", len(res.Chips), res.Chips)
+	}
+	if res.Chips[0].Title != "Latest" || !res.Chips[0].Selected {
+		t.Fatalf("chip0 %v", res.Chips[0])
+	}
 	if len(res.Shorts) < 40 {
 		t.Fatalf("shorts %d", len(res.Shorts))
 	}
@@ -262,7 +268,7 @@ func TestChannelShortsFixture(t *testing.T) {
 	if res.Continuation == "" {
 		t.Fatal("continuation empty")
 	}
-	t.Logf("shorts %d cont %s first %s %s thumbs %d", len(res.Shorts), res.Continuation[:30], res.Shorts[0].Title, res.Shorts[0].ViewCountText, len(res.Shorts[0].Thumbnails))
+	t.Logf("shorts %d chips %v cont %s first %s %s thumbs %d", len(res.Shorts), res.Chips, res.Continuation[:30], res.Shorts[0].Title, res.Shorts[0].ViewCountText, len(res.Shorts[0].Thumbnails))
 }
 
 func TestChannelShortsContinuationFixture(t *testing.T) {
