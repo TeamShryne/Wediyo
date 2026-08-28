@@ -41,21 +41,63 @@ func getText(v interface{}) string {
 }
 
 func pickThumbnail(v interface{}) string {
+	thumbs := parseThumbnails(v)
+	if len(thumbs) == 0 {
+		return ""
+	}
+	return thumbs[len(thumbs)-1].URL
+}
+
+func parseThumbnails(v interface{}) []Thumbnail {
 	m := asMap(v)
 	if m == nil {
-		return ""
+		return nil
 	}
-	thumbs, ok := m["thumbnails"].([]interface{})
-	if !ok || len(thumbs) == 0 {
-		return ""
+	arr, ok := m["thumbnails"].([]interface{})
+	if !ok {
+		return nil
 	}
-	last := thumbs[len(thumbs)-1]
-	if lm, ok := last.(map[string]interface{}); ok {
-		if u, ok := lm["url"].(string); ok {
-			return u
+	var out []Thumbnail
+	for _, e := range arr {
+		if em, ok := e.(map[string]interface{}); ok {
+			u, _ := em["url"].(string)
+			if u == "" {
+				continue
+			}
+			w, _ := em["width"].(float64)
+			h, _ := em["height"].(float64)
+			out = append(out, Thumbnail{URL: u, Width: int(w), Height: int(h)})
 		}
 	}
-	return ""
+	return out
+}
+
+func parseSourcesThumbnails(v interface{}) []Thumbnail {
+	// for contentPreviewImageViewModel.image.sources where url/width/height
+	m := asMap(v)
+	if m == nil {
+		return nil
+	}
+	// v may be image object with sources
+	var arr []interface{}
+	if srcs, ok := m["sources"].([]interface{}); ok {
+		arr = srcs
+	} else {
+		return nil
+	}
+	var out []Thumbnail
+	for _, e := range arr {
+		if em, ok := e.(map[string]interface{}); ok {
+			u, _ := em["url"].(string)
+			if u == "" {
+				continue
+			}
+			w, _ := em["width"].(float64)
+			h, _ := em["height"].(float64)
+			out = append(out, Thumbnail{URL: u, Width: int(w), Height: int(h)})
+		}
+	}
+	return out
 }
 
 func parseViewCount(text string) int64 {
@@ -169,16 +211,23 @@ func parseVideoRenderer(v interface{}) *VideoMetadata {
 	} else if shortViewCountText != "" {
 		viewCount = parseViewCount(shortViewCountText)
 	}
-	thumbURL := pickThumbnail(m["thumbnail"])
+	thumbs := parseThumbnails(m["thumbnail"])
+	thumbURL := ""
+	if len(thumbs) > 0 {
+		thumbURL = thumbs[len(thumbs)-1].URL
+	}
 	if thumbURL == "" {
 		thumbURL = fmt.Sprintf("https://i.ytimg.com/vi/%s/hqdefault.jpg", id)
+		thumbs = []Thumbnail{{URL: thumbURL, Width: 480, Height: 360}}
 	}
 	avatarURL := ""
+	var avatars []Thumbnail
 	if c, ok := m["channelThumbnailSupportedRenderers"]; ok {
 		if cm, ok := c.(map[string]interface{}); ok {
 			if link, ok := cm["channelThumbnailWithLinkRenderer"]; ok {
 				if lm, ok := link.(map[string]interface{}); ok {
 					avatarURL = pickThumbnail(lm["thumbnail"])
+					avatars = parseThumbnails(lm["thumbnail"])
 				}
 			}
 		}
@@ -226,8 +275,10 @@ func parseVideoRenderer(v interface{}) *VideoMetadata {
 		DurationText:       durationText,
 		DurationSecs:       durationSecs,
 		ThumbnailURL:       thumbURL,
+		Thumbnails:         thumbs,
 		ChannelID:          channelID,
 		ChannelAvatarURL:   avatarURL,
+		ChannelAvatars:     avatars,
 		IsLive:             isLive,
 		Badges:             badges,
 		DescriptionSnippet: snippet,
@@ -266,7 +317,11 @@ func parseChannelRenderer(v interface{}) *ChannelResult {
 			subscriberText = ""
 		}
 	}
-	thumb := pickThumbnail(m["thumbnail"])
+	thumbs := parseThumbnails(m["thumbnail"])
+	thumb := ""
+	if len(thumbs) > 0 {
+		thumb = thumbs[len(thumbs)-1].URL
+	}
 	desc := getText(m["descriptionSnippet"])
 	verified := false
 	var badges []string
@@ -302,6 +357,7 @@ func parseChannelRenderer(v interface{}) *ChannelResult {
 		Handle:              handle,
 		SubscriberCountText: subscriberText,
 		ThumbnailURL:        thumb,
+		Thumbnails:          thumbs,
 		DescriptionSnippet:  desc,
 		Verified:            verified,
 		Badges:              badges,
@@ -339,16 +395,23 @@ func parseShortLockup(v interface{}) *ShortResult {
 	if acc != "" {
 		title = strings.Split(acc, " - play Short")[0]
 	}
-	thumb := ""
+	var thumb string
+	var thumbs []Thumbnail
 	if tap, ok := m["onTap"].(map[string]interface{}); ok {
 		if cmd, ok := tap["innertubeCommand"].(map[string]interface{}); ok {
 			if re, ok := cmd["reelWatchEndpoint"].(map[string]interface{}); ok {
-				thumb = pickThumbnail(re["thumbnail"])
+				thumbs = parseThumbnails(re["thumbnail"])
+				if len(thumbs) > 0 {
+					thumb = thumbs[len(thumbs)-1].URL
+				}
 			}
 		}
 	}
-	if thumb == "" {
-		thumb = pickThumbnail(m["thumbnail"])
+	if len(thumbs) == 0 {
+		thumbs = parseThumbnails(m["thumbnail"])
+		if len(thumbs) > 0 && thumb == "" {
+			thumb = thumbs[len(thumbs)-1].URL
+		}
 	}
 	viewText := ""
 	if acc != "" {
@@ -363,6 +426,7 @@ func parseShortLockup(v interface{}) *ShortResult {
 		VideoID:            videoID,
 		Title:              title,
 		ThumbnailURL:       thumb,
+		Thumbnails:         thumbs,
 		ViewCountText:      viewText,
 		AccessibilityLabel: acc,
 	}
@@ -378,6 +442,7 @@ func parseOfficialCard(v interface{}) *TopicCard {
 	var title string
 	var browseID string
 	var avatarURL string
+	var avatars []Thumbnail
 	if pageHeader != nil {
 		if t, ok := pageHeader["title"].(map[string]interface{}); ok {
 			if dyn, ok := t["dynamicTextViewModel"].(map[string]interface{}); ok {
@@ -400,10 +465,9 @@ func parseOfficialCard(v interface{}) *TopicCard {
 		if img, ok := pageHeader["image"].(map[string]interface{}); ok {
 			if cp, ok := img["contentPreviewImageViewModel"].(map[string]interface{}); ok {
 				if im, ok := cp["image"].(map[string]interface{}); ok {
-					if srcs, ok := im["sources"].([]interface{}); ok && len(srcs) > 0 {
-						if last, ok := srcs[len(srcs)-1].(map[string]interface{}); ok {
-							avatarURL, _ = last["url"].(string)
-						}
+					avatars = parseSourcesThumbnails(im)
+					if len(avatars) > 0 {
+						avatarURL = avatars[len(avatars)-1].URL
 					}
 				}
 			}
@@ -422,6 +486,7 @@ func parseOfficialCard(v interface{}) *TopicCard {
 		Title:     title,
 		BrowseID:  browseID,
 		AvatarURL: avatarURL,
+		Avatars:   avatars,
 	}
 }
 

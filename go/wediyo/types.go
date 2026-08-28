@@ -1,48 +1,58 @@
 package wediyo
 
-// VideoMetadata — exhaustive for search results (mirrors Rust struct)
-// All fields are gomobile-compatible: string/int64/bool/slices (no *string for bind)
+type Thumbnail struct {
+	URL    string `json:"url"`
+	Width  int    `json:"width"`
+	Height int    `json:"height"`
+}
+
+// VideoMetadata — exhaustive for search results
 type VideoMetadata struct {
-	ID                 string   `json:"id"`
-	Title              string   `json:"title"`
-	Author             string   `json:"author"`
-	ViewCount          int64    `json:"view_count"`          // 0 if not parsed (use ViewCountText for display)
-	ViewCountText      string   `json:"view_count_text"`     // e.g. "56,786,655 views"
-	ShortViewCountText string   `json:"short_view_count_text"` // "56M views"
-	PublishedTimeText  string   `json:"published_time_text"` // "4 years ago"
-	DurationText       string   `json:"duration_text"`       // "6:10:58"
-	DurationSecs       int64    `json:"duration_secs"`       // 0 if LIVE or not parsed
-	ThumbnailURL       string   `json:"thumbnail_url"`
-	ChannelID          string   `json:"channel_id"`
-	ChannelAvatarURL   string   `json:"channel_avatar_url"`
-	IsLive             bool     `json:"is_live"`
-	Badges             []string `json:"badges"`
-	DescriptionSnippet string   `json:"description_snippet"`
+	ID                 string      `json:"id"`
+	Title              string      `json:"title"`
+	Author             string      `json:"author"`
+	ViewCount          int64       `json:"view_count"`          // 0 if not parsed
+	ViewCountText      string      `json:"view_count_text"`     // e.g. "56,786,655 views"
+	ShortViewCountText string      `json:"short_view_count_text"` // "56M views"
+	PublishedTimeText  string      `json:"published_time_text"` // "4 years ago"
+	DurationText       string      `json:"duration_text"`       // "6:10:58"
+	DurationSecs       int64       `json:"duration_secs"`       // 0 if LIVE
+	ThumbnailURL       string      `json:"thumbnail_url"`       // highest res convenience
+	Thumbnails         []Thumbnail `json:"thumbnails"`          // all qualities 360p/720p etc
+	ChannelID          string      `json:"channel_id"`
+	ChannelAvatarURL   string      `json:"channel_avatar_url"`
+	ChannelAvatars     []Thumbnail `json:"channel_avatars"` // s88/s176
+	IsLive             bool        `json:"is_live"`
+	Badges             []string    `json:"badges"`
+	DescriptionSnippet string      `json:"description_snippet"`
 }
 
 type ChannelResult struct {
-	ChannelID           string   `json:"channel_id"`
-	Title               string   `json:"title"`
-	Handle              string   `json:"handle"`               // "@MrBeast" or empty
-	SubscriberCountText string   `json:"subscriber_count_text"` // "514M subscribers"
-	ThumbnailURL        string   `json:"thumbnail_url"`
-	DescriptionSnippet  string   `json:"description_snippet"`
-	Verified            bool     `json:"verified"`
-	Badges              []string `json:"badges"`
+	ChannelID           string      `json:"channel_id"`
+	Title               string      `json:"title"`
+	Handle              string      `json:"handle"`               // "@MrBeast"
+	SubscriberCountText string      `json:"subscriber_count_text"` // "514M subscribers"
+	ThumbnailURL        string      `json:"thumbnail_url"`        // highest
+	Thumbnails          []Thumbnail `json:"thumbnails"`           // s88/s176
+	DescriptionSnippet  string      `json:"description_snippet"`
+	Verified            bool        `json:"verified"`
+	Badges              []string    `json:"badges"`
 }
 
 type ShortResult struct {
-	VideoID            string `json:"video_id"`
-	Title              string `json:"title"`
-	ThumbnailURL       string `json:"thumbnail_url"`
-	ViewCountText      string `json:"view_count_text"`
-	AccessibilityLabel string `json:"accessibility_label"`
+	VideoID            string      `json:"video_id"`
+	Title              string      `json:"title"`
+	ThumbnailURL       string      `json:"thumbnail_url"` // highest
+	Thumbnails         []Thumbnail `json:"thumbnails"`    // 1080x1920 frame0
+	ViewCountText      string      `json:"view_count_text"`
+	AccessibilityLabel string      `json:"accessibility_label"`
 }
 
 type TopicCard struct {
-	Title     string `json:"title"`
-	BrowseID  string `json:"browse_id"`
-	AvatarURL string `json:"avatar_url"`
+	Title     string      `json:"title"`
+	BrowseID  string      `json:"browse_id"`
+	AvatarURL string      `json:"avatar_url"` // highest
+	Avatars   []Thumbnail `json:"avatars"`    // s176 etc
 }
 
 type SearchResult struct {
