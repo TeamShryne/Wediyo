@@ -266,6 +266,27 @@ func parseShowHeader(j map[string]interface{}) *ShowHeader {
 			}
 		}
 	}
+	// handle case where SeasonText actually is episode count like "187 videos" (new UI)
+	if h.EpisodeCount == 0 && h.EpisodeCountText == "" && strings.Contains(strings.ToLower(h.SeasonText), "video") {
+		h.EpisodeCountText = h.SeasonText
+		var digits strings.Builder
+		for _, ch := range h.SeasonText {
+			if ch >= '0' && ch <= '9' {
+				digits.WriteRune(ch)
+			}
+		}
+		fmt.Sscan(digits.String(), &h.EpisodeCount)
+	}
+	// Also handle case where EpisodeCountText is like "187 videos" but EpisodeCount is 0 (new UI reports via SeasonText)
+	if h.EpisodeCount == 0 && h.EpisodeCountText != "" && strings.Contains(strings.ToLower(h.EpisodeCountText), "video") {
+		var digits strings.Builder
+		for _, ch := range h.EpisodeCountText {
+			if ch >= '0' && ch <= '9' {
+				digits.WriteRune(ch)
+			}
+		}
+		fmt.Sscan(digits.String(), &h.EpisodeCount)
+	}
 	// content section: playlistShowMetadataRenderer for seasons + episode count
 	if contents, ok := j["contents"].(map[string]interface{}); ok {
 		if two, ok := contents["twoColumnBrowseResultsRenderer"].(map[string]interface{}); ok {
@@ -725,6 +746,28 @@ func FetchShowWithOption(session *InnertubeSession, playlistId string, continuat
 	var j map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&j); err != nil {
 		return nil, fmt.Errorf("parse browse json: %w", err)
+	}
+	// Update session visitorData for pagination (session must not change, but visitorData may rotate)
+	if rc, ok := j["responseContext"].(map[string]interface{}); ok {
+		if stp, ok := rc["serviceTrackingParams"].([]interface{}); ok {
+			for _, p := range stp {
+				if pm, ok := p.(map[string]interface{}); ok {
+					if svc, _ := pm["service"].(string); svc == "GFEEDBACK" {
+						if params, ok := pm["params"].([]interface{}); ok {
+							for _, pp := range params {
+								if ppm, ok := pp.(map[string]interface{}); ok {
+									if k, _ := ppm["key"].(string); k == "visitor_data" {
+										if v, _ := ppm["value"].(string); v != "" && v != session.VisitorData {
+											session.VisitorData = v
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 	return collectShowDetail(j)
 }
