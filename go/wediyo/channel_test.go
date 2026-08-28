@@ -653,3 +653,113 @@ func TestPlaylistDetailFixture(t *testing.T) {
 		}
 	}
 }
+
+func TestCourseDetailFixture(t *testing.T) {
+	p := filepath.Join("..", "..", "research", "course", "course.json")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Skip("no course fixture")
+	}
+	var j map[string]interface{}
+	json.Unmarshal(data, &j)
+	res, err := collectCourseDetail(j)
+	if err != nil {
+		t.Fatalf("collect %v", err)
+	}
+	if res.Header == nil || res.Header.Title != "Beginner Korean Course" {
+		t.Fatalf("header %v", res.Header)
+	}
+	if res.Header.VideoCount != 100 {
+		t.Fatalf("count %d", res.Header.VideoCount)
+	}
+	if res.Header.ChannelName != "Learn Korean with GO! Billy Korean" {
+		t.Fatalf("channel %q", res.Header.ChannelName)
+	}
+	if res.Header.ChannelId != "UC7ynjArlSFuXW23ssZAknyA" {
+		t.Fatalf("cid %q", res.Header.ChannelId)
+	}
+	if res.Header.Description == "" {
+		t.Fatal("desc empty")
+	}
+	if len(res.Header.Thumbnails) != 4 {
+		t.Fatalf("thumbs %d want 4", len(res.Header.Thumbnails))
+	}
+	for _, th := range res.Header.Thumbnails {
+		if th.URL[:8] != "https://" {
+			t.Fatalf("thumb not https %s", th.URL)
+		}
+	}
+	if len(res.Header.ChannelAvatars) != 3 {
+		t.Fatalf("avatars %d want 3", len(res.Header.ChannelAvatars))
+	}
+	if len(res.Videos) < 100 {
+		t.Fatalf("videos %d", len(res.Videos))
+	}
+	if res.Videos[0].VideoId != "sx0yyQqkpqo" {
+		t.Fatalf("first id %q", res.Videos[0].VideoId)
+	}
+	if len(res.Videos[0].Thumbnails) != 4 {
+		t.Fatalf("video thumbs %d want 4", len(res.Videos[0].Thumbnails))
+	}
+	if res.Videos[0].DurationText != "4:47" {
+		t.Fatalf("duration %q", res.Videos[0].DurationText)
+	}
+	if res.Continuation == "" {
+		t.Fatal("continuation empty")
+	}
+	t.Logf("course %s videos %d cont %s first %s", res.Header.Title, len(res.Videos), res.Continuation[:30], res.Videos[0].Title)
+}
+
+func TestShowDetailFixture(t *testing.T) {
+	p := filepath.Join("..", "..", "research", "shows", "shows.json")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Skip("no show fixture")
+	}
+	var j map[string]interface{}
+	json.Unmarshal(data, &j)
+	res, err := collectShowDetail(j)
+	if err != nil {
+		t.Fatalf("collect %v", err)
+	}
+	if res.Header == nil || res.Header.Title != "Shark Tank India S1 | Full Episodes Here" {
+		t.Fatalf("header %v", res.Header)
+	}
+	if res.Header.SeasonText != "1 season" {
+		t.Fatalf("seasonText %q", res.Header.SeasonText)
+	}
+	if res.Header.EpisodeCount != 50 {
+		t.Fatalf("ep count %d", res.Header.EpisodeCount)
+	}
+	if res.Header.Description == "" {
+		t.Fatal("desc empty")
+	}
+	if len(res.Header.Thumbnails) != 4 {
+		t.Fatalf("thumbs %d want 4", len(res.Header.Thumbnails))
+	}
+	if len(res.Header.Seasons) != 1 || res.Header.Seasons[0].Title != "Season 1" {
+		t.Fatalf("seasons %v", res.Header.Seasons)
+	}
+	if res.Header.Seasons[0].Params == "" {
+		t.Fatal("season params empty")
+	}
+	if len(res.Episodes) < 50 {
+		t.Fatalf("episodes %d", len(res.Episodes))
+	}
+	if res.Episodes[0].VideoId != "9RQX1Ssu3QM" {
+		t.Fatalf("first id %q", res.Episodes[0].VideoId)
+	}
+	if len(res.Episodes[0].Thumbnails) != 4 {
+		t.Fatalf("ep thumbs %d want 4", len(res.Episodes[0].Thumbnails))
+	}
+	if res.Episodes[0].DurationText != "43:14" {
+		t.Fatalf("duration %q", res.Episodes[0].DurationText)
+	}
+	if res.Episodes[0].DurationSecs != 2594 {
+		t.Fatalf("secs %d", res.Episodes[0].DurationSecs)
+	}
+	if res.Continuation == "" {
+		t.Fatal("continuation empty")
+	}
+	t.Logf("show %s episodes %d cont %s first %s", res.Header.Title, len(res.Episodes), res.Continuation[:30], res.Episodes[0].Title)
+}

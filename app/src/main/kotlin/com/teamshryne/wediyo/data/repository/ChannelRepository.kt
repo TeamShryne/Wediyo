@@ -27,4 +27,10 @@ class ChannelRepository {
         WediyoEngine.fetchChannelAbout(browseId)
     suspend fun fetchPlaylist(playlistId: String, continuation: String = ""): com.teamshryne.wediyo.data.model.UiPlaylistDetail =
         WediyoEngine.fetchPlaylist(playlistId, continuation)
+    suspend fun fetchCourse(playlistId: String, continuation: String = ""): com.teamshryne.wediyo.data.model.UiCourseDetail =
+        WediyoEngine.fetchCourse(playlistId, continuation)
+    suspend fun fetchShow(playlistId: String, continuation: String = ""): com.teamshryne.wediyo.data.model.UiShowDetail =
+        WediyoEngine.fetchShow(playlistId, continuation)
+    suspend fun fetchShowWithSeason(playlistId: String, params: String): com.teamshryne.wediyo.data.model.UiShowDetail =
+        WediyoEngine.fetchShowWithSeason(playlistId, params)
 }

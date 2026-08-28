@@ -32,7 +32,7 @@ import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChannelScreen(browseId: String, onBack: () -> Unit, onPlaylistClick: (String) -> Unit = {}, vm: ChannelViewModel = viewModel()) {
+fun ChannelScreen(browseId: String, onBack: () -> Unit, onPlaylistClick: (String) -> Unit = {}, onCourseClick: (String) -> Unit = {}, onShowClick: (String) -> Unit = {}, vm: ChannelViewModel = viewModel()) {
     val state by vm.state.collectAsState()
     val ctx = LocalContext.current
     val settings = remember { SettingsManager(ctx) }
@@ -378,7 +378,7 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, onPlaylistClick: (String
                             if (state.coursesList.isNotEmpty()) {
                                 items(state.coursesList.size) { idx ->
                                     val c = state.coursesList[idx]
-                                    Row(Modifier.fillMaxWidth().clickable { onPlaylistClick(c.playlistId) }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Row(Modifier.fillMaxWidth().clickable { onCourseClick(c.browseId.ifBlank { c.playlistId }) }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF111111))) {
                                             AsyncImage(model = bestThumbUrl(c.thumbsJson, c.thumbUrl, "high"), contentDescription = c.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                             if (c.videoCountText.isNotBlank()) Box(Modifier.align(Alignment.BottomEnd).padding(4.dp).background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 2.dp)) { Text(c.videoCountText, color = Color.White, style = MaterialTheme.typography.labelSmall) }
@@ -401,7 +401,7 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, onPlaylistClick: (String
                             if (state.showsList.isNotEmpty()) {
                                 items(state.showsList.size) { idx ->
                                     val s = state.showsList[idx]
-                                    Row(Modifier.fillMaxWidth().clickable { onPlaylistClick(s.showId) }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Row(Modifier.fillMaxWidth().clickable { onShowClick(s.browseId.ifBlank { s.showId }) }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF111111))) {
                                             AsyncImage(model = bestThumbUrl(s.thumbsJson, s.thumbUrl, "high"), contentDescription = s.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                             if (s.episodeCountText.isNotBlank()) Box(Modifier.align(Alignment.BottomEnd).padding(4.dp).background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 2.dp)) { Text(s.episodeCountText, color = Color.White, style = MaterialTheme.typography.labelSmall) }

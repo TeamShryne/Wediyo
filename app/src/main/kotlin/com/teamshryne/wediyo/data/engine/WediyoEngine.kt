@@ -111,6 +111,125 @@ object WediyoEngine {
         parsePlaylistDetail(r)
     }
 
+    suspend fun fetchCourse(playlistId: String, continuation: String = ""): UiCourseDetail = withContext(Dispatchers.IO) {
+        val s = getSession()
+        val r = Wediyo.fetchCourse(s, playlistId, continuation)
+        parseCourseDetail(r)
+    }
+
+    suspend fun fetchShow(playlistId: String, continuation: String = ""): UiShowDetail = withContext(Dispatchers.IO) {
+        val s = getSession()
+        val r = Wediyo.fetchShow(s, playlistId, continuation)
+        parseShowDetail(r)
+    }
+
+    suspend fun fetchShowWithSeason(playlistId: String, params: String): UiShowDetail = withContext(Dispatchers.IO) {
+        val s = getSession()
+        val r = Wediyo.fetchShowWithOption(s, playlistId, "", params)
+        parseShowDetail(r)
+    }
+
+    suspend fun parseCourseDetail(r: com.teamshryne.wediyo.wediyo.CourseDetailResult): UiCourseDetail {
+        val jsonStr = r.toJSON()
+        val obj = JSONObject(jsonStr)
+        val headerObj = obj.optJSONObject("header")
+        val header = headerObj?.let { h ->
+            UiCourseHeader(
+                title = h.optString("title", ""),
+                description = h.optString("description", ""),
+                channelName = h.optString("channel_name", ""),
+                channelId = h.optString("channel_id", ""),
+                channelHandle = h.optString("channel_handle", ""),
+                channelAvatarUrl = h.optString("channel_avatar_url", ""),
+                channelAvatarsJson = h.optJSONArray("channel_avatars")?.toString() ?: "[]",
+                thumbUrl = h.optString("thumbnail_url", ""),
+                thumbsJson = h.optJSONArray("thumbnails")?.toString() ?: "[]",
+                videoCountText = h.optString("video_count_text", ""),
+                videoCount = h.optInt("video_count", 0),
+                viewCountText = h.optString("view_count_text", ""),
+                lastUpdatedText = h.optString("last_updated_text", ""),
+                hasUnavailable = h.optBoolean("has_unavailable", false)
+            )
+        }
+        val videos = mutableListOf<UiCourseVideo>()
+        r.videosJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    videos.add(
+                        UiCourseVideo(
+                            videoId = o.optString("video_id", ""),
+                            title = o.optString("title", ""),
+                            channelName = o.optString("channel_name", ""),
+                            channelId = o.optString("channel_id", ""),
+                            thumbUrl = o.optString("thumbnail_url", ""),
+                            thumbsJson = o.optJSONArray("thumbnails")?.toString() ?: "[]",
+                            durationText = o.optString("duration_text", ""),
+                            indexText = o.optString("index_text", ""),
+                            viewCountText = o.optString("view_count_text", ""),
+                            publishedText = o.optString("published_time_text", ""),
+                            isUnavailable = o.optBoolean("is_unavailable", false),
+                            unavailableReason = o.optString("unavailable_reason", "")
+                        )
+                    )
+                }
+            }
+        }
+        return UiCourseDetail(header, videos, obj.optString("continuation", ""), obj.optString("playlist_id", ""))
+    }
+
+    suspend fun parseShowDetail(r: com.teamshryne.wediyo.wediyo.ShowDetailResult): UiShowDetail {
+        val jsonStr = r.toJSON()
+        val obj = JSONObject(jsonStr)
+        val headerObj = obj.optJSONObject("header")
+        val header = headerObj?.let { h ->
+            val seasons = mutableListOf<UiShowSeason>()
+            h.optJSONArray("seasons")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    seasons.add(UiShowSeason(o.optString("title"), o.optBoolean("selected"), o.optString("params"), o.optString("browse_id")))
+                }
+            }
+            UiShowHeader(
+                title = h.optString("title", ""),
+                description = h.optString("description", ""),
+                thumbUrl = h.optString("thumbnail_url", ""),
+                thumbsJson = h.optJSONArray("thumbnails")?.toString() ?: "[]",
+                seasonText = h.optString("season_text", ""),
+                episodeCountText = h.optString("episode_count_text", ""),
+                episodeCount = h.optInt("episode_count", 0),
+                seasons = seasons,
+                currentSeason = h.optString("current_season", ""),
+                subtitle = h.optString("subtitle", ""),
+                overlayTitle = h.optString("overlay_title", ""),
+                overlaySubtitle = h.optString("overlay_subtitle", "")
+            )
+        }
+        val episodes = mutableListOf<UiShowEpisode>()
+        r.episodesJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    episodes.add(
+                        UiShowEpisode(
+                            videoId = o.optString("video_id", ""),
+                            title = o.optString("title", ""),
+                            thumbUrl = o.optString("thumbnail_url", ""),
+                            thumbsJson = o.optJSONArray("thumbnails")?.toString() ?: "[]",
+                            durationText = o.optString("duration_text", ""),
+                            durationSecs = o.optInt("duration_secs", 0),
+                            indexText = o.optString("index_text", ""),
+                            isUnplayable = o.optBoolean("is_unplayable", false)
+                        )
+                    )
+                }
+            }
+        }
+        return UiShowDetail(header, episodes, obj.optString("continuation", ""), obj.optString("playlist_id", ""))
+    }
+
     private fun parsePlaylistDetail(r: com.teamshryne.wediyo.wediyo.PlaylistDetailResult): UiPlaylistDetail {
         val jsonStr = r.toJSON()
         val obj = JSONObject(jsonStr)

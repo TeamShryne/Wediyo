@@ -470,3 +470,69 @@ func (r *PlaylistDetailResult) ToJSON() string {
 	b, _ := json.Marshal(r)
 	return string(b)
 }
+
+func (v *CourseVideo) ThumbnailsJSON() string {
+	b, _ := json.Marshal(v.Thumbnails)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (h *CourseHeader) ThumbnailsJSON() string {
+	b, _ := json.Marshal(h.Thumbnails)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (h *CourseHeader) ChannelAvatarsJSON() string {
+	b, _ := json.Marshal(h.ChannelAvatars)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *CourseDetailResult) VideosJSON() string {
+	b, _ := json.Marshal(r.Videos)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *CourseDetailResult) ToJSON() string {
+	b, _ := json.Marshal(r)
+	return string(b)
+}
+
+func (v *ShowEpisode) ThumbnailsJSON() string {
+	b, _ := json.Marshal(v.Thumbnails)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (h *ShowHeader) ThumbnailsJSON() string {
+	b, _ := json.Marshal(h.Thumbnails)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (h *ShowHeader) SeasonsJSON() string {
+	b, _ := json.Marshal(h.Seasons)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *ShowDetailResult) EpisodesJSON() string {
+	b, _ := json.Marshal(r.Episodes)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *ShowDetailResult) ToJSON() string {
+	b, _ := json.Marshal(r)
+	return string(b)
+}
