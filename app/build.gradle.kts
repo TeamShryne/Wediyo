@@ -73,6 +73,12 @@ android {
     }
 }
 
+repositories {
+    flatDir {
+        dirs("libs")
+    }
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -83,7 +89,13 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
 
-    // UniFFI runtime (JNI)
+    // Go gomobile AAR (preferred — fast builds) — committed by go.yml to app/libs/wediyo.aar
+    // If file exists, use it; fallback to Rust jniLibs otherwise.
+    if (file("libs/wediyo.aar").exists()) {
+        implementation(files("libs/wediyo.aar"))
+    }
+
+    // UniFFI runtime (JNI) — for Rust legacy (keep while migrating)
     implementation("net.java.dev.jna:jna:5.14.0@aar")
 
     testImplementation(libs.junit)
@@ -161,5 +173,29 @@ val uniffiBindgen by tasks.registering(Exec::class) {
     }
 }
 
-// NOTE: preBuild does NOT depend on cargoBuild/uniffiBindgen by design.
-// APK workflow uses committed libs/bindings. Rust workflow commits new ones.
+// ---------------------------------------------------------------------------
+// Go + gomobile integration — preferred (fast)
+//   go.yml builds app/libs/wediyo.aar via `gomobile bind -target=android -androidapi 21`
+//   and commits it. APK workflow just uses committed AAR. Local machine is bad
+//   so don't run gomobile locally without NDK.
+// ---------------------------------------------------------------------------
+val goDir = file("../go/wediyo")
+val goAar = file("libs/wediyo.aar")
+val gomobileBind by tasks.registering(Exec::class) {
+    description = "Build Go AAR via gomobile bind (manual — see go.yml)"
+    group = "go"
+    workingDir(goDir)
+    commandLine(
+        "gomobile", "bind",
+        "-target=android",
+        "-androidapi", "21",
+        "-javapkg", "com.teamshryne.wediyo",
+        "-o", goAar.absolutePath,
+        "."
+    )
+    onlyIf { System.getenv("CI") == "true" || file("/home/shrawan/go/bin/gomobile").exists() }
+    doFirst { file("libs").mkdirs() }
+}
+
+// NOTE: preBuild does NOT depend on cargoBuild/uniffiBindgen/gomobileBind by design.
+// APK workflow uses committed libs/bindings/AAR. Workflows commit new ones.

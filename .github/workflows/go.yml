@@ -1,0 +1,93 @@
+name: Go — AAR via gomobile → commit
+
+# Builds Go metadata engine for Android and commits AAR so Android workflow can just use it.
+# Trigger only on Go changes + manual. Pure Go → ~10x faster than Rust.
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "go/**"
+      - ".github/workflows/go.yml"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "go/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Go 1.26
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache-dependency-path: go/wediyo/go.mod
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('go/wediyo/go.mod', 'go/wediyo/go.sum') }}
+
+      - name: Set up Android SDK + NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK 27 + platforms
+        run: |
+          sdkmanager "ndk;27.0.12077973" "platforms;android-35" "build-tools;35.0.0"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+          gomobile init
+
+      - name: Vet + test (host, no NDK)
+        working-directory: go/wediyo
+        run: |
+          go vet ./...
+          go test -run TestCollect -v
+          go test -run TestLiveSearch -v -count=1 2>&1 | head -n 100 || true
+
+      - name: Build AAR via gomobile bind
+        working-directory: go/wediyo
+        run: |
+          mkdir -p ../../app/libs
+          gomobile bind -target=android -javapkg com.teamshryne.wediyo -o ../../app/libs/wediyo.aar -androidapi 21 .
+          ls -lh ../../app/libs/wediyo.aar
+          unzip -l ../../app/libs/wediyo.aar | head -n 50
+
+      - name: Commit AAR if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add app/libs/wediyo.aar || true
+          git add go/wediyo/go.mod go/wediyo/go.sum 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "chore(go): rebuild wediyo AAR via gomobile"
+          git push
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wediyo-go-aar
+          path: app/libs/wediyo.aar

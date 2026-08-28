@@ -1,0 +1,72 @@
+package wediyo
+
+// VideoMetadata — exhaustive for search results (mirrors Rust struct)
+// All fields are gomobile-compatible: string/int64/bool/slices (no *string for bind)
+type VideoMetadata struct {
+	ID                 string   `json:"id"`
+	Title              string   `json:"title"`
+	Author             string   `json:"author"`
+	ViewCount          int64    `json:"view_count"`          // 0 if not parsed (use ViewCountText for display)
+	ViewCountText      string   `json:"view_count_text"`     // e.g. "56,786,655 views"
+	ShortViewCountText string   `json:"short_view_count_text"` // "56M views"
+	PublishedTimeText  string   `json:"published_time_text"` // "4 years ago"
+	DurationText       string   `json:"duration_text"`       // "6:10:58"
+	DurationSecs       int64    `json:"duration_secs"`       // 0 if LIVE or not parsed
+	ThumbnailURL       string   `json:"thumbnail_url"`
+	ChannelID          string   `json:"channel_id"`
+	ChannelAvatarURL   string   `json:"channel_avatar_url"`
+	IsLive             bool     `json:"is_live"`
+	Badges             []string `json:"badges"`
+	DescriptionSnippet string   `json:"description_snippet"`
+}
+
+type ChannelResult struct {
+	ChannelID           string   `json:"channel_id"`
+	Title               string   `json:"title"`
+	Handle              string   `json:"handle"`               // "@MrBeast" or empty
+	SubscriberCountText string   `json:"subscriber_count_text"` // "514M subscribers"
+	ThumbnailURL        string   `json:"thumbnail_url"`
+	DescriptionSnippet  string   `json:"description_snippet"`
+	Verified            bool     `json:"verified"`
+	Badges              []string `json:"badges"`
+}
+
+type ShortResult struct {
+	VideoID            string `json:"video_id"`
+	Title              string `json:"title"`
+	ThumbnailURL       string `json:"thumbnail_url"`
+	ViewCountText      string `json:"view_count_text"`
+	AccessibilityLabel string `json:"accessibility_label"`
+}
+
+type TopicCard struct {
+	Title     string `json:"title"`
+	BrowseID  string `json:"browse_id"`
+	AvatarURL string `json:"avatar_url"`
+}
+
+type SearchResult struct {
+	Query            string          `json:"query"`
+	Videos           []VideoMetadata `json:"videos"`
+	Channels         []ChannelResult `json:"channels"`
+	Shorts           []ShortResult   `json:"shorts"`
+	TopicCard        *TopicCard      `json:"topic_card,omitempty"`
+	Continuation     string          `json:"continuation"`      // empty if none
+	EstimatedResults string          `json:"estimated_results"` // e.g. "2494772"
+}
+
+// InnertubeSession — from GET youtube.com Set-Cookie + ytcfg (stateless: caller holds)
+type InnertubeSession struct {
+	VisitorData            string `json:"visitor_data"`
+	APIKey                 string `json:"api_key"`
+	ClientVersion          string `json:"client_version"`
+	ClientName             string `json:"client_name"`
+	YSC                    string `json:"ysc"`
+	VisitorInfoLive        string `json:"visitor_info_live"`
+	SecureYNID             string `json:"secure_ynid"`
+	RolloutToken           string `json:"rollout_token"`
+	VisitorPrivacyMetadata string `json:"visitor_privacy_metadata"`
+	Pref                   string `json:"pref"`
+	GPS                    string `json:"gps"`
+	CookieHeader           string `json:"cookie_header"`
+}
