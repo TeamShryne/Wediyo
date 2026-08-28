@@ -33,4 +33,6 @@ class ChannelRepository {
         WediyoEngine.fetchShow(playlistId, continuation)
     suspend fun fetchShowWithSeason(playlistId: String, params: String): com.teamshryne.wediyo.data.model.UiShowDetail =
         WediyoEngine.fetchShowWithSeason(playlistId, params)
+    suspend fun fetchPodcast(playlistId: String, continuation: String = ""): com.teamshryne.wediyo.data.model.UiPodcastDetail =
+        WediyoEngine.fetchPodcast(playlistId, continuation)
 }

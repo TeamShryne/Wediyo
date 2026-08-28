@@ -335,3 +335,38 @@ data class UiShowDetail(
     val continuation: String,
     val playlistId: String
 )
+
+data class UiPodcastEpisode(
+    val videoId: String,
+    val title: String,
+    val thumbUrl: String,
+    val thumbsJson: String,
+    val durationText: String,
+    val durationSecs: Int,
+    val channelName: String,
+    val channelId: String,
+    val publishedText: String,
+    val viewCountText: String
+)
+
+data class UiPodcastHeader(
+    val title: String,
+    val description: String,
+    val thumbUrl: String,
+    val thumbsJson: String,
+    val channelName: String,
+    val channelId: String,
+    val channelHandle: String,
+    val channelAvatarUrl: String,
+    val channelAvatarsJson: String,
+    val episodeCountText: String,
+    val episodeCount: Int,
+    val updatedText: String
+)
+
+data class UiPodcastDetail(
+    val header: UiPodcastHeader?,
+    val episodes: List<UiPodcastEpisode>,
+    val continuation: String,
+    val playlistId: String
+)

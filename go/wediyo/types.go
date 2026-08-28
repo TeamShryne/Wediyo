@@ -442,6 +442,41 @@ type ShowDetailResult struct {
 	PlaylistId   string        `json:"playlist_id"` // PL...
 }
 
+type PodcastEpisode struct {
+	VideoId      string      `json:"video_id"`
+	Title        string      `json:"title"`
+	ThumbnailURL string      `json:"thumbnail_url"`
+	Thumbnails   []Thumbnail `json:"thumbnails"`
+	DurationText string      `json:"duration_text"`
+	DurationSecs int         `json:"duration_secs"`
+	ChannelName  string      `json:"channel_name"`
+	ChannelId    string      `json:"channel_id"`
+	PublishedText string     `json:"published_text"`
+	ViewCountText string     `json:"view_count_text"`
+}
+
+type PodcastHeader struct {
+	Title            string      `json:"title"`
+	Description      string      `json:"description"`
+	ThumbnailURL     string      `json:"thumbnail_url"`
+	Thumbnails       []Thumbnail `json:"thumbnails"`
+	ChannelName      string      `json:"channel_name"`
+	ChannelId        string      `json:"channel_id"`
+	ChannelHandle    string      `json:"channel_handle"`
+	ChannelAvatarURL string      `json:"channel_avatar_url"`
+	ChannelAvatars   []Thumbnail `json:"channel_avatars"`
+	EpisodeCountText string      `json:"episode_count_text"`
+	EpisodeCount     int         `json:"episode_count"`
+	UpdatedText      string      `json:"updated_text"`
+}
+
+type PodcastDetailResult struct {
+	Header       *PodcastHeader   `json:"header,omitempty"`
+	Episodes     []PodcastEpisode `json:"episodes"`
+	Continuation string           `json:"continuation"`
+	PlaylistId   string           `json:"playlist_id"`
+}
+
 // InnertubeSession — from GET youtube.com Set-Cookie + ytcfg (stateless: caller holds)
 type InnertubeSession struct {
 	VisitorData            string `json:"visitor_data"`
