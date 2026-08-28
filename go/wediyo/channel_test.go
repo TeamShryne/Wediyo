@@ -291,3 +291,60 @@ func TestChannelShortsContinuationFixture(t *testing.T) {
 	}
 	t.Logf("page2 shorts %d cont %s first %s", len(res.Shorts), res.Continuation[:30], res.Shorts[0].Title)
 }
+
+func TestChannelLiveFixture(t *testing.T) {
+	p := filepath.Join("..", "..", "research", "channels", "channel-livestreams.json")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Skip("no live fixture")
+	}
+	var j map[string]interface{}
+	json.Unmarshal(data, &j)
+	res, err := collectChannelLive(j)
+	if err != nil {
+		t.Fatalf("collect %v", err)
+	}
+	if len(res.Chips) != 5 {
+		t.Fatalf("chips %d want 5 got %v", len(res.Chips), res.Chips)
+	}
+	if res.Chips[0].Title != "Latest" || !res.Chips[0].Selected {
+		t.Fatalf("chip0 %v", res.Chips[0])
+	}
+	has := map[string]bool{}
+	for _, c := range res.Chips {
+		has[c.Title] = true
+	}
+	for _, need := range []string{"Latest", "Popular", "Oldest", "Members only", "Public"} {
+		if !has[need] {
+			t.Fatalf("missing %s got %v", need, res.Chips)
+		}
+	}
+	if len(res.Lives) < 20 {
+		t.Fatalf("lives %d", len(res.Lives))
+	}
+	if res.Continuation == "" {
+		t.Fatal("continuation empty")
+	}
+	t.Logf("live %d chips %v cont %s first %s %s", len(res.Lives), res.Chips, res.Continuation[:30], res.Lives[0].Title, res.Lives[0].ViewCountText)
+}
+
+func TestChannelLiveContinuationFixture(t *testing.T) {
+	p := filepath.Join("..", "..", "research", "channels", "channel-livestreams-page2.json")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Skip("no page2")
+	}
+	var j map[string]interface{}
+	json.Unmarshal(data, &j)
+	res, err := collectChannelLive(j)
+	if err != nil {
+		t.Fatalf("collect %v", err)
+	}
+	if len(res.Lives) < 20 {
+		t.Fatalf("lives %d", len(res.Lives))
+	}
+	if res.Continuation == "" {
+		t.Fatal("cont empty")
+	}
+	t.Logf("page2 lives %d cont %s first %s", len(res.Lives), res.Continuation[:30], res.Lives[0].Title)
+}

@@ -3,6 +3,7 @@ package com.teamshryne.wediyo.ui.screens.channel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.teamshryne.wediyo.data.model.UiChannelHome
+import com.teamshryne.wediyo.data.model.UiChannelLive
 import com.teamshryne.wediyo.data.model.UiChannelShorts
 import com.teamshryne.wediyo.data.model.UiChannelVideoChip
 import com.teamshryne.wediyo.data.model.UiChannelVideos
@@ -28,6 +29,12 @@ data class ChannelUiState(
     val selectedShortsChip: String? = null,
     val shortsContinuation: String = "",
     val isShortsLoading: Boolean = false,
+    val live: UiChannelLive? = null,
+    val livesList: List<com.teamshryne.wediyo.data.model.UiVideo> = emptyList(),
+    val liveChips: List<UiChannelVideoChip> = emptyList(),
+    val selectedLiveChip: String? = null,
+    val livesContinuation: String = "",
+    val isLiveLoading: Boolean = false,
     val selectedTab: String = "Home",
     val pendingShelfChip: String? = null
 )
@@ -196,6 +203,76 @@ class ChannelViewModel : ViewModel() {
         }
     }
 
+    fun loadLive(browseId: String = _state.value.browseId, continuation: String = "") {
+        if (browseId.isBlank() && continuation.isBlank()) return
+        if (continuation.isBlank() && _state.value.livesList.isEmpty()) {
+            _state.value = _state.value.copy(isLiveLoading = true, error = null)
+        } else if (continuation.isNotBlank() && _state.value.isLiveLoading) return
+        else if (continuation.isNotBlank()) _state.value = _state.value.copy(isLiveLoading = true)
+        viewModelScope.launch {
+            try {
+                val res = repo.fetchLive(browseId, continuation)
+                if (continuation.isBlank()) {
+                    _state.value = _state.value.copy(
+                        live = res,
+                        livesList = res.lives,
+                        liveChips = res.chips,
+                        selectedLiveChip = res.chips.firstOrNull { it.selected }?.title,
+                        livesContinuation = res.continuation,
+                        isLiveLoading = false,
+                        selectedTab = "Live"
+                    )
+                } else {
+                    val isChipReload = res.chips.isNotEmpty() && res.chips.any { it.selected } && res.lives.isNotEmpty() && _state.value.liveChips.isNotEmpty()
+                    if (isChipReload && continuation in _state.value.liveChips.map { it.token }) {
+                        _state.value = _state.value.copy(
+                            live = res,
+                            livesList = res.lives,
+                            liveChips = res.chips,
+                            selectedLiveChip = res.chips.firstOrNull { it.selected }?.title,
+                            livesContinuation = res.continuation,
+                            isLiveLoading = false
+                        )
+                    } else {
+                        val merged = _state.value.livesList + res.lives
+                        val chips = if (res.chips.isNotEmpty()) res.chips else _state.value.liveChips
+                        val cont = if (res.continuation.isNotBlank()) res.continuation else _state.value.livesContinuation
+                        _state.value = _state.value.copy(
+                            live = res,
+                            livesList = merged,
+                            liveChips = chips,
+                            selectedLiveChip = chips.firstOrNull { it.selected }?.title ?: _state.value.selectedLiveChip,
+                            livesContinuation = cont,
+                            isLiveLoading = false
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(isLiveLoading = false, error = e.message ?: "Failed to load live")
+            }
+        }
+    }
+
+    fun selectLiveChip(chip: UiChannelVideoChip) {
+        if (chip.token.isBlank()) return
+        _state.value = _state.value.copy(isLiveLoading = true, selectedLiveChip = chip.title, livesContinuation = "")
+        viewModelScope.launch {
+            try {
+                val res = repo.fetchLive(_state.value.browseId, chip.token)
+                _state.value = _state.value.copy(
+                    live = res,
+                    livesList = res.lives,
+                    liveChips = res.chips.ifEmpty { _state.value.liveChips },
+                    selectedLiveChip = res.chips.firstOrNull { it.selected }?.title ?: chip.title,
+                    livesContinuation = res.continuation,
+                    isLiveLoading = false
+                )
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(isLiveLoading = false, error = e.message ?: "Chip failed")
+            }
+        }
+    }
+
     fun selectVideosTab(browseId: String = _state.value.browseId) {
         _state.value = _state.value.copy(selectedTab = "Videos", pendingShelfChip = null)
         if (_state.value.videosList.isEmpty() && !_state.value.isVideosLoading) {
@@ -207,6 +284,13 @@ class ChannelViewModel : ViewModel() {
         _state.value = _state.value.copy(selectedTab = "Shorts", pendingShelfChip = null)
         if (_state.value.shortsList.isEmpty() && !_state.value.isShortsLoading) {
             loadShorts(browseId, "")
+        }
+    }
+
+    fun selectLiveTab(browseId: String = _state.value.browseId) {
+        _state.value = _state.value.copy(selectedTab = "Live", pendingShelfChip = null)
+        if (_state.value.livesList.isEmpty() && !_state.value.isLiveLoading) {
+            loadLive(browseId, "")
         }
     }
 
@@ -269,6 +353,12 @@ class ChannelViewModel : ViewModel() {
         val cont = _state.value.shortsContinuation
         if (cont.isBlank() || _state.value.isShortsLoading) return
         loadShorts(_state.value.browseId, cont)
+    }
+
+    fun loadMoreLive() {
+        val cont = _state.value.livesContinuation
+        if (cont.isBlank() || _state.value.isLiveLoading) return
+        loadLive(_state.value.browseId, cont)
     }
 
     fun retry() {

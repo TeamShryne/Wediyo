@@ -57,6 +57,85 @@ object WediyoEngine {
         parseChannelShorts(r)
     }
 
+    suspend fun fetchChannelLive(browseId: String, continuation: String = ""): UiChannelLive = withContext(Dispatchers.IO) {
+        val s = getSession()
+        val r = Wediyo.fetchChannelLive(s, browseId, continuation)
+        parseChannelLive(r)
+    }
+
+    private fun parseChannelLive(r: com.teamshryne.wediyo.wediyo.ChannelLiveResult): UiChannelLive {
+        val jsonStr = r.toJSON()
+        val obj = JSONObject(jsonStr)
+        val headerObj = obj.optJSONObject("header")
+        val header = headerObj?.let { h ->
+            UiChannelHeader(
+                channelId = h.optString("channel_id", ""),
+                title = h.optString("title", ""),
+                handle = h.optString("handle", ""),
+                avatarUrl = h.optString("avatar_url", ""),
+                avatarsJson = h.optJSONArray("avatars")?.toString() ?: "[]",
+                bannerUrl = h.optString("banner_url", ""),
+                bannersJson = h.optJSONArray("banners")?.toString() ?: "[]",
+                subs = h.optString("subscriber_count_text", ""),
+                videoCount = h.optString("video_count_text", ""),
+                description = h.optString("description", ""),
+                verified = h.optBoolean("verified", false),
+                channelUrl = h.optString("channel_url", ""),
+                rssUrl = h.optString("rss_url", ""),
+                keywords = h.optString("keywords", "")
+            )
+        }
+        val tabs = mutableListOf<UiChannelTab>()
+        r.tabsJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    tabs.add(UiChannelTab(o.optString("title"), o.optBoolean("selected"), o.optString("params"), o.optString("browse_id"), o.optString("canonical_base_url")))
+                }
+            }
+        }
+        val chips = mutableListOf<UiChannelVideoChip>()
+        r.chipsJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    chips.add(UiChannelVideoChip(o.optString("title"), o.optBoolean("selected"), o.optString("token")))
+                }
+            }
+        }
+        val lives = mutableListOf<UiVideo>()
+        r.livesJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    lives.add(
+                        UiVideo(
+                            id = o.optString("id", ""),
+                            title = o.optString("title", ""),
+                            author = o.optString("author", ""),
+                            channelId = o.optString("channel_id", ""),
+                            thumbnailUrl = o.optString("thumbnail_url", ""),
+                            thumbnailsJson = o.optJSONArray("thumbnails")?.toString() ?: "[]",
+                            avatarUrl = o.optString("channel_avatar_url", ""),
+                            avatarsJson = o.optJSONArray("channel_avatars")?.toString() ?: "[]",
+                            viewCountText = o.optString("view_count_text", ""),
+                            publishedText = o.optString("published_time_text", ""),
+                            durationText = o.optString("duration_text", ""),
+                            isLive = o.optBoolean("is_live", false),
+                            badges = o.optJSONArray("badges")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList(),
+                            description = o.optString("description_snippet", "")
+                        )
+                    )
+                }
+            }
+        }
+        val cont = obj.optString("continuation", "")
+        return UiChannelLive(header, tabs, chips, lives, cont)
+    }
+
     private fun parseChannelShorts(r: com.teamshryne.wediyo.wediyo.ChannelShortsResult): UiChannelShorts {
         val jsonStr = r.toJSON()
         val obj = JSONObject(jsonStr)
