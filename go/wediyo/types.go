@@ -55,14 +55,29 @@ type TopicCard struct {
 	Avatars   []Thumbnail `json:"avatars"`    // s176 etc
 }
 
+type PlaylistResult struct {
+	PlaylistID       string      `json:"playlist_id"` // PLx...
+	Title            string      `json:"title"`
+	ChannelName      string      `json:"channel_name"`
+	ChannelID        string      `json:"channel_id"`
+	ThumbnailURL     string      `json:"thumbnail_url"`
+	Thumbnails       []Thumbnail `json:"thumbnails"`
+	VideoCountText   string      `json:"video_count_text"` // "24 lessons" or "50 videos"
+	VideoCount       int         `json:"video_count"`
+	IsCourse         bool        `json:"is_course"` // badge COURSE
+	Badges           []string    `json:"badges"`
+	DescriptionSnippet string    `json:"description_snippet"` // first video title
+}
+
 type SearchResult struct {
-	Query            string          `json:"query"`
-	Videos           []VideoMetadata `json:"videos"`
-	Channels         []ChannelResult `json:"channels"`
-	Shorts           []ShortResult   `json:"shorts"`
-	TopicCard        *TopicCard      `json:"topic_card,omitempty"`
-	Continuation     string          `json:"continuation"`      // empty if none
-	EstimatedResults string          `json:"estimated_results"` // e.g. "2494772"
+	Query            string           `json:"query"`
+	Videos           []VideoMetadata  `json:"videos"`
+	Channels         []ChannelResult  `json:"channels"`
+	Shorts           []ShortResult    `json:"shorts"`
+	Playlists        []PlaylistResult `json:"playlists"`
+	TopicCard        *TopicCard       `json:"topic_card,omitempty"`
+	Continuation     string           `json:"continuation"`      // empty if none
+	EstimatedResults string           `json:"estimated_results"` // e.g. "2494772"
 }
 
 // InnertubeSession — from GET youtube.com Set-Cookie + ytcfg (stateless: caller holds)

@@ -79,6 +79,27 @@ func (r *SearchResult) ShortsJSON() string {
 	}
 	return string(b)
 }
+func (r *SearchResult) PlaylistsJSON() string {
+	b, _ := json.Marshal(r.Playlists)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (p *PlaylistResult) ThumbnailsJSON() string {
+	b, _ := json.Marshal(p.Thumbnails)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (p *PlaylistResult) BadgesJSON() string {
+	b, _ := json.Marshal(p.Badges)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
 func (r *SearchResult) ToJSON() string {
 	b, _ := json.Marshal(r)
 	return string(b)
