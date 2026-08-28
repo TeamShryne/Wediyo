@@ -3,10 +3,16 @@ package com.teamshryne.wediyo.ui.screens.search
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.teamshryne.wediyo.data.prefs.SettingsManager
@@ -22,16 +28,13 @@ fun SearchScreen(onBack: () -> Unit, vm: SearchViewModel = viewModel()) {
     var thumbQ by remember { mutableStateOf("high") }
     var avatarQ by remember { mutableStateOf("high") }
     var showFilters by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        settings.thumbQuality.collectLatest { thumbQ = it }
-    }
-    LaunchedEffect(Unit) {
-        settings.avatarQuality.collectLatest { avatarQ = it }
-    }
+
+    LaunchedEffect(Unit) { settings.thumbQuality.collectLatest { thumbQ = it } }
+    LaunchedEffect(Unit) { settings.avatarQuality.collectLatest { avatarQ = it } }
+
     var queryInput by remember { mutableStateOf(state.query) }
     val listState = rememberLazyListState()
 
-    // pagination trigger
     LaunchedEffect(listState.firstVisibleItemIndex, state.result?.continuation) {
         val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
         val total = listState.layoutInfo.totalItemsCount
@@ -40,33 +43,49 @@ fun SearchScreen(onBack: () -> Unit, vm: SearchViewModel = viewModel()) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    OutlinedTextField(
-                        value = queryInput,
-                        onValueChange = { queryInput = it; vm.setQuery(it) },
-                        placeholder = { Text("Search") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                },
-                navigationIcon = { TextButton(onClick = onBack) { Text("←") } },
-                actions = {
-                    TextButton(onClick = { vm.search(queryInput, state.params) }) { Text("Go") }
-                }
+            SearchTopBar(
+                query = queryInput,
+                onQueryChange = { queryInput = it; vm.setQuery(it) },
+                onBack = onBack,
+                onSearch = { vm.search(queryInput, state.params) },
+                onClear = { queryInput = ""; vm.setQuery("") }
             )
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0.dp)
     ) { pad ->
-        Column(Modifier.padding(pad).fillMaxSize()) {
-            // chips row if available
-            state.result?.chips?.let { chips ->
-                if (chips.isNotEmpty()) {
-                    ChipsRow(chips = chips, onChipClick = { vm.searchChip(it.token) }, onFilterClick = { showFilters = true })
-                }
-            } ?: run {
-                // show filter button even without chips
-                Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                    Button(onClick = { showFilters = true }) { Text("Filters") }
+        Column(
+            Modifier
+                .padding(pad)
+                .fillMaxSize()
+        ) {
+            // Chips row — always visible when result exists, else subtle filter entry
+            if (state.result?.chips?.isNotEmpty() == true) {
+                ChipsRow(
+                    chips = state.result!!.chips,
+                    onChipClick = { vm.searchChip(it.token) },
+                    onFilterClick = { showFilters = true }
+                )
+                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+            } else if (state.result != null || !state.isLoading) {
+                // Show filter entry only when we have a result, keep empty state clean
+                if (state.result != null) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FilterChip(
+                            selected = false,
+                            onClick = { showFilters = true },
+                            label = { Text("Filters") },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            border = null
+                        )
+                    }
+                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 }
             }
 
@@ -84,39 +103,143 @@ fun SearchScreen(onBack: () -> Unit, vm: SearchViewModel = viewModel()) {
             }
 
             if (state.isLoading && state.result == null) {
-                LinearProgressIndicator(Modifier.fillMaxWidth())
+                LinearProgressIndicator(
+                    Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.onBackground,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
             }
+
             state.error?.let { e ->
-                Text(e, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(12.dp))
+                Card(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                ) {
+                    Text(
+                        e,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
             }
 
             val r = state.result
             if (r != null) {
-                LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                    // topic card
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
+                    // Topic card — polished
                     r.topicTitle?.let { t ->
-                        item { Card(Modifier.fillMaxWidth().padding(12.dp)) { Column(Modifier.padding(12.dp)) { Text(t, style = MaterialTheme.typography.titleMedium); Text(r.topicBrowseId ?: "", style = MaterialTheme.typography.bodySmall) } } }
+                        item {
+                            Card(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        Modifier
+                                            .size(40.dp)
+                                            .padding(0.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) { Text("◉", color = MaterialTheme.colorScheme.tertiary) }
+                                    Column(Modifier.weight(1f)) {
+                                        Text(t, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold))
+                                        if (!r.topicBrowseId.isNullOrBlank()) {
+                                            Text(r.topicBrowseId, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
-                    // metrics
-                    item { Text("${r.estimated} results • ${r.videos.size} videos • ${r.channels.size} channels • ${r.shorts.size} shorts • ${r.playlists.size} playlists", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(12.dp)) }
 
-                    // channels
+                    // Subtle results meta — single line, muted
+                    item {
+                        Text(
+                            "${r.estimated.ifBlank { "${r.videos.size + r.channels.size + r.playlists.size + r.shorts.size}" }} results  •  ${r.videos.size} videos",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
+
+                    // Channels
                     items(r.channels.size) { idx -> ChannelCard(r.channels[idx], thumbQ) {} }
-                    // playlists
+
+                    // Playlists
                     items(r.playlists.size) { idx -> PlaylistCard(r.playlists[idx], thumbQ) {} }
-                    // shorts shelf
+
+                    // Shorts shelf
                     if (r.shorts.isNotEmpty()) {
                         item { ShortsShelf(r.shorts, thumbQ) {} }
                     }
-                    // videos
+
+                    // Videos
                     items(r.videos.size) { idx -> VideoCard(r.videos[idx], thumbQ, avatarQ) {} }
 
-                    if (state.isLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(12.dp)) }
-                    if (r.continuation.isBlank()) item { Text("End of results", modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall) }
+                    if (state.isLoading) item {
+                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        }
+                    }
+
+                    if (r.continuation.isBlank()) item {
+                        Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                            Text(
+                                "You've reached the end",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             } else if (!state.isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
-                    Text("Search for videos, shorts, playlists, channels", style = MaterialTheme.typography.bodyMedium)
+                // Empty state — beautiful, minimal
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(horizontal = 32.dp)
+                    ) {
+                        Box(
+                            Modifier
+                                .size(80.dp)
+                                .padding(0.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Filled.Search,
+                                contentDescription = null,
+                                modifier = Modifier.size(40.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "Search anything",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Videos, Shorts, playlists, channels — find it all. Try typing a topic above.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(20.dp))
+                        AssistChip(
+                            onClick = { /* hint */ },
+                            label = { Text("Popular: lofi • comedy • news • tutorials") },
+                            shape = RoundedCornerShape(24.dp),
+                            colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            border = null
+                        )
+                    }
                 }
             }
         }
