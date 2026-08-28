@@ -10,8 +10,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -86,7 +86,7 @@ fun PlaylistScreen(playlistId: String, onBack: () -> Unit, vm: PlaylistViewModel
                                 }
                                 // Play all scrim
                                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
-                                    FilledButton(
+                                    Button(
                                         onClick = {
                                             val first = state.videos.firstOrNull { !it.isUnavailable }
                                             if (first != null) {
@@ -94,7 +94,7 @@ fun PlaylistScreen(playlistId: String, onBack: () -> Unit, vm: PlaylistViewModel
                                             }
                                         },
                                         shape = RoundedCornerShape(24.dp),
-                                        colors = ButtonDefaults.filledButtonColors(containerColor = Color.White, contentColor = Color.Black)
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)
                                     ) {
                                         Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
                                         Spacer(Modifier.width(6.dp))
@@ -157,7 +157,7 @@ fun PlaylistScreen(playlistId: String, onBack: () -> Unit, vm: PlaylistViewModel
                                             try { ctx.startActivity(Intent(Intent.ACTION_VIEW, "https://www.youtube.com/watch?v=${shuffled.videoId}&list=$playlistId".toUri())) } catch (_: Exception) {}
                                         }
                                     }, modifier = Modifier.weight(1f)) {
-                                        Icon(Icons.Filled.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Filled.Autorenew, contentDescription = null, modifier = Modifier.size(18.dp))
                                         Spacer(Modifier.width(6.dp))
                                         Text("Shuffle")
                                     }
@@ -255,8 +255,4 @@ fun PlaylistScreen(playlistId: String, onBack: () -> Unit, vm: PlaylistViewModel
             }
         }
     }
-}
-
-private fun FilledButton(onClick: () -> Unit, shape: RoundedCornerShape, colors: ButtonColors, content: @Composable RowScope.() -> Unit) {
-    Button(onClick = onClick, shape = shape, colors = colors, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp), content = content)
 }

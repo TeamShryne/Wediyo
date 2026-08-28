@@ -90,13 +90,13 @@ fun ShowScreen(playlistId: String, onBack: () -> Unit, vm: ShowViewModel = viewM
                                 // Center Play episode — uses overlayTitle + first episode
                                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)), contentAlignment = Alignment.Center) {
                                     val first = state.episodes.firstOrNull()
-                                    FilledButton(
+                                    Button(
                                         onClick = {
                                             if (first != null) try { ctx.startActivity(Intent(Intent.ACTION_VIEW, "https://www.youtube.com/watch?v=${first.videoId}&list=${state.detail?.playlistId ?: playlistId}".toUri())) } catch (_: Exception) {}
                                             else if (h?.overlayTitle?.isNotBlank() == true) { /* fallback: open show */ }
                                         },
                                         shape = RoundedCornerShape(24.dp),
-                                        colors = ButtonDefaults.filledButtonColors(containerColor = Color.White, contentColor = Color.Black)
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)
                                     ) {
                                         Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(22.dp))
                                         Spacer(Modifier.width(8.dp))
@@ -204,7 +204,4 @@ fun ShowScreen(playlistId: String, onBack: () -> Unit, vm: ShowViewModel = viewM
     }
 }
 
-@Composable
-private fun FilledButton(onClick: () -> Unit, shape: RoundedCornerShape, colors: ButtonColors, content: @Composable RowScope.() -> Unit) {
-    Button(onClick = onClick, shape = shape, colors = colors, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp), content = content)
-}
+
