@@ -69,6 +69,12 @@ type PlaylistResult struct {
 	DescriptionSnippet string    `json:"description_snippet"` // first video title
 }
 
+type FilterChip struct {
+	Title    string `json:"title"`    // e.g. "All", "Shorts", "Videos", "Live"
+	Selected bool   `json:"selected"`
+	Token    string `json:"token"` // continuation token for this filter; empty for selected All
+}
+
 type SearchResult struct {
 	Query            string           `json:"query"`
 	Videos           []VideoMetadata  `json:"videos"`
@@ -76,6 +82,7 @@ type SearchResult struct {
 	Shorts           []ShortResult    `json:"shorts"`
 	Playlists        []PlaylistResult `json:"playlists"`
 	TopicCard        *TopicCard       `json:"topic_card,omitempty"`
+	Chips            []FilterChip     `json:"chips"`
 	Continuation     string           `json:"continuation"`      // empty if none
 	EstimatedResults string           `json:"estimated_results"` // e.g. "2494772"
 }

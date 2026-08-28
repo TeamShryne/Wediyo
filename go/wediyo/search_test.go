@@ -37,7 +37,7 @@ func TestCollectPage1Fixture(t *testing.T) {
 	data, _ := os.ReadFile(p)
 	var j map[string]interface{}
 	json.Unmarshal(data, &j)
-	videos, _, shorts, playlists, topic, cont, est := collect(j)
+	videos, _, shorts, playlists, topic, chips, cont, est := collect(j)
 	if len(videos) < 19 {
 		t.Fatalf("videos %d", len(videos))
 	}
@@ -56,7 +56,15 @@ func TestCollectPage1Fixture(t *testing.T) {
 	if len(playlists) != 0 {
 		t.Logf("unexpected playlists %d", len(playlists))
 	}
-	t.Logf("page1 videos %d shorts %d playlists %d topic %s cont %s", len(videos), len(shorts), len(playlists), topic.Title, cont[:40])
+	if len(chips) != 5 { // All, Shorts, Videos, Recently uploaded, Live (Watched/Unwatched filtered)
+		t.Fatalf("chips %d expected 5, got %v", len(chips), chips)
+	}
+	for _, c := range chips {
+		if c.Title == "Watched" || c.Title == "Unwatched" {
+			t.Fatalf("unexpected filtered chip %s", c.Title)
+		}
+	}
+	t.Logf("page1 videos %d shorts %d playlists %d topic %s chips %v cont %s", len(videos), len(shorts), len(playlists), topic.Title, chips, cont[:40])
 	if len(videos) > 0 && len(videos[0].Thumbnails) == 0 {
 		t.Fatalf("thumbnails missing")
 	}
@@ -67,7 +75,7 @@ func TestCollectPage2Fixture(t *testing.T) {
 	data, _ := os.ReadFile(p)
 	var j map[string]interface{}
 	json.Unmarshal(data, &j)
-	videos, _, shorts, playlists, _, cont, _ := collect(j)
+	videos, _, shorts, playlists, _, _, cont, _ := collect(j)
 	if len(videos) < 20 {
 		t.Fatalf("videos %d", len(videos))
 	}
@@ -88,7 +96,7 @@ func TestCollectClass10Playlist(t *testing.T) {
 	}
 	var j map[string]interface{}
 	json.Unmarshal(data, &j)
-	videos, _, shorts, playlists, _, cont, _ := collect(j)
+	videos, _, shorts, playlists, _, _, cont, _ := collect(j)
 	if len(playlists) < 15 {
 		t.Fatalf("playlists %d, expected >=15 for class 10 playlist", len(playlists))
 	}

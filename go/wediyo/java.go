@@ -86,6 +86,13 @@ func (r *SearchResult) PlaylistsJSON() string {
 	}
 	return string(b)
 }
+func (r *SearchResult) ChipsJSON() string {
+	b, _ := json.Marshal(r.Chips)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
 func (p *PlaylistResult) ThumbnailsJSON() string {
 	b, _ := json.Marshal(p.Thumbnails)
 	if string(b) == "null" {
