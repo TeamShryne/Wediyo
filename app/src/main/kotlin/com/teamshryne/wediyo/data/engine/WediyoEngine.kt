@@ -99,6 +99,78 @@ object WediyoEngine {
         parseChannelShows(r)
     }
 
+    suspend fun fetchChannelAbout(browseId: String): UiChannelAboutResult = withContext(Dispatchers.IO) {
+        val s = getSession()
+        val r = Wediyo.fetchChannelAbout(s, browseId)
+        parseChannelAbout(r)
+    }
+
+    private fun parseChannelAbout(r: com.teamshryne.wediyo.wediyo.ChannelAboutResult): UiChannelAboutResult {
+        val jsonStr = r.toJSON()
+        val obj = JSONObject(jsonStr)
+        val headerObj = obj.optJSONObject("header")
+        val header = headerObj?.let { h ->
+            UiChannelHeader(
+                channelId = h.optString("channel_id", ""),
+                title = h.optString("title", ""),
+                handle = h.optString("handle", ""),
+                avatarUrl = h.optString("avatar_url", ""),
+                avatarsJson = h.optJSONArray("avatars")?.toString() ?: "[]",
+                bannerUrl = h.optString("banner_url", ""),
+                bannersJson = h.optJSONArray("banners")?.toString() ?: "[]",
+                subs = h.optString("subscriber_count_text", ""),
+                videoCount = h.optString("video_count_text", ""),
+                description = h.optString("description", ""),
+                verified = h.optBoolean("verified", false),
+                channelUrl = h.optString("channel_url", ""),
+                rssUrl = h.optString("rss_url", ""),
+                keywords = h.optString("keywords", "")
+            )
+        }
+        val tabs = mutableListOf<UiChannelTab>()
+        r.tabsJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    tabs.add(UiChannelTab(o.optString("title"), o.optBoolean("selected"), o.optString("params"), o.optString("browse_id"), o.optString("canonical_base_url")))
+                }
+            }
+        }
+        val aboutObj = obj.optJSONObject("about")
+        val about = aboutObj?.let { a ->
+            val links = mutableListOf<UiChannelAboutLink>()
+            a.optJSONArray("links")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    links.add(
+                        UiChannelAboutLink(
+                            title = o.optString("title", ""),
+                            url = o.optString("url", ""),
+                            linkText = o.optString("link_text", ""),
+                            faviconUrl = o.optString("favicon_url", ""),
+                            faviconsJson = o.optJSONArray("favicons")?.toString() ?: "[]"
+                        )
+                    )
+                }
+            }
+            UiChannelAbout(
+                description = a.optString("description", ""),
+                country = a.optString("country", ""),
+                subscriberCountText = a.optString("subscriber_count_text", ""),
+                viewCountText = a.optString("view_count_text", ""),
+                joinedDateText = a.optString("joined_date_text", ""),
+                canonicalUrl = a.optString("canonical_channel_url", ""),
+                displayUrl = a.optString("display_canonical_channel_url", ""),
+                channelId = a.optString("channel_id", ""),
+                videoCountText = a.optString("video_count_text", ""),
+                videoCount = a.optInt("video_count", 0),
+                links = links
+            )
+        }
+        return UiChannelAboutResult(header, tabs, about)
+    }
+
     private fun parseChannelShows(r: com.teamshryne.wediyo.wediyo.ChannelShowsResult): UiChannelShows {
         val jsonStr = r.toJSON()
         val obj = JSONObject(jsonStr)

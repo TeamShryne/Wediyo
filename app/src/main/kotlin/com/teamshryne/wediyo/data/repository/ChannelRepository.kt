@@ -23,4 +23,6 @@ class ChannelRepository {
         WediyoEngine.fetchChannelCourses(browseId, continuation)
     suspend fun fetchShows(browseId: String, continuation: String = ""): com.teamshryne.wediyo.data.model.UiChannelShows =
         WediyoEngine.fetchChannelShows(browseId, continuation)
+    suspend fun fetchAbout(browseId: String): com.teamshryne.wediyo.data.model.UiChannelAboutResult =
+        WediyoEngine.fetchChannelAbout(browseId)
 }

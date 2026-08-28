@@ -561,3 +561,47 @@ func TestChannelShowsFixture(t *testing.T) {
 	if res.Shows[0].EpisodeCountText == "" { t.Fatalf("ep empty") }
 	t.Logf("shows %d first %s %s", len(res.Shows), res.Shows[0].Title, res.Shows[0].EpisodeCountText)
 }
+
+func TestChannelAboutFixture(t *testing.T) {
+	p := filepath.Join("..", "..", "research", "channels", "channel-about.json")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Skip("no about fixture")
+	}
+	var j map[string]interface{}
+	json.Unmarshal(data, &j)
+	res, err := collectChannelAbout(j)
+	if err != nil {
+		t.Fatalf("collect %v", err)
+	}
+	if res.About == nil {
+		t.Fatal("about nil")
+	}
+	if res.About.ChannelId != "UCpEhnqL0y41EpW2TvWAHD7Q" {
+		t.Fatalf("id %q", res.About.ChannelId)
+	}
+	if res.About.Description == "" {
+		t.Fatal("desc empty")
+	}
+	if len(res.About.Links) != 5 {
+		t.Fatalf("links %d want 5", len(res.About.Links))
+	}
+	if res.About.Links[0].Title != "Subscribe Now" {
+		t.Fatalf("first link %q", res.About.Links[0].Title)
+	}
+	if !strings.Contains(res.About.Links[0].URL, "sub_confirmation") {
+		t.Fatalf("url %q", res.About.Links[0].URL)
+	}
+	if len(res.About.Links[0].Favicons) < 5 {
+		t.Fatalf("favicons %d", len(res.About.Links[0].Favicons))
+	}
+	for _, th := range res.About.Links[0].Favicons {
+		if th.URL[:8] != "https://" {
+			t.Fatalf("favicon not https %s", th.URL)
+		}
+	}
+	if res.About.Country != "India" {
+		t.Fatalf("country %q", res.About.Country)
+	}
+	t.Logf("about %s desc %d country %s links %d", res.About.ChannelId, len(res.About.Description), res.About.Country, len(res.About.Links))
+}

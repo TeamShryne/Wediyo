@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -3788,6 +3790,336 @@ func FetchChannelShows(session *InnertubeSession, browseId string, continuation 
 		return nil, fmt.Errorf("parse browse json: %w", err)
 	}
 	return collectChannelShows(jj4)
+}
+
+// ---------- channel about ----------
+func parseChannelAboutLink(v interface{}) *ChannelAboutLink {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	// v is channelExternalLinkViewModel
+	title := ""
+	if t, ok := m["title"].(map[string]interface{}); ok {
+		if c, ok := t["content"].(string); ok {
+			title = c
+		} else {
+			title = getText(t)
+		}
+	}
+	linkText := ""
+	linkURL := ""
+	if l, ok := m["link"].(map[string]interface{}); ok {
+		if c, ok := l["content"].(string); ok {
+			linkText = c
+		} else {
+			linkText = getText(l)
+		}
+		// try commandRuns urlEndpoint
+		if runs, ok := l["commandRuns"].([]interface{}); ok && len(runs) > 0 {
+			if r0, ok := runs[0].(map[string]interface{}); ok {
+				if tap, ok := r0["onTap"].(map[string]interface{}); ok {
+					if cmd, ok := tap["innertubeCommand"].(map[string]interface{}); ok {
+						if ue, ok := cmd["urlEndpoint"].(map[string]interface{}); ok {
+							if u, ok := ue["url"].(string); ok && u != "" {
+								linkURL = u
+							}
+						}
+						// also urlEndpoint under commandExecutor? ignore
+					}
+				}
+			}
+		}
+		// fallback: if linkURL still empty, use linkText with https:// if needed
+		if linkURL == "" && linkText != "" {
+			if strings.HasPrefix(linkText, "http://") || strings.HasPrefix(linkText, "https://") {
+				linkURL = linkText
+			} else {
+				linkURL = "https://" + linkText
+			}
+		}
+	}
+	// favicon
+	var favs []Thumbnail
+	var favURL string
+	if f, ok := m["favicon"].(map[string]interface{}); ok {
+		// favicon.sources
+		ths := parseSourcesThumbnails(f)
+		if len(ths) == 0 {
+			ths = parseThumbnails(f)
+		}
+		// also handle case where f has "sources" directly
+		if len(ths) == 0 {
+			if srcs, ok := f["sources"].([]interface{}); ok {
+				for _, s := range srcs {
+					if sm, ok := s.(map[string]interface{}); ok {
+						if u, ok := sm["url"].(string); ok && u != "" {
+							u = normalizeThumbURL(u)
+							w, _ := sm["width"].(float64)
+							h, _ := sm["height"].(float64)
+							ths = append(ths, Thumbnail{URL: u, Width: int(w), Height: int(h)})
+						}
+					}
+				}
+			}
+		}
+		if len(ths) > 0 {
+			favs = ths
+			favURL = ths[len(ths)-1].URL
+		}
+	}
+	if title == "" && linkText == "" {
+		return nil
+	}
+	return &ChannelAboutLink{Title: title, URL: linkURL, LinkText: linkText, FaviconURL: favURL, Favicons: favs}
+}
+
+func parseAboutViewModel(vm map[string]interface{}) *ChannelAbout {
+	if vm == nil {
+		return nil
+	}
+	desc, _ := vm["description"].(string)
+	country, _ := vm["country"].(string)
+	subs, _ := vm["subscriberCountText"].(string)
+	views, _ := vm["viewCountText"].(string)
+	joined := getText(vm["joinedDateText"])
+	canonical, _ := vm["canonicalChannelUrl"].(string)
+	display, _ := vm["displayCanonicalChannelUrl"].(string)
+	if display == "" {
+		display = canonical
+		// try to derive from canonical
+		if strings.HasPrefix(canonical, "http://") {
+			display = strings.TrimPrefix(canonical, "http://")
+		} else if strings.HasPrefix(canonical, "https://") {
+			display = strings.TrimPrefix(canonical, "https://")
+		}
+	}
+	channelId, _ := vm["channelId"].(string)
+	videoText, _ := vm["videoCountText"].(string)
+	if videoText == "" {
+		videoText = getText(vm["videoCountText"])
+	}
+	vc := 0
+	if videoText != "" {
+		// videoCountText like "175,115 videos" -> extract number
+		var digits strings.Builder
+		for _, ch := range videoText {
+			if ch >= '0' && ch <= '9' {
+				digits.WriteRune(ch)
+			}
+		}
+		s := digits.String()
+		if s != "" {
+			fmt.Sscan(s, &vc)
+		}
+	}
+	var links []ChannelAboutLink
+	if arr, ok := vm["links"].([]interface{}); ok {
+		for _, it := range arr {
+			if im, ok := it.(map[string]interface{}); ok {
+				if lvm, ok := im["channelExternalLinkViewModel"].(map[string]interface{}); ok {
+					if l := parseChannelAboutLink(lvm); l != nil {
+						links = append(links, *l)
+					}
+				}
+			}
+		}
+	}
+	return &ChannelAbout{
+		Description:                desc,
+		Country:                    country,
+		SubscriberCountText:        subs,
+		ViewCountText:              views,
+		JoinedDateText:             joined,
+		CanonicalChannelUrl:        canonical,
+		DisplayCanonicalChannelUrl: display,
+		ChannelId:                  channelId,
+		VideoCountText:             videoText,
+		VideoCount:                 vc,
+		Links:                      links,
+	}
+}
+
+func findAboutViewModel(v interface{}) map[string]interface{} {
+	if m, ok := v.(map[string]interface{}); ok {
+		if vm, ok := m["aboutChannelViewModel"].(map[string]interface{}); ok {
+			return vm
+		}
+		for _, val := range m {
+			if res := findAboutViewModel(val); res != nil {
+				return res
+			}
+		}
+	} else if arr, ok := v.([]interface{}); ok {
+		for _, el := range arr {
+			if res := findAboutViewModel(el); res != nil {
+				return res
+			}
+		}
+	}
+	return nil
+}
+
+func collectChannelAbout(j map[string]interface{}) (*ChannelAboutResult, error) {
+	header := parseChannelHeader(j)
+	tabs := parseChannelTabs(j)
+	// try to find about view model via recursive search (handles both youtubei JSON and HTML ytInitialData)
+	vm := findAboutViewModel(j)
+	var about *ChannelAbout
+	if vm != nil {
+		about = parseAboutViewModel(vm)
+	}
+	// also try aboutChannelRenderer path for youtubei JSON where viewModel is nested under aboutChannelRenderer.metadata
+	if about == nil {
+		// fallback search for aboutChannelRenderer
+		var findRenderer func(v interface{}) map[string]interface{}
+		findRenderer = func(v interface{}) map[string]interface{} {
+			if m, ok := v.(map[string]interface{}); ok {
+				if r, ok := m["aboutChannelRenderer"].(map[string]interface{}); ok {
+					return r
+				}
+				for _, val := range m {
+					if res := findRenderer(val); res != nil {
+						return res
+					}
+				}
+			} else if arr, ok := v.([]interface{}); ok {
+				for _, el := range arr {
+					if res := findRenderer(el); res != nil {
+						return res
+					}
+				}
+			}
+			return nil
+		}
+		if r := findRenderer(j); r != nil {
+			if meta, ok := r["metadata"].(map[string]interface{}); ok {
+				if vm2, ok := meta["aboutChannelViewModel"].(map[string]interface{}); ok {
+					about = parseAboutViewModel(vm2)
+				}
+			}
+		}
+	}
+	if about == nil {
+		about = &ChannelAbout{}
+	}
+	return &ChannelAboutResult{Header: header, Tabs: tabs, About: about}, nil
+}
+
+func FetchChannelAbout(session *InnertubeSession, browseId string) (*ChannelAboutResult, error) {
+	if strings.TrimSpace(browseId) == "" {
+		return nil, fmt.Errorf("browseId empty")
+	}
+	// Build URL for about page: use channel or handle
+	aboutURL := ""
+	if strings.HasPrefix(browseId, "@") {
+		aboutURL = "https://www.youtube.com/" + browseId + "/about"
+	} else if strings.HasPrefix(browseId, "UC") {
+		aboutURL = "https://www.youtube.com/channel/" + browseId + "/about"
+	} else {
+		aboutURL = "https://www.youtube.com/channel/" + browseId + "/about"
+	}
+	// Try HTML fetch first
+	client := &http.Client{Timeout: 15 * time.Second}
+	req, err := http.NewRequest("GET", aboutURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Cookie", session.CookieHeader)
+	if session.VisitorData != "" {
+		req.Header.Set("X-Goog-Visitor-Id", session.VisitorData)
+	}
+	resp, err := client.Do(req)
+	if err == nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		html := string(body)
+		// extract ytInitialData
+		re := regexp.MustCompile(`var ytInitialData = (\{.*?\});\s*</script>`)
+		m := re.FindStringSubmatch(html)
+		if len(m) >= 2 {
+			var j map[string]interface{}
+			if err := json.Unmarshal([]byte(m[1]), &j); err == nil {
+				// try to collect about from ytInitialData
+				if res, err := collectChannelAbout(j); err == nil && res.About != nil && res.About.Description != "" {
+					// also ensure header/tabs are populated from HTML
+					return res, nil
+				}
+			}
+		}
+		// fallback: try to find aboutChannelViewModel via regex directly
+		re2 := regexp.MustCompile(`"aboutChannelViewModel"\s*:\s*(\{.*?\})\s*,\s*"[^"]*"\s*:`)
+		_ = re2
+	}
+	// Fallback to youtubei browse with about params if HTML failed
+	// Try known about params via browse
+	// Use browse endpoint with params for about (if available). For now try with empty params and rely on header
+	// As fallback, try youtubei browse with about continuation: use channel-about JSON structure via browseId
+	urlStr := fmt.Sprintf("https://www.youtube.com/youtubei/v1/browse?prettyPrint=false&key=%s", session.APIKey)
+	tz := "UTC"
+	if idx := strings.Index(session.Pref, "tz="); idx != -1 {
+		rest := session.Pref[idx+3:]
+		if amp := strings.Index(rest, "&"); amp != -1 {
+			tz = rest[:amp]
+		} else {
+			tz = rest
+		}
+	}
+	originalURL := aboutURL
+	context := map[string]interface{}{
+		"client": map[string]interface{}{
+			"hl": "en", "gl": "IN", "remoteHost": "", "deviceMake": "", "deviceModel": "",
+			"visitorData": session.VisitorData, "userAgent": userAgent + ",gzip(gfe)", "clientName": session.ClientName, "clientVersion": session.ClientVersion,
+			"osName": "Windows", "osVersion": "10.0", "originalUrl": originalURL, "screenPixelDensity": 2, "platform": "DESKTOP", "clientFormFactor": "UNKNOWN_FORM_FACTOR",
+			"configInfo": map[string]interface{}{}, "timeZone": tz, "browserName": "Chrome", "browserVersion": "124.0.0.0",
+			"acceptHeader": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "screenWidthPoints": 1280, "screenHeightPoints": 720, "utcOffsetMinutes": 0, "userInterfaceTheme": "USER_INTERFACE_THEME_LIGHT",
+		},
+		"user":    map[string]interface{}{"lockedSafetyMode": false},
+		"request": map[string]interface{}{"useSsl": true, "internalExperimentFlags": []interface{}{}, "consistencyTokenJars": []interface{}{}},
+	}
+	if session.RolloutToken != "" {
+		if c, ok := context["client"].(map[string]interface{}); ok {
+			c["rolloutToken"] = session.RolloutToken
+		}
+	}
+	// try with about params candidate
+	candidates := []string{"EgVhYm91dA==", "EglhYm91dA==", "EgVhYm91dPIGBAoCEgA=", ""}
+	for _, p := range candidates {
+		bodyMap := map[string]interface{}{"context": context, "browseId": browseId}
+		if p != "" {
+			bodyMap["params"] = p
+		}
+		bodyBytes, _ := json.Marshal(bodyMap)
+		req2, _ := http.NewRequest("POST", urlStr, bytes.NewReader(bodyBytes))
+		req2.Header.Set("Content-Type", "application/json")
+		req2.Header.Set("Accept", "*/*")
+		req2.Header.Set("Accept-Language", "en-US,en;q=0.9")
+		req2.Header.Set("Origin", "https://www.youtube.com")
+		req2.Header.Set("Referer", aboutURL)
+		req2.Header.Set("X-Goog-Visitor-Id", session.VisitorData)
+		req2.Header.Set("X-Youtube-Client-Name", "1")
+		req2.Header.Set("X-Youtube-Client-Version", session.ClientVersion)
+		req2.Header.Set("X-Youtube-Bootstrap-Logged-In", "false")
+		req2.Header.Set("Cookie", session.CookieHeader)
+		req2.Header.Set("User-Agent", userAgent)
+		resp2, err := client.Do(req2)
+		if err != nil {
+			continue
+		}
+		var j2 map[string]interface{}
+		if err := json.NewDecoder(resp2.Body).Decode(&j2); err != nil {
+			resp2.Body.Close()
+			continue
+		}
+		resp2.Body.Close()
+		if res, _ := collectChannelAbout(j2); res != nil && res.About != nil && res.About.Description != "" {
+			return res, nil
+		}
+	}
+	return nil, fmt.Errorf("failed to fetch about for %s", browseId)
 }
 
 // FetchChannelVideos fetches channel videos tab (Latest by default). If continuation != "" it paginates or applies chip filter (continuation is chip token or next page token).

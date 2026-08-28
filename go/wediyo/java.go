@@ -407,3 +407,33 @@ func (r *ChannelShowsResult) ToJSON() string {
 	b, _ := json.Marshal(r)
 	return string(b)
 }
+
+func (l *ChannelAboutLink) FaviconsJSON() string {
+	b, _ := json.Marshal(l.Favicons)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (a *ChannelAbout) LinksJSON() string {
+	b, _ := json.Marshal(a.Links)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (a *ChannelAbout) ToJSON() string {
+	b, _ := json.Marshal(a)
+	return string(b)
+}
+func (r *ChannelAboutResult) TabsJSON() string {
+	b, _ := json.Marshal(r.Tabs)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *ChannelAboutResult) ToJSON() string {
+	b, _ := json.Marshal(r)
+	return string(b)
+}

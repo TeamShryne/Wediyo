@@ -55,6 +55,9 @@ data class ChannelUiState(
     val showsList: List<UiChannelShow> = emptyList(),
     val showsContinuation: String = "",
     val isShowsLoading: Boolean = false,
+    val about: UiChannelAboutResult? = null,
+    val aboutData: UiChannelAbout? = null,
+    val isAboutLoading: Boolean = false,
     val selectedTab: String = "Home",
     val pendingShelfChip: String? = null
 )
@@ -412,6 +415,27 @@ class ChannelViewModel : ViewModel() {
         _state.value = _state.value.copy(selectedTab = "Shows", pendingShelfChip = null)
         if (_state.value.showsList.isEmpty() && !_state.value.isShowsLoading) loadShows(browseId, "")
     }
+    fun loadAbout(browseId: String = _state.value.browseId) {
+        if (browseId.isBlank()) return
+        if (_state.value.aboutData != null) {
+            _state.value = _state.value.copy(selectedTab = "About")
+            return
+        }
+        if (_state.value.isAboutLoading) return
+        _state.value = _state.value.copy(isAboutLoading = true, error = null)
+        viewModelScope.launch {
+            try {
+                val res = repo.fetchAbout(browseId)
+                _state.value = _state.value.copy(about = res, aboutData = res.about, isAboutLoading = false, selectedTab = "About")
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(isAboutLoading = false, error = e.message ?: "Failed to load about")
+            }
+        }
+    }
+    fun selectAboutTab(browseId: String = _state.value.browseId) {
+        _state.value = _state.value.copy(selectedTab = "About", pendingShelfChip = null)
+        if (_state.value.aboutData == null && !_state.value.isAboutLoading) loadAbout(browseId)
+    }
     fun selectHomeTab() {
         _state.value = _state.value.copy(selectedTab = "Home", pendingShelfChip = null)
     }
@@ -428,6 +452,7 @@ class ChannelViewModel : ViewModel() {
             "Store" -> selectStoreTab(browseId)
             "Courses" -> selectCoursesTab(browseId)
             "Shows" -> selectShowsTab(browseId)
+            "About" -> selectAboutTab(browseId)
             "Home" -> selectHomeTab()
             else -> selectHomeTab()
         }
