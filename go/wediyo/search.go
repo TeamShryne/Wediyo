@@ -50,6 +50,13 @@ func pickThumbnail(v interface{}) string {
 	return thumbs[len(thumbs)-1].URL
 }
 
+func normalizeThumbURL(u string) string {
+	if strings.HasPrefix(u, "//") {
+		return "https:" + u
+	}
+	return u
+}
+
 func parseThumbnails(v interface{}) []Thumbnail {
 	m := asMap(v)
 	if m == nil {
@@ -66,6 +73,7 @@ func parseThumbnails(v interface{}) []Thumbnail {
 			if u == "" {
 				continue
 			}
+			u = normalizeThumbURL(u)
 			w, _ := em["width"].(float64)
 			h, _ := em["height"].(float64)
 			out = append(out, Thumbnail{URL: u, Width: int(w), Height: int(h)})
@@ -94,6 +102,7 @@ func parseSourcesThumbnails(v interface{}) []Thumbnail {
 			if u == "" {
 				continue
 			}
+			u = normalizeThumbURL(u)
 			w, _ := em["width"].(float64)
 			h, _ := em["height"].(float64)
 			out = append(out, Thumbnail{URL: u, Width: int(w), Height: int(h)})
