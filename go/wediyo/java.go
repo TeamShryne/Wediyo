@@ -162,3 +162,29 @@ func (r *ChannelHomeResult) ToJSON() string {
 	b, _ := json.Marshal(r)
 	return string(b)
 }
+
+func (r *ChannelVideosResult) TabsJSON() string {
+	b, _ := json.Marshal(r.Tabs)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *ChannelVideosResult) ChipsJSON() string {
+	b, _ := json.Marshal(r.Chips)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *ChannelVideosResult) VideosJSON() string {
+	b, _ := json.Marshal(r.Videos)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *ChannelVideosResult) ToJSON() string {
+	b, _ := json.Marshal(r)
+	return string(b)
+}

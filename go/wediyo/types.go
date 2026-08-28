@@ -136,6 +136,20 @@ type ChannelHomeResult struct {
 	Shelves []ChannelShelf `json:"shelves"`
 }
 
+type ChannelVideoChip struct {
+	Title    string `json:"title"`    // Latest, Popular, Oldest
+	Selected bool   `json:"selected"`
+	Token    string `json:"token"` // continuation token for reload
+}
+
+type ChannelVideosResult struct {
+	Header       *ChannelHeader     `json:"header,omitempty"`
+	Tabs         []ChannelTab       `json:"tabs"`
+	Chips        []ChannelVideoChip `json:"chips"` // filter chips for videos
+	Videos       []VideoMetadata    `json:"videos"`
+	Continuation string             `json:"continuation"` // next page token
+}
+
 // InnertubeSession — from GET youtube.com Set-Cookie + ytcfg (stateless: caller holds)
 type InnertubeSession struct {
 	VisitorData            string `json:"visitor_data"`

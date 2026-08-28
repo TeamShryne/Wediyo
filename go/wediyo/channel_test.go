@@ -119,3 +119,72 @@ func TestChannelHomeFixture(t *testing.T) {
   t.Logf("shelf %q %d videos first %s", s.Title, len(s.Videos), s.Videos[0].Title)
  }
 }
+
+func TestChannelVideosFixture(t *testing.T) {
+ p := filepath.Join("..", "..", "research", "channels", "channel-videos.json")
+ data, err := os.ReadFile(p)
+ if err != nil {
+  t.Fatalf("read %v", err)
+ }
+ var j map[string]interface{}
+ json.Unmarshal(data, &j)
+ res, err := collectChannelVideos(j)
+ if err != nil {
+  t.Fatalf("collect %v", err)
+ }
+ if res.Header == nil || res.Header.Title != "MrBeast" {
+  t.Fatalf("header %v", res.Header)
+ }
+ if len(res.Chips) != 3 {
+  t.Fatalf("chips %d want 3 got %v", len(res.Chips), res.Chips)
+ }
+ if res.Chips[0].Title != "Latest" || !res.Chips[0].Selected {
+  t.Fatalf("chip0 %v", res.Chips[0])
+ }
+ if len(res.Videos) < 30 {
+  t.Fatalf("videos %d", len(res.Videos))
+ }
+ if res.Continuation == "" {
+  t.Fatal("continuation empty")
+ }
+ v := res.Videos[0]
+ if v.ID != "Qtl8lJwbd4g" {
+  t.Fatalf("first id %s", v.ID)
+ }
+ if len(v.Thumbnails) < 2 {
+  t.Fatalf("thumbs %d", len(v.Thumbnails))
+ }
+ for _, th := range v.Thumbnails {
+  if th.URL[:8] != "https://" {
+   t.Fatalf("thumb not https %s", th.URL)
+  }
+ }
+ if v.DurationText == "" {
+  t.Fatalf("duration empty")
+ }
+ if v.ViewCountText == "" || v.PublishedTimeText == "" {
+  t.Fatalf("view/published empty %v", v)
+ }
+ t.Logf("videos %d chips %v cont %s first %s %s", len(res.Videos), res.Chips, res.Continuation[:40], v.Title, v.DurationText)
+}
+
+func TestChannelVideosContinuationFixture(t *testing.T) {
+ p := filepath.Join("..", "..", "research", "channels", "channel-videos-page2.json")
+ data, err := os.ReadFile(p)
+ if err != nil {
+  t.Skip("no page2 fixture")
+ }
+ var j map[string]interface{}
+ json.Unmarshal(data, &j)
+ res, err := collectChannelVideos(j)
+ if err != nil {
+  t.Fatalf("collect %v", err)
+ }
+ if len(res.Videos) < 30 {
+  t.Fatalf("videos %d", len(res.Videos))
+ }
+ if res.Continuation == "" {
+  t.Fatal("cont empty")
+ }
+ t.Logf("page2 videos %d cont %s first %s", len(res.Videos), res.Continuation[:40], res.Videos[0].Title)
+}

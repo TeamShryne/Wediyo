@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.teamshryne.wediyo.data.prefs.SettingsManager
+import com.teamshryne.wediyo.ui.components.VideoCard
 import com.teamshryne.wediyo.util.bestThumbUrl
 import kotlinx.coroutines.flow.collectLatest
 
@@ -39,6 +41,16 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
     LaunchedEffect(Unit) { settings.thumbQuality.collectLatest { thumbQ = it } }
     LaunchedEffect(Unit) { settings.avatarQuality.collectLatest { avatarQ = it } }
     LaunchedEffect(browseId) { vm.load(browseId) }
+
+    val listState = rememberLazyListState()
+    // pagination for videos tab
+    LaunchedEffect(listState.firstVisibleItemIndex, state.videosContinuation, state.selectedTab) {
+        if (state.selectedTab == "Videos") {
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            val total = listState.layoutInfo.totalItemsCount
+            if (total > 0 && lastVisible >= total - 4) vm.loadMoreVideos()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -56,7 +68,7 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                     CircularProgressIndicator()
                 }
             }
-            state.error != null -> {
+            state.error != null && state.home == null -> {
                 Column(Modifier.fillMaxSize().padding(pad).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Text(state.error ?: "Error", color = MaterialTheme.colorScheme.error)
                     Spacer(Modifier.height(12.dp))
@@ -65,13 +77,13 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
             }
             state.home != null -> {
                 val home = state.home!!
-                LazyColumn(Modifier.fillMaxSize().padding(pad)) {
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(pad)) {
                     // Header
                     item {
                         val h = home.header
                         if (h != null) {
                             Column(Modifier.fillMaxWidth()) {
-                                // Banner
+                                // Banner with all qualities
                                 if (h.bannerUrl.isNotBlank() || h.bannersJson != "[]") {
                                     val bannerUrl = bestThumbUrl(h.bannersJson, h.bannerUrl, "high")
                                     AsyncImage(
@@ -83,7 +95,7 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                                 } else {
                                     Box(Modifier.fillMaxWidth().height(100.dp).background(Color(0xFF1A1A1A)))
                                 }
-                                // Avatar + title row
+                                // Avatar + title row with full-res avatars
                                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.Top) {
                                     val avatarUrl = bestThumbUrl(h.avatarsJson, h.avatarUrl, avatarQ)
                                     AsyncImage(
@@ -122,22 +134,29 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                                 // Tabs
                                 if (home.tabs.isNotEmpty()) {
                                     ScrollableTabRow(
-                                        selectedTabIndex = home.tabs.indexOfFirst { it.selected }.coerceAtLeast(0),
+                                        selectedTabIndex = home.tabs.indexOfFirst { it.title == state.selectedTab }.coerceAtLeast(0),
                                         edgePadding = 16.dp,
                                         indicator = {},
                                         divider = {}
                                     ) {
                                         home.tabs.forEach { tab ->
+                                            val selected = tab.title == state.selectedTab
                                             Tab(
-                                                selected = tab.selected,
-                                                onClick = { /* TODO: switch tabs when videos/live implemented */ },
+                                                selected = selected,
+                                                onClick = {
+                                                    when (tab.title) {
+                                                        "Videos" -> vm.selectVideosTab()
+                                                        "Home" -> vm.selectHomeTab()
+                                                        else -> vm.selectHomeTab() // defer other tabs to home for now
+                                                    }
+                                                },
                                                 text = {
                                                     Text(
                                                         tab.title,
                                                         style = MaterialTheme.typography.labelLarge.copy(
-                                                            fontWeight = if (tab.selected) FontWeight.Bold else FontWeight.Medium
+                                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
                                                         ),
-                                                        color = if (tab.selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
                                                 }
                                             )
@@ -148,54 +167,128 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                             }
                         }
                     }
-                    // Shelves
-                    items(home.shelves.size) { idx ->
-                        val shelf = home.shelves[idx]
-                        Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(shelf.title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold))
-                            }
-                            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                items(shelf.videos) { v ->
-                                    Column(Modifier.width(180.dp).clickable { /* TODO play */ }) {
-                                        Box(Modifier.fillMaxWidth().aspectRatio(16f/9f).clip(RoundedCornerShape(8.dp)).background(Color(0xFF111111))) {
-                                            AsyncImage(
-                                                model = bestThumbUrl(v.thumbnailsJson, v.thumbnailUrl, thumbQ),
-                                                contentDescription = v.title,
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentScale = ContentScale.Crop
+
+                    // Content based on selected tab
+                    if (state.selectedTab == "Videos") {
+                        // Chips for Latest/Popular/Oldest
+                        if (state.videoChips.isNotEmpty()) {
+                            item {
+                                LazyRow(
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(state.videoChips.size) { idx ->
+                                        val chip = state.videoChips[idx]
+                                        FilterChip(
+                                            selected = chip.selected,
+                                            onClick = { vm.selectChip(chip) },
+                                            label = { Text(chip.title) },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer
                                             )
-                                            if (v.durationText.isNotBlank()) {
-                                                Box(
-                                                    Modifier.align(Alignment.BottomEnd).padding(4.dp)
-                                                        .background(Color.Black.copy(alpha = 0.8f), RoundedCornerShape(4.dp))
-                                                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                                                ) {
-                                                    Text(v.durationText, color = Color.White, style = MaterialTheme.typography.labelSmall)
-                                                }
-                                            }
-                                        }
-                                        Spacer(Modifier.height(6.dp))
-                                        Text(v.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium))
-                                        Text(
-                                            "${v.viewCountText} • ${v.publishedText}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }
+                                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                             }
-                            if (idx < home.shelves.size - 1) {
-                                HorizontalDivider(Modifier.padding(top = 12.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        } else if (state.isVideosLoading && state.videosList.isEmpty()) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                }
                             }
                         }
-                    }
-                    if (home.shelves.isEmpty()) {
-                        item {
-                            Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                                Text("No videos", color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                        if (state.videosList.isNotEmpty()) {
+                            items(state.videosList.size) { idx ->
+                                val v = state.videosList[idx]
+                                VideoCard(v, thumbQ, avatarQ) {}
+                            }
+                        } else if (!state.isVideosLoading) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                    Text("No videos", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+
+                        if (state.isVideosLoading && state.videosList.isNotEmpty()) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                                }
+                            }
+                        }
+
+                        state.error?.let { e ->
+                            item {
+                                Card(
+                                    Modifier.fillMaxWidth().padding(12.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                                ) {
+                                    Text(e, color = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.padding(16.dp))
+                                }
+                            }
+                        }
+
+                        if (state.videosContinuation.isBlank() && state.videosList.isNotEmpty() && !state.isVideosLoading) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                    Text("You've reached the end", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    } else {
+                        // Home shelves
+                        items(home.shelves.size) { idx ->
+                            val shelf = home.shelves[idx]
+                            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(shelf.title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold))
+                                }
+                                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    items(shelf.videos) { v ->
+                                        Column(Modifier.width(180.dp).clickable { /* TODO play */ }) {
+                                            Box(Modifier.fillMaxWidth().aspectRatio(16f/9f).clip(RoundedCornerShape(8.dp)).background(Color(0xFF111111))) {
+                                                AsyncImage(
+                                                    model = bestThumbUrl(v.thumbnailsJson, v.thumbnailUrl, thumbQ),
+                                                    contentDescription = v.title,
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentScale = ContentScale.Crop
+                                                )
+                                                if (v.durationText.isNotBlank()) {
+                                                    Box(
+                                                        Modifier.align(Alignment.BottomEnd).padding(4.dp)
+                                                            .background(Color.Black.copy(alpha = 0.8f), RoundedCornerShape(4.dp))
+                                                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                                                    ) {
+                                                        Text(v.durationText, color = Color.White, style = MaterialTheme.typography.labelSmall)
+                                                    }
+                                                }
+                                            }
+                                            Spacer(Modifier.height(6.dp))
+                                            Text(v.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium))
+                                            Text(
+                                                "${v.viewCountText} • ${v.publishedText}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+                                if (idx < home.shelves.size - 1) {
+                                    HorizontalDivider(Modifier.padding(top = 12.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                }
+                            }
+                        }
+                        if (home.shelves.isEmpty()) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                    Text("No videos", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         }
                     }
