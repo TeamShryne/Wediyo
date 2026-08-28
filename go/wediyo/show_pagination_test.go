@@ -2,6 +2,7 @@ package wediyo
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -229,6 +230,74 @@ func TestShowDetailPaginationMerge(t *testing.T) {
 		t.Fatalf("merged last id %q want MERGE1", merged[50].VideoId)
 	}
 	t.Logf("pagination merge: p1 %d + p2 %d = %d cont p1=%s p2='%s'", len(res1.Episodes), len(res2.Episodes), len(merged), res1.Continuation[:20], res2.Continuation)
+}
+
+func TestShowLoadAll187(t *testing.T) {
+	// Simulate loading all 187 episodes of Shark Tank S1 via pagination loop (as ViewModel does)
+	// Page1 is 50 from fixture, then we need 137 more to reach 187. We simulate 2 continuation pages: 87 + 50
+	p1Path := filepath.Join("..", "..", "research", "shows", "shows.json")
+	data, _ := os.ReadFile(p1Path)
+	var j1 map[string]interface{}
+	json.Unmarshal(data, &j1)
+	res1, _ := collectShowDetail(j1)
+	if len(res1.Episodes) != 50 {
+		t.Fatalf("p1 want 50 got %d", len(res1.Episodes))
+	}
+	// Build synthetic page2 with 87 episodes (to reach 137), page3 with 50 to reach 187
+	makePage := func(start, count int, nextToken string) map[string]interface{} {
+		items := []interface{}{}
+		for i := 0; i < count; i++ {
+			vid := fmt.Sprintf("VID%03d", start+i)
+			items = append(items, map[string]interface{}{
+				"playlistVideoRenderer": map[string]interface{}{
+					"videoId": vid,
+					"title": map[string]interface{}{"simpleText": fmt.Sprintf("Episode %d", start+i)},
+					"lengthText": map[string]interface{}{"simpleText": "40:00"},
+					"index": map[string]interface{}{"simpleText": fmt.Sprintf("%d", start+i)},
+					"thumbnail": map[string]interface{}{"thumbnails": []interface{}{map[string]interface{}{"url": "https://i.ytimg.com/vi/" + vid + "/hqdefault.jpg", "width": 480.0, "height": 360.0}}},
+					"isPlayable": true,
+				},
+			})
+		}
+		if nextToken != "" {
+			items = append(items, map[string]interface{}{
+				"continuationItemRenderer": map[string]interface{}{
+					"continuationEndpoint": map[string]interface{}{"continuationCommand": map[string]interface{}{"token": nextToken}},
+				},
+			})
+		}
+		return map[string]interface{}{
+			"onResponseReceivedActions": []interface{}{
+				map[string]interface{}{
+					"appendContinuationItemsAction": map[string]interface{}{"continuationItems": items},
+				},
+			},
+		}
+	}
+	// Page2: 87 episodes, next token
+	p2JSON := makePage(51, 87, "TOKEN_PAGE3")
+	res2, _ := collectShowDetail(p2JSON)
+	if len(res2.Episodes) != 87 {
+		t.Fatalf("p2 want 87 got %d", len(res2.Episodes))
+	}
+	if res2.Continuation != "TOKEN_PAGE3" {
+		t.Fatalf("p2 cont %q", res2.Continuation)
+	}
+	// Page3: 50 episodes, no continuation (end)
+	p3JSON := makePage(138, 50, "")
+	res3, _ := collectShowDetail(p3JSON)
+	if len(res3.Episodes) != 50 {
+		t.Fatalf("p3 want 50 got %d", len(res3.Episodes))
+	}
+	if res3.Continuation != "" {
+		t.Fatalf("p3 cont want empty got %q", res3.Continuation)
+	}
+	// Merge as ViewModel does
+	all := append(append(res1.Episodes, res2.Episodes...), res3.Episodes...)
+	if len(all) != 187 {
+		t.Fatalf("total want 187 got %d", len(all))
+	}
+	t.Logf("load all 187: p1 %d + p2 %d + p3 %d = %d, last %s", len(res1.Episodes), len(res2.Episodes), len(res3.Episodes), len(all), all[186].VideoId)
 }
 
 func TestPodcastDetailPagination(t *testing.T) {
