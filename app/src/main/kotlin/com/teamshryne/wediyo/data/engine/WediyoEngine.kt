@@ -105,6 +105,65 @@ object WediyoEngine {
         parseChannelAbout(r)
     }
 
+    suspend fun fetchPlaylist(playlistId: String, continuation: String = ""): UiPlaylistDetail = withContext(Dispatchers.IO) {
+        val s = getSession()
+        val r = Wediyo.fetchPlaylist(s, playlistId, continuation)
+        parsePlaylistDetail(r)
+    }
+
+    private fun parsePlaylistDetail(r: com.teamshryne.wediyo.wediyo.PlaylistDetailResult): UiPlaylistDetail {
+        val jsonStr = r.toJSON()
+        val obj = JSONObject(jsonStr)
+        val headerObj = obj.optJSONObject("header")
+        val header = headerObj?.let { h ->
+            UiPlaylistHeader(
+                title = h.optString("title", ""),
+                description = h.optString("description", ""),
+                channelName = h.optString("channel_name", ""),
+                channelId = h.optString("channel_id", ""),
+                channelHandle = h.optString("channel_handle", ""),
+                channelAvatarUrl = h.optString("channel_avatar_url", ""),
+                channelAvatarsJson = h.optJSONArray("channel_avatars")?.toString() ?: "[]",
+                thumbUrl = h.optString("thumbnail_url", ""),
+                thumbsJson = h.optJSONArray("thumbnails")?.toString() ?: "[]",
+                videoCountText = h.optString("video_count_text", ""),
+                videoCount = h.optInt("video_count", 0),
+                viewCountText = h.optString("view_count_text", ""),
+                lastUpdatedText = h.optString("last_updated_text", ""),
+                privacy = h.optString("privacy", ""),
+                hasUnavailable = h.optBoolean("has_unavailable", false)
+            )
+        }
+        val videos = mutableListOf<UiPlaylistVideo>()
+        r.videosJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    videos.add(
+                        UiPlaylistVideo(
+                            videoId = o.optString("video_id", ""),
+                            title = o.optString("title", ""),
+                            channelName = o.optString("channel_name", ""),
+                            channelId = o.optString("channel_id", ""),
+                            thumbUrl = o.optString("thumbnail_url", ""),
+                            thumbsJson = o.optJSONArray("thumbnails")?.toString() ?: "[]",
+                            durationText = o.optString("duration_text", ""),
+                            indexText = o.optString("index_text", ""),
+                            viewCountText = o.optString("view_count_text", ""),
+                            publishedText = o.optString("published_time_text", ""),
+                            isUnavailable = o.optBoolean("is_unavailable", false),
+                            unavailableReason = o.optString("unavailable_reason", "")
+                        )
+                    )
+                }
+            }
+        }
+        val cont = obj.optString("continuation", "")
+        val pid = obj.optString("playlist_id", "")
+        return UiPlaylistDetail(header, videos, cont, pid)
+    }
+
     private fun parseChannelAbout(r: com.teamshryne.wediyo.wediyo.ChannelAboutResult): UiChannelAboutResult {
         val jsonStr = r.toJSON()
         val obj = JSONObject(jsonStr)

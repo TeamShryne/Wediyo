@@ -437,3 +437,36 @@ func (r *ChannelAboutResult) ToJSON() string {
 	b, _ := json.Marshal(r)
 	return string(b)
 }
+
+func (v *PlaylistVideo) ThumbnailsJSON() string {
+	b, _ := json.Marshal(v.Thumbnails)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (h *PlaylistHeader) ThumbnailsJSON() string {
+	b, _ := json.Marshal(h.Thumbnails)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (h *PlaylistHeader) ChannelAvatarsJSON() string {
+	b, _ := json.Marshal(h.ChannelAvatars)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *PlaylistDetailResult) VideosJSON() string {
+	b, _ := json.Marshal(r.Videos)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *PlaylistDetailResult) ToJSON() string {
+	b, _ := json.Marshal(r)
+	return string(b)
+}
