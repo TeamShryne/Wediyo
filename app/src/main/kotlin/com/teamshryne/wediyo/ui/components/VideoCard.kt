@@ -57,11 +57,18 @@ fun VideoCard(video: UiVideo, thumbQuality: String, avatarQuality: String, onCli
             Column(Modifier.weight(1f)) {
                 Text(video.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(2.dp))
-                Text(
-                    "${video.author} • ${video.viewCountText.ifBlank { video.publishedText }} ${if (video.viewCountText.isNotBlank() && video.publishedText.isNotBlank()) "• ${video.publishedText}" else ""}",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis
-                )
+                val meta = buildList {
+                    if (video.author.isNotBlank()) add(video.author)
+                    if (video.viewCountText.isNotBlank()) add(video.viewCountText)
+                    if (video.publishedText.isNotBlank() && video.publishedText != video.viewCountText) add(video.publishedText)
+                }.joinToString(" • ")
+                if (meta.isNotBlank()) {
+                    Text(
+                        meta,
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis
+                    )
+                }
                 if (video.badges.isNotEmpty()) {
                     Row(Modifier.padding(top = 4.dp)) {
                         video.badges.take(2).forEach { b ->
@@ -75,6 +82,68 @@ fun VideoCard(video: UiVideo, thumbQuality: String, avatarQuality: String, onCli
             }
             Box(Modifier.size(24.dp)) { Text("⋮", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
+    }
+}
+
+@Composable
+fun ChannelVideoListCard(video: UiVideo, thumbQuality: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            Modifier.width(160.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp)).background(Color(0xFF111111))
+        ) {
+            AsyncImage(
+                model = bestThumbUrl(video.thumbnailsJson, video.thumbnailUrl, thumbQuality),
+                contentDescription = video.title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+            if (video.durationText.isNotBlank()) {
+                Box(
+                    Modifier.align(Alignment.BottomEnd).padding(4.dp)
+                        .background(Color.Black.copy(alpha = 0.8f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Text(video.durationText, color = Color.White, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            if (video.isLive) {
+                Box(
+                    Modifier.align(Alignment.BottomStart).padding(4.dp)
+                        .background(Color.Red, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) { Text("LIVE", color = Color.White, style = MaterialTheme.typography.labelSmall) }
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(video.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(2.dp))
+            // no channel name/logo for channel videos — views first, no leading dot
+            val meta = listOf(video.viewCountText, video.publishedText).filter { it.isNotBlank() }.joinToString(" • ")
+            if (meta.isNotBlank()) {
+                Text(
+                    meta,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (video.badges.isNotEmpty()) {
+                Row(Modifier.padding(top = 4.dp)) {
+                    video.badges.take(2).forEach { b ->
+                        Box(Modifier.background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                            Text(b, style = MaterialTheme.typography.labelSmall)
+                        }
+                        Spacer(Modifier.width(4.dp))
+                    }
+                }
+            }
+        }
+        Box(Modifier.size(24.dp)) { Text("⋮", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 
