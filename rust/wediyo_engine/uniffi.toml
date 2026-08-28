@@ -1,7 +1,0 @@
-# UniFFI config — package naming for Kotlin
-[bindings.kotlin]
-package_name = "uniffi.wediyo_engine"
-
-[bindings.python]
-# reserved for future testing
-
