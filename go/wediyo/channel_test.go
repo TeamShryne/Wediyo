@@ -605,3 +605,51 @@ func TestChannelAboutFixture(t *testing.T) {
 	}
 	t.Logf("about %s desc %d country %s links %d", res.About.ChannelId, len(res.About.Description), res.About.Country, len(res.About.Links))
 }
+
+func TestPlaylistDetailFixture(t *testing.T) {
+	p := filepath.Join("..", "..", "research", "playlists", "playlist.json")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Skip("no playlist fixture")
+	}
+	var j map[string]interface{}
+	json.Unmarshal(data, &j)
+	res, err := collectPlaylistDetail(j)
+	if err != nil {
+		t.Fatalf("collect %v", err)
+	}
+	if res.Header == nil || res.Header.Title == "" {
+		t.Fatalf("header %v", res.Header)
+	}
+	if res.Header.Title != "Superstar Singer | All Seasons" {
+		t.Fatalf("title %q", res.Header.Title)
+	}
+	if res.Header.VideoCount != 4947 {
+		t.Fatalf("count %d", res.Header.VideoCount)
+	}
+	if len(res.Videos) < 100 {
+		t.Fatalf("videos %d", len(res.Videos))
+	}
+	if res.Videos[0].Title == "" {
+		t.Fatal("title empty")
+	}
+	if res.Videos[0].VideoId == "" {
+		t.Fatal("videoId empty")
+	}
+	if len(res.Videos[0].Thumbnails) == 0 {
+		t.Fatalf("thumbs empty")
+	}
+	if res.Continuation == "" {
+		t.Fatal("continuation empty")
+	}
+	if !res.Header.HasUnavailable {
+		t.Fatalf("hasUnavailable false, expected true")
+	}
+	t.Logf("playlist %s videos %d cont %s first %s", res.Header.Title, len(res.Videos), res.Continuation[:30], res.Videos[0].Title)
+	// check unavailable handling: in this fixture, first 100 are available, so none unavailable
+	for _, v := range res.Videos {
+		if v.IsUnavailable {
+			t.Fatalf("unexpected unavailable %s", v.Title)
+		}
+	}
+}

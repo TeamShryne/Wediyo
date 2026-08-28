@@ -820,6 +820,40 @@ func extractContinuationToken(v interface{}) string {
 			}
 		}
 	}
+	if civm, ok := m["continuationItemViewModel"].(map[string]interface{}); ok {
+		if cc, ok := civm["continuationCommand"].(map[string]interface{}); ok {
+			if ic, ok := cc["innertubeCommand"].(map[string]interface{}); ok {
+				if inner, ok := ic["continuationCommand"].(map[string]interface{}); ok {
+					if tok, ok := inner["token"].(string); ok {
+						return tok
+					}
+				}
+			}
+			if tok, ok := cc["token"].(string); ok {
+				return tok
+			}
+		}
+		if ep, ok := civm["continuationEndpoint"].(map[string]interface{}); ok {
+			if cmd, ok := ep["continuationCommand"].(map[string]interface{}); ok {
+				if tok, ok := cmd["token"].(string); ok {
+					return tok
+				}
+			}
+		}
+	}
+	// direct continuationCommand at top level (for continuationItemViewModel itself)
+	if cc, ok := m["continuationCommand"].(map[string]interface{}); ok {
+		if ic, ok := cc["innertubeCommand"].(map[string]interface{}); ok {
+			if inner, ok := ic["continuationCommand"].(map[string]interface{}); ok {
+				if tok, ok := inner["token"].(string); ok {
+					return tok
+				}
+			}
+		}
+		if tok, ok := cc["token"].(string); ok {
+			return tok
+		}
+	}
 	return ""
 }
 

@@ -322,6 +322,46 @@ type ChannelAboutResult struct {
 	About  *ChannelAbout  `json:"about,omitempty"`
 }
 
+type PlaylistVideo struct {
+	VideoId           string      `json:"video_id"`
+	Title             string      `json:"title"`
+	ChannelName       string      `json:"channel_name"`
+	ChannelId         string      `json:"channel_id"`
+	ThumbnailURL      string      `json:"thumbnail_url"`
+	Thumbnails        []Thumbnail `json:"thumbnails"`
+	DurationText      string      `json:"duration_text"`
+	IndexText         string      `json:"index_text"` // "1" position
+	ViewCountText     string      `json:"view_count_text"`
+	PublishedTimeText string      `json:"published_time_text"`
+	IsUnavailable     bool        `json:"is_unavailable"`
+	UnavailableReason string      `json:"unavailable_reason"` // "Private video" etc
+}
+
+type PlaylistHeader struct {
+	Title            string      `json:"title"`
+	Description      string      `json:"description"`
+	ChannelName      string      `json:"channel_name"`
+	ChannelId        string      `json:"channel_id"`
+	ChannelHandle    string      `json:"channel_handle"`
+	ChannelAvatarURL string      `json:"channel_avatar_url"`
+	ChannelAvatars   []Thumbnail `json:"channel_avatars"`
+	ThumbnailURL     string      `json:"thumbnail_url"`
+	Thumbnails       []Thumbnail `json:"thumbnails"`
+	VideoCountText   string      `json:"video_count_text"`   // "4,947 videos"
+	VideoCount       int         `json:"video_count"`
+	ViewCountText    string      `json:"view_count_text"`    // "10,110 views"
+	LastUpdatedText  string      `json:"last_updated_text"`  // "Last updated on Feb 1, 2026"
+	Privacy          string      `json:"privacy"`
+	HasUnavailable   bool        `json:"has_unavailable"` // alert "Unavailable videos are hidden"
+}
+
+type PlaylistDetailResult struct {
+	Header       *PlaylistHeader `json:"header,omitempty"`
+	Videos       []PlaylistVideo `json:"videos"`
+	Continuation string          `json:"continuation"`
+	PlaylistId   string          `json:"playlist_id"` // PL...
+}
+
 // InnertubeSession — from GET youtube.com Set-Cookie + ytcfg (stateless: caller holds)
 type InnertubeSession struct {
 	VisitorData            string `json:"visitor_data"`

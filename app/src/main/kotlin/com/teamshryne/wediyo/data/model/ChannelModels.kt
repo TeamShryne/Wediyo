@@ -216,3 +216,43 @@ data class UiChannelAboutResult(
     val tabs: List<UiChannelTab>,
     val about: UiChannelAbout?
 )
+
+data class UiPlaylistVideo(
+    val videoId: String,
+    val title: String,
+    val channelName: String,
+    val channelId: String,
+    val thumbUrl: String,
+    val thumbsJson: String,
+    val durationText: String,
+    val indexText: String,
+    val viewCountText: String,
+    val publishedText: String,
+    val isUnavailable: Boolean,
+    val unavailableReason: String
+)
+
+data class UiPlaylistHeader(
+    val title: String,
+    val description: String,
+    val channelName: String,
+    val channelId: String,
+    val channelHandle: String,
+    val channelAvatarUrl: String,
+    val channelAvatarsJson: String,
+    val thumbUrl: String,
+    val thumbsJson: String,
+    val videoCountText: String,
+    val videoCount: Int,
+    val viewCountText: String,
+    val lastUpdatedText: String,
+    val privacy: String,
+    val hasUnavailable: Boolean
+)
+
+data class UiPlaylistDetail(
+    val header: UiPlaylistHeader?,
+    val videos: List<UiPlaylistVideo>,
+    val continuation: String,
+    val playlistId: String
+)
