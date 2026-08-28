@@ -82,7 +82,6 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.coil.compose)
-    implementation(libs.coil.network.okhttp)
 
     // Go gomobile AAR — committed by go.yml to app/libs/wediyo.aar
     implementation(files("libs/wediyo.aar"))
