@@ -1,8 +1,6 @@
-name: Android — APK (uses committed Rust outputs)
+name: Android — APK (uses committed Go AAR)
 
-# No Rust build here. Uses libs + Kotlin bindings already committed by rust.yml.
-# So app changes don't trigger a Rust rebuild, and Rust changes get committed
-# once then reused.
+# No Go build here. Uses AAR already committed by go.yml.
 
 on:
   push:
@@ -20,14 +18,13 @@ on:
       - "app/**"
       - "gradle/**"
   workflow_run:
-    workflows: ["Rust — libs + UniFFI → commit"]
+    workflows: ["Go — AAR via gomobile → commit"]
     types: [completed]
     branches: [main, master]
   workflow_dispatch:
 
 jobs:
   build-apk:
-    # For workflow_run, only run if rust succeeded; for push/pr, always run
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
@@ -49,14 +46,11 @@ jobs:
       - name: Cache Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Verify committed Rust outputs present
+      - name: Verify committed Go AAR present
         run: |
-          echo "=== jniLibs ==="
-          ls -R app/src/main/jniLibs || echo "MISSING jniLibs — run rust workflow first"
-          echo "=== UniFFI kotlin ==="
-          ls -R app/src/main/kotlin/uniffi || echo "MISSING uniffi — run rust workflow first"
-          test -f app/src/main/jniLibs/arm64-v8a/libwediyo_engine.so || (echo "::error::arm64 lib missing — did rust.yml run?" && exit 1)
-          test -f app/src/main/kotlin/uniffi/uniffi/wediyo_engine/wediyo_engine.kt || (echo "::error::Kotlin bindings missing" && exit 1)
+          ls -lh app/libs/wediyo.aar || (echo "::error::Go AAR missing — did go.yml run?" && exit 1)
+          unzip -l app/libs/wediyo.aar | head -n 20
+          echo "AAR ok"
 
       - name: Assemble Debug (GH Action only — not local)
         run: ./gradlew assembleDebug --stacktrace
@@ -77,5 +71,5 @@ jobs:
     steps:
       - run: |
           echo "✅ Local Gradle disabled — builds run only here."
-          echo "Rust outputs are committed by rust.yml → android.yml just consumes them."
-          echo "Highly compatible: minSdk 21, target 35, NDK 27, ABIs arm64-v8a/armeabi-v7a/x86_64"
+          echo "Go AAR committed by go.yml → android.yml just consumes it."
+          echo "Highly compatible: minSdk 21, target 35, NDK 27"
