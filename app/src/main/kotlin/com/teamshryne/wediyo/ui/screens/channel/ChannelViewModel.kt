@@ -21,7 +21,8 @@ data class ChannelUiState(
     val selectedChip: String? = null,
     val videosContinuation: String = "",
     val isVideosLoading: Boolean = false,
-    val selectedTab: String = "Home"
+    val selectedTab: String = "Home",
+    val pendingShelfChip: String? = null
 )
 
 class ChannelViewModel : ViewModel() {
@@ -53,8 +54,25 @@ class ChannelViewModel : ViewModel() {
             try {
                 val res = repo.fetchVideos(browseId, continuation)
                 if (continuation.isBlank()) {
-                    // initial or chip selection (chip token is continuation but treated as new filter)
-                    // detect chip reload: when chips selected changes, continuation is chip token
+                    // initial load -> check pending shelf navigation
+                    val pending = _state.value.pendingShelfChip
+                    if (pending != null && res.chips.any { it.title.equals(pending, true) }) {
+                        // need to immediately switch to pending chip (e.g. Popular)
+                        val chip = res.chips.first { it.title.equals(pending, true) }
+                        _state.value = _state.value.copy(
+                            videos = res,
+                            videosList = res.videos,
+                            videoChips = res.chips,
+                            selectedChip = res.chips.firstOrNull { it.selected }?.title,
+                            videosContinuation = res.continuation,
+                            isVideosLoading = false,
+                            selectedTab = "Videos",
+                            pendingShelfChip = null
+                        )
+                        // now trigger chip selection (second network call)
+                        selectChip(chip)
+                        return@launch
+                    }
                     _state.value = _state.value.copy(
                         videos = res,
                         videosList = res.videos,
@@ -62,7 +80,8 @@ class ChannelViewModel : ViewModel() {
                         selectedChip = res.chips.firstOrNull { it.selected }?.title,
                         videosContinuation = res.continuation,
                         isVideosLoading = false,
-                        selectedTab = "Videos"
+                        selectedTab = "Videos",
+                        pendingShelfChip = null
                     )
                 } else {
                     // check if this was a chip reload (response contains chips with new selected)
@@ -100,20 +119,44 @@ class ChannelViewModel : ViewModel() {
     }
 
     fun selectVideosTab(browseId: String = _state.value.browseId) {
-        _state.value = _state.value.copy(selectedTab = "Videos")
+        _state.value = _state.value.copy(selectedTab = "Videos", pendingShelfChip = null)
         if (_state.value.videosList.isEmpty() && !_state.value.isVideosLoading) {
             loadVideos(browseId, "")
         }
     }
 
     fun selectHomeTab() {
-        _state.value = _state.value.copy(selectedTab = "Home")
+        _state.value = _state.value.copy(selectedTab = "Home", pendingShelfChip = null)
+    }
+
+    fun openShelf(shelfTitle: String) {
+        val targetChip = if (shelfTitle.contains("Popular", ignoreCase = true)) "Popular" else "Latest"
+        // if already on Videos and chips loaded, directly select
+        if (_state.value.selectedTab == "Videos" && _state.value.videoChips.isNotEmpty()) {
+            val chip = _state.value.videoChips.find { it.title.equals(targetChip, true) }
+            if (chip != null) {
+                selectChip(chip)
+                return
+            }
+        }
+        // otherwise navigate to Videos and defer chip selection until videos loaded
+        _state.value = _state.value.copy(selectedTab = "Videos", pendingShelfChip = targetChip)
+        if (_state.value.videosList.isEmpty() && !_state.value.isVideosLoading) {
+            loadVideos(_state.value.browseId, "")
+        } else if (_state.value.videoChips.isNotEmpty()) {
+            // videos already loaded but chips available -> select now
+            val chip = _state.value.videoChips.find { it.title.equals(targetChip, true) }
+            if (chip != null) {
+                selectChip(chip)
+                _state.value = _state.value.copy(pendingShelfChip = null)
+            }
+        }
     }
 
     fun selectChip(chip: UiChannelVideoChip) {
         if (chip.token.isBlank()) return
         // chip token is continuation for reload
-        _state.value = _state.value.copy(isVideosLoading = true, selectedChip = chip.title, videosContinuation = "")
+        _state.value = _state.value.copy(isVideosLoading = true, selectedChip = chip.title, videosContinuation = "", pendingShelfChip = null)
         viewModelScope.launch {
             try {
                 val res = repo.fetchVideos(_state.value.browseId, chip.token)
