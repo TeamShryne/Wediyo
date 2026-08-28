@@ -6,17 +6,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.OndemandVideo
-import androidx.compose.material.icons.outlined.Subscriptions
-import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -152,7 +151,7 @@ fun HomeScreen(onSearch: () -> Unit, onSettings: () -> Unit) {
                         ExploreCard(
                             title = "Videos",
                             subtitle = "Trending & fresh",
-                            icon = Icons.Outlined.OndemandVideo,
+                            icon = Icons.Filled.Home,
                             modifier = Modifier.weight(1f),
                             onClick = onSearch
                         )
@@ -166,7 +165,7 @@ fun HomeScreen(onSearch: () -> Unit, onSettings: () -> Unit) {
                         ExploreCard(
                             title = "Playlists",
                             subtitle = "Curated sets",
-                            icon = Icons.Outlined.VideoLibrary,
+                            icon = Icons.Filled.Person,
                             modifier = Modifier.weight(1f),
                             onClick = onSearch
                         )
