@@ -5,7 +5,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -29,7 +29,7 @@ fun ChipsRow(chips: List<UiChip>, onChipClick: (UiChip) -> Unit, onFilterClick: 
                 onClick = onFilterClick,
                 label = { Text("Filters", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium)) },
                 leadingIcon = {
-                    Icon(Icons.Filled.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
                 },
                 shape = RoundedCornerShape(8.dp),
                 colors = FilterChipDefaults.filterChipColors(
