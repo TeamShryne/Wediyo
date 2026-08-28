@@ -41,10 +41,10 @@ fun ShowScreen(playlistId: String, onBack: () -> Unit, vm: ShowViewModel = viewM
     LaunchedEffect(playlistId) { vm.load(playlistId) }
 
     val listState = rememberLazyListState()
-    LaunchedEffect(listState.firstVisibleItemIndex, state.continuation) {
+    LaunchedEffect(listState.firstVisibleItemIndex, state.continuation, state.isPaginating, state.isSeasonSwitching, state.isLoading) {
         val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
         val total = listState.layoutInfo.totalItemsCount
-        if (total > 0 && lastVisible >= total - 3 && state.continuation.isNotBlank() && !state.isSeasonSwitching) vm.loadMore()
+        if (total > 0 && lastVisible >= total - 4 && state.continuation.isNotBlank() && !state.isPaginating && !state.isSeasonSwitching && !state.isLoading) vm.loadMore()
     }
 
     Scaffold(
