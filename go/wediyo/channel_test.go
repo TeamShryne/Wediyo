@@ -188,3 +188,36 @@ func TestChannelVideosContinuationFixture(t *testing.T) {
  }
  t.Logf("page2 videos %d cont %s first %s", len(res.Videos), res.Continuation[:40], res.Videos[0].Title)
 }
+
+func TestPrimeTimeVideosChips(t *testing.T) {
+ p := filepath.Join("..", "..", "research", "channels", "theprimetime-videos.json")
+ data, err := os.ReadFile(p)
+ if err != nil {
+  t.Skip("no prime fixture")
+ }
+ var j map[string]interface{}
+ json.Unmarshal(data, &j)
+ res, err := collectChannelVideos(j)
+ if err != nil {
+  t.Fatalf("collect %v", err)
+ }
+ if len(res.Chips) < 4 {
+  t.Fatalf("chips %d want >=4 got %v", len(res.Chips), res.Chips)
+ }
+ has := map[string]bool{}
+ for _, c := range res.Chips {
+  has[c.Title] = true
+ }
+ for _, need := range []string{"Latest", "Popular", "Oldest", "Members only", "Public"} {
+  if !has[need] {
+   t.Fatalf("missing %s got %v", need, res.Chips)
+  }
+ }
+ if len(res.Videos) < 20 {
+  t.Fatalf("videos %d", len(res.Videos))
+ }
+ if res.Continuation == "" {
+  t.Fatal("continuation empty")
+ }
+ t.Logf("prime chips %d videos %d cont %s", len(res.Chips), len(res.Videos), res.Continuation[:30])
+}

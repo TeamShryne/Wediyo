@@ -793,6 +793,79 @@ func parseChannelVideoChipsFromRichGrid(header map[string]interface{}) []Channel
 						if text == "" {
 							continue
 						}
+						// Check for dropdown (Latest/Popular/Oldest in sheet)
+						isDropdown := false
+						if dt, ok := vm["displayType"].(string); ok && dt == "CHIP_VIEW_MODEL_DISPLAY_TYPE_DROP_DOWN" {
+							isDropdown = true
+						}
+						// try to handle dropdown sheet
+						if isDropdown {
+							if tap, ok := vm["tapCommand"].(map[string]interface{}); ok {
+								if cmd, ok := tap["innertubeCommand"].(map[string]interface{}); ok {
+									if sheetCmd, ok := cmd["showSheetCommand"].(map[string]interface{}); ok {
+										if pls, ok := sheetCmd["panelLoadingStrategy"].(map[string]interface{}); ok {
+											if ic, ok := pls["inlineContent"].(map[string]interface{}); ok {
+												if svm, ok := ic["sheetViewModel"].(map[string]interface{}); ok {
+													if content, ok := svm["content"].(map[string]interface{}); ok {
+														if lvm, ok := content["listViewModel"].(map[string]interface{}); ok {
+															if items, ok := lvm["listItems"].([]interface{}); ok {
+																for _, li := range items {
+																	if lim, ok := li.(map[string]interface{}); ok {
+																		if lvm2, ok := lim["listItemViewModel"].(map[string]interface{}); ok {
+																			title := ""
+																			if t, ok := lvm2["title"].(map[string]interface{}); ok {
+																				if c, ok := t["content"].(string); ok {
+																					title = c
+																				} else {
+																					title = getText(t)
+																				}
+																			}
+																			if title == "" {
+																				continue
+																			}
+																			selected2, _ := lvm2["isSelected"].(bool)
+																			token2 := ""
+																			// token inside rendererContext.commandContext.onTap.commandExecutorCommand.commands
+																			if rc, ok := lvm2["rendererContext"].(map[string]interface{}); ok {
+																				if cc, ok := rc["commandContext"].(map[string]interface{}); ok {
+																					if tap2, ok := cc["onTap"].(map[string]interface{}); ok {
+																						if ic2, ok := tap2["innertubeCommand"].(map[string]interface{}); ok {
+																							if exec, ok := ic2["commandExecutorCommand"].(map[string]interface{}); ok {
+																								if cmds, ok := exec["commands"].([]interface{}); ok {
+																									for _, cmd := range cmds {
+																										if cm2, ok := cmd.(map[string]interface{}); ok {
+																											if cc2, ok := cm2["continuationCommand"].(map[string]interface{}); ok {
+																												if tok, ok := cc2["token"].(string); ok && tok != "" {
+																													token2 = tok
+																													break
+																												}
+																											}
+																										}
+																									}
+																								}
+																							} else if cc2, ok := ic2["continuationCommand"].(map[string]interface{}); ok {
+																								token2, _ = cc2["token"].(string)
+																							}
+																						}
+																					}
+																				}
+																			}
+																			out = append(out, ChannelVideoChip{Title: title, Selected: selected2, Token: token2})
+																		}
+																	}
+																}
+																continue // skip adding outer dropdown chip itself
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+						// fallback for dropdown if sheet parsing failed -> treat as regular
 						selected, _ := vm["selected"].(bool)
 						token := ""
 						if tap, ok := vm["tapCommand"].(map[string]interface{}); ok {
@@ -802,7 +875,10 @@ func parseChannelVideoChipsFromRichGrid(header map[string]interface{}) []Channel
 								}
 							}
 						}
-						out = append(out, ChannelVideoChip{Title: text, Selected: selected, Token: token})
+						// only add outer if we didn't already expand
+						if !isDropdown || token != "" {
+							out = append(out, ChannelVideoChip{Title: text, Selected: selected, Token: token})
+						}
 					}
 				}
 			}
