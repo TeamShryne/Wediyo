@@ -37,7 +37,7 @@ func TestCollectPage1Fixture(t *testing.T) {
 	data, _ := os.ReadFile(p)
 	var j map[string]interface{}
 	json.Unmarshal(data, &j)
-	videos, _, shorts, topic, cont, est := collect(j)
+	videos, _, shorts, playlists, topic, cont, est := collect(j)
 	if len(videos) < 19 {
 		t.Fatalf("videos %d", len(videos))
 	}
@@ -53,7 +53,13 @@ func TestCollectPage1Fixture(t *testing.T) {
 	if len(shorts) < 6 {
 		t.Fatalf("shorts %d", len(shorts))
 	}
-	t.Logf("page1 videos %d shorts %d topic %s cont %s", len(videos), len(shorts), topic.Title, cont[:40])
+	if len(playlists) != 0 {
+		t.Logf("unexpected playlists %d", len(playlists))
+	}
+	t.Logf("page1 videos %d shorts %d playlists %d topic %s cont %s", len(videos), len(shorts), len(playlists), topic.Title, cont[:40])
+	if len(videos) > 0 && len(videos[0].Thumbnails) == 0 {
+		t.Fatalf("thumbnails missing")
+	}
 }
 
 func TestCollectPage2Fixture(t *testing.T) {
@@ -61,7 +67,7 @@ func TestCollectPage2Fixture(t *testing.T) {
 	data, _ := os.ReadFile(p)
 	var j map[string]interface{}
 	json.Unmarshal(data, &j)
-	videos, _, shorts, _, cont, _ := collect(j)
+	videos, _, shorts, playlists, _, cont, _ := collect(j)
 	if len(videos) < 20 {
 		t.Fatalf("videos %d", len(videos))
 	}
@@ -71,7 +77,36 @@ func TestCollectPage2Fixture(t *testing.T) {
 	if len(shorts) < 6 {
 		t.Fatalf("shorts %d", len(shorts))
 	}
-	t.Logf("page2 videos %d shorts %d", len(videos), len(shorts))
+	t.Logf("page2 videos %d shorts %d playlists %d", len(videos), len(shorts), len(playlists))
+}
+
+func TestCollectClass10Playlist(t *testing.T) {
+	p := "/tmp/class10.json"
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Skip("no /tmp/class10.json — run bash fetch first")
+	}
+	var j map[string]interface{}
+	json.Unmarshal(data, &j)
+	videos, _, shorts, playlists, _, cont, _ := collect(j)
+	if len(playlists) < 15 {
+		t.Fatalf("playlists %d, expected >=15 for class 10 playlist", len(playlists))
+	}
+	if len(playlists) > 0 && playlists[0].Thumbnails[0].URL == "" {
+		t.Fatalf("playlist thumbnails missing")
+	}
+	// check course badge
+	hasCourse := false
+	for _, pl := range playlists {
+		if pl.IsCourse {
+			hasCourse = true
+			break
+		}
+	}
+	if !hasCourse {
+		t.Fatalf("no course found in playlists")
+	}
+	t.Logf("class10 playlists %d videos %d shorts %d cont %s sample %s (%s) thumbnails %d", len(playlists), len(videos), len(shorts), cont[:30], playlists[0].Title, playlists[0].VideoCountText, len(playlists[0].Thumbnails))
 }
 
 func TestLiveSearch(t *testing.T) {

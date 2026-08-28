@@ -432,6 +432,155 @@ func parseShortLockup(v interface{}) *ShortResult {
 	}
 }
 
+func parsePlaylistLockup(v interface{}) *PlaylistResult {
+	m := asMap(v)
+	if m == nil {
+		return nil
+	}
+	ct, _ := m["contentType"].(string)
+	if ct != "LOCKUP_CONTENT_TYPE_PLAYLIST" && ct != "LOCKUP_CONTENT_TYPE_COURSE" {
+		// also handle course as playlist
+		if ct != "" && ct != "LOCKUP_CONTENT_TYPE_PLAYLIST" {
+			return nil
+		}
+	}
+	playlistID, _ := m["contentId"].(string)
+	if playlistID == "" {
+		return nil
+	}
+	title := ""
+	if meta, ok := m["metadata"].(map[string]interface{}); ok {
+		if lockup, ok := meta["lockupMetadataViewModel"].(map[string]interface{}); ok {
+			if t, ok := lockup["title"].(map[string]interface{}); ok {
+				title, _ = t["content"].(string)
+			}
+		}
+	}
+	channelName := ""
+	channelID := ""
+	if meta, ok := m["metadata"].(map[string]interface{}); ok {
+		if lockup, ok := meta["lockupMetadataViewModel"].(map[string]interface{}); ok {
+			if md, ok := lockup["metadata"].(map[string]interface{}); ok {
+				if cm, ok := md["contentMetadataViewModel"].(map[string]interface{}); ok {
+					if rows, ok := cm["metadataRows"].([]interface{}); ok && len(rows) > 0 {
+						if first, ok := rows[0].(map[string]interface{}); ok {
+							if parts, ok := first["metadataParts"].([]interface{}); ok && len(parts) > 0 {
+								if p0, ok := parts[0].(map[string]interface{}); ok {
+									if txt, ok := p0["text"].(map[string]interface{}); ok {
+										channelName, _ = txt["content"].(string)
+										if runs, ok := txt["commandRuns"].([]interface{}); ok && len(runs) > 0 {
+											if r0, ok := runs[0].(map[string]interface{}); ok {
+												if tap, ok := r0["onTap"].(map[string]interface{}); ok {
+													if cmd, ok := tap["innertubeCommand"].(map[string]interface{}); ok {
+														if be, ok := cmd["browseEndpoint"].(map[string]interface{}); ok {
+															channelID, _ = be["browseId"].(string)
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	var thumbs []Thumbnail
+	var thumbURL string
+	var videoCountText string
+	isCourse := false
+	var badges []string
+	if ci, ok := m["contentImage"].(map[string]interface{}); ok {
+		if col, ok := ci["collectionThumbnailViewModel"].(map[string]interface{}); ok {
+			if pt, ok := col["primaryThumbnail"].(map[string]interface{}); ok {
+				if tv, ok := pt["thumbnailViewModel"].(map[string]interface{}); ok {
+					if img, ok := tv["image"].(map[string]interface{}); ok {
+						thumbs = parseSourcesThumbnails(img)
+						if len(thumbs) > 0 {
+							thumbURL = thumbs[len(thumbs)-1].URL
+						}
+					}
+					if overlays, ok := tv["overlays"].([]interface{}); ok {
+						for _, ov := range overlays {
+							if om, ok := ov.(map[string]interface{}); ok {
+								if bw, ok := om["thumbnailOverlayBadgeViewModel"].(map[string]interface{}); ok {
+									if badgesArr, ok := bw["thumbnailBadges"].([]interface{}); ok {
+										for _, b := range badgesArr {
+											if bm, ok := b.(map[string]interface{}); ok {
+												if tb, ok := bm["thumbnailBadgeViewModel"].(map[string]interface{}); ok {
+													if txt, ok := tb["text"].(string); ok && txt != "" {
+														videoCountText = txt
+														badges = append(badges, txt)
+													}
+													if ic, ok := tb["icon"].(map[string]interface{}); ok {
+														if srcs, ok := ic["sources"].([]interface{}); ok && len(srcs) > 0 {
+															if s0, ok := srcs[0].(map[string]interface{}); ok {
+																if cr, ok := s0["clientResource"].(map[string]interface{}); ok {
+																	if name, ok := cr["imageName"].(string); ok {
+																		badges = append(badges, name)
+																		if name == "COURSE" {
+																			isCourse = true
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	videoCount := 0
+	if videoCountText != "" {
+		fmt.Sscan(strings.Fields(videoCountText)[0], &videoCount)
+	}
+	// description snippet is often next metadata row with first video title
+	desc := ""
+	if meta, ok := m["metadata"].(map[string]interface{}); ok {
+		if lockup, ok := meta["lockupMetadataViewModel"].(map[string]interface{}); ok {
+			if md, ok := lockup["metadata"].(map[string]interface{}); ok {
+				if cm, ok := md["contentMetadataViewModel"].(map[string]interface{}); ok {
+					if rows, ok := cm["metadataRows"].([]interface{}); ok && len(rows) >= 3 {
+						if third, ok := rows[2].(map[string]interface{}); ok {
+							if parts, ok := third["metadataParts"].([]interface{}); ok && len(parts) > 0 {
+								if p0, ok := parts[0].(map[string]interface{}); ok {
+									if txt, ok := p0["text"].(map[string]interface{}); ok {
+										desc, _ = txt["content"].(string)
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return &PlaylistResult{
+		PlaylistID:         playlistID,
+		Title:              title,
+		ChannelName:        channelName,
+		ChannelID:          channelID,
+		ThumbnailURL:       thumbURL,
+		Thumbnails:         thumbs,
+		VideoCountText:     videoCountText,
+		VideoCount:         videoCount,
+		IsCourse:           isCourse,
+		Badges:             badges,
+		DescriptionSnippet: desc,
+	}
+}
+
 func parseOfficialCard(v interface{}) *TopicCard {
 	m := asMap(v)
 	if m == nil {
@@ -507,10 +656,11 @@ func extractContinuationToken(v interface{}) string {
 	return ""
 }
 
-func collect(json map[string]interface{}) ([]VideoMetadata, []ChannelResult, []ShortResult, *TopicCard, string, string) {
+func collect(json map[string]interface{}) ([]VideoMetadata, []ChannelResult, []ShortResult, []PlaylistResult, *TopicCard, string, string) {
 	var videos []VideoMetadata
 	var channels []ChannelResult
 	var shorts []ShortResult
+	var playlists []PlaylistResult
 	var topicCard *TopicCard
 	continuation := ""
 	estimated := ""
@@ -548,6 +698,15 @@ func collect(json map[string]interface{}) ([]VideoMetadata, []ChannelResult, []S
 												} else if card, ok := im["officialCardViewModel"]; ok {
 													if topicCard == nil {
 														topicCard = parseOfficialCard(card)
+													}
+												} else if lockup, ok := im["lockupViewModel"]; ok {
+													if pl := parsePlaylistLockup(lockup); pl != nil {
+														playlists = append(playlists, *pl)
+													} else if ct, ok := lockup.(map[string]interface{}); ok && ct["contentType"] == "LOCKUP_CONTENT_TYPE_VIDEO" {
+														// video lockup fallback — try videoRenderer-like parsing via lockup
+														if vm := parseVideoRenderer(lockup); vm != nil {
+															videos = append(videos, *vm)
+														}
 													}
 												} else if grid, ok := im["gridShelfViewModel"]; ok {
 													if gm, ok := grid.(map[string]interface{}); ok {
@@ -625,6 +784,10 @@ func collect(json map[string]interface{}) ([]VideoMetadata, []ChannelResult, []S
 													if ch := parseChannelRenderer(cr); ch != nil {
 														channels = append(channels, *ch)
 													}
+												} else if lockup, ok := sm["lockupViewModel"]; ok {
+													if pl := parsePlaylistLockup(lockup); pl != nil {
+														playlists = append(playlists, *pl)
+													}
 												} else if card, ok := sm["officialCardViewModel"]; ok {
 													if topicCard == nil {
 														topicCard = parseOfficialCard(card)
@@ -654,6 +817,10 @@ func collect(json map[string]interface{}) ([]VideoMetadata, []ChannelResult, []S
 								} else if cr, ok := im["channelRenderer"]; ok {
 									if ch := parseChannelRenderer(cr); ch != nil {
 										channels = append(channels, *ch)
+									}
+								} else if lockup, ok := im["lockupViewModel"]; ok {
+									if pl := parsePlaylistLockup(lockup); pl != nil {
+										playlists = append(playlists, *pl)
 									}
 								} else if grid, ok := im["gridShelfViewModel"]; ok {
 									if gm, ok := grid.(map[string]interface{}); ok {
@@ -706,7 +873,7 @@ func collect(json map[string]interface{}) ([]VideoMetadata, []ChannelResult, []S
 		}
 		continuation = findToken(json)
 	}
-	return videos, channels, shorts, topicCard, continuation, estimated
+	return videos, channels, shorts, playlists, topicCard, continuation, estimated
 }
 
 // Search performs innertube search with session cookies, handles pagination via continuation
@@ -796,7 +963,7 @@ func Search(session *InnertubeSession, query string, continuation string) (*Sear
 	if err := json.NewDecoder(resp.Body).Decode(&j); err != nil {
 		return nil, fmt.Errorf("parse search json: %w", err)
 	}
-	videos, channels, shorts, topicCard, cont, estimated := collect(j)
+	videos, channels, shorts, playlists, topicCard, cont, estimated := collect(j)
 	q := query
 	if strings.TrimSpace(query) == "" {
 		q = continuation
@@ -806,6 +973,7 @@ func Search(session *InnertubeSession, query string, continuation string) (*Sear
 		Videos:           videos,
 		Channels:         channels,
 		Shorts:           shorts,
+		Playlists:        playlists,
 		TopicCard:        topicCard,
 		Continuation:     cont,
 		EstimatedResults: estimated,
