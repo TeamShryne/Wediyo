@@ -256,3 +256,82 @@ data class UiPlaylistDetail(
     val continuation: String,
     val playlistId: String
 )
+
+data class UiCourseVideo(
+    val videoId: String,
+    val title: String,
+    val channelName: String,
+    val channelId: String,
+    val thumbUrl: String,
+    val thumbsJson: String,
+    val durationText: String,
+    val indexText: String,
+    val viewCountText: String,
+    val publishedText: String,
+    val isUnavailable: Boolean,
+    val unavailableReason: String
+)
+
+data class UiCourseHeader(
+    val title: String,
+    val description: String,
+    val channelName: String,
+    val channelId: String,
+    val channelHandle: String,
+    val channelAvatarUrl: String,
+    val channelAvatarsJson: String,
+    val thumbUrl: String,
+    val thumbsJson: String,
+    val videoCountText: String,
+    val videoCount: Int,
+    val viewCountText: String,
+    val lastUpdatedText: String,
+    val hasUnavailable: Boolean
+)
+
+data class UiCourseDetail(
+    val header: UiCourseHeader?,
+    val videos: List<UiCourseVideo>,
+    val continuation: String,
+    val playlistId: String
+)
+
+data class UiShowEpisode(
+    val videoId: String,
+    val title: String,
+    val thumbUrl: String,
+    val thumbsJson: String,
+    val durationText: String,
+    val durationSecs: Int,
+    val indexText: String,
+    val isUnplayable: Boolean
+)
+
+data class UiShowSeason(
+    val title: String,
+    val selected: Boolean,
+    val params: String,
+    val browseId: String
+)
+
+data class UiShowHeader(
+    val title: String,
+    val description: String,
+    val thumbUrl: String,
+    val thumbsJson: String,
+    val seasonText: String,
+    val episodeCountText: String,
+    val episodeCount: Int,
+    val seasons: List<UiShowSeason>,
+    val currentSeason: String,
+    val subtitle: String,
+    val overlayTitle: String,
+    val overlaySubtitle: String
+)
+
+data class UiShowDetail(
+    val header: UiShowHeader?,
+    val episodes: List<UiShowEpisode>,
+    val continuation: String,
+    val playlistId: String
+)

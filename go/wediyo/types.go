@@ -362,6 +362,86 @@ type PlaylistDetailResult struct {
 	PlaylistId   string          `json:"playlist_id"` // PL...
 }
 
+type CourseVideo struct {
+	VideoId           string      `json:"video_id"`
+	Title             string      `json:"title"`
+	ChannelName       string      `json:"channel_name"`
+	ChannelId         string      `json:"channel_id"`
+	ThumbnailURL      string      `json:"thumbnail_url"`
+	Thumbnails        []Thumbnail `json:"thumbnails"` // 4 qualities 168/196/246/336
+	DurationText      string      `json:"duration_text"`
+	IndexText         string      `json:"index_text"`
+	ViewCountText     string      `json:"view_count_text"`
+	PublishedTimeText string      `json:"published_time_text"`
+	IsUnavailable     bool        `json:"is_unavailable"`
+	UnavailableReason string      `json:"unavailable_reason"`
+}
+
+type CourseHeader struct {
+	Title            string      `json:"title"`
+	Description      string      `json:"description"`
+	ChannelName      string      `json:"channel_name"`
+	ChannelId        string      `json:"channel_id"`
+	ChannelHandle    string      `json:"channel_handle"`
+	ChannelAvatarURL string      `json:"channel_avatar_url"`
+	ChannelAvatars   []Thumbnail `json:"channel_avatars"` // 48/88/176
+	ThumbnailURL     string      `json:"thumbnail_url"`
+	Thumbnails       []Thumbnail `json:"thumbnails"` // 4 qualities 168..336 + banner/cinematic same
+	VideoCountText   string      `json:"video_count_text"`  // "100 videos"
+	VideoCount       int         `json:"video_count"`
+	ViewCountText    string      `json:"view_count_text"`   // "7,292,789 views"
+	LastUpdatedText  string      `json:"last_updated_text"` // "Last updated on Oct 15, 2025"
+	HasUnavailable   bool        `json:"has_unavailable"`
+}
+
+type CourseDetailResult struct {
+	Header       *CourseHeader `json:"header,omitempty"`
+	Videos       []CourseVideo `json:"videos"`
+	Continuation string        `json:"continuation"`
+	PlaylistId   string        `json:"playlist_id"` // PL...
+}
+
+type ShowEpisode struct {
+	VideoId       string      `json:"video_id"`
+	Title         string      `json:"title"`
+	ThumbnailURL  string      `json:"thumbnail_url"`
+	Thumbnails    []Thumbnail `json:"thumbnails"` // 4 qualities 168..336
+	DurationText  string      `json:"duration_text"` // "43:14"
+	DurationSecs  int         `json:"duration_secs"`
+	IndexText     string      `json:"index_text"` // "1"
+	EpisodeLabel  string      `json:"episode_label"` // "S1:E1" from overlay
+	IsUnplayable  bool        `json:"is_unplayable"`
+}
+
+type ShowSeason struct {
+	Title    string `json:"title"` // "Season 1"
+	Selected bool   `json:"selected"`
+	Params   string `json:"params"`    // kgYWCgEx...
+	BrowseID string `json:"browse_id"` // VLPL...
+}
+
+type ShowHeader struct {
+	Title            string       `json:"title"` // "Shark Tank India S1 | Full Episodes Here"
+	Description      string       `json:"description"`
+	ThumbnailURL     string       `json:"thumbnail_url"`
+	Thumbnails       []Thumbnail  `json:"thumbnails"` // 4 qualities
+	SeasonText       string       `json:"season_text"`       // "1 season"
+	EpisodeCountText string       `json:"episode_count_text"`// "50 episodes"
+	EpisodeCount     int          `json:"episode_count"`
+	Seasons          []ShowSeason `json:"seasons"`
+	CurrentSeason    string       `json:"current_season"` // "Season 1"
+	Subtitle         string       `json:"subtitle"`       // hero overlay S1:E1 title
+	OverlayTitle     string       `json:"overlay_title"`
+	OverlaySubtitle  string       `json:"overlay_subtitle"` // "43 minutes"
+}
+
+type ShowDetailResult struct {
+	Header       *ShowHeader   `json:"header,omitempty"`
+	Episodes     []ShowEpisode `json:"episodes"`
+	Continuation string        `json:"continuation"`
+	PlaylistId   string        `json:"playlist_id"` // PL...
+}
+
 // InnertubeSession — from GET youtube.com Set-Cookie + ytcfg (stateless: caller holds)
 type InnertubeSession struct {
 	VisitorData            string `json:"visitor_data"`

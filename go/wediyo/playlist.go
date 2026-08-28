@@ -435,8 +435,10 @@ func parsePlaylistVideos(j map[string]interface{}) ([]PlaylistVideo, string) {
 						}
 					}
 				}
+			} else if tok := extractContinuationToken(sm); tok != "" {
+				// sectionList level continuation (course case: 100 videos + continuationItemViewModel, or playlist/shows)
+				continuation = tok
 			}
-			// ignore sectionList level continuationItemViewModel for video pagination (it's for sections, not videos)
 		}
 	}
 	return videos, continuation

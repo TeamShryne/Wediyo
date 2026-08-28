@@ -5,12 +5,14 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.teamshryne.wediyo.ui.screens.channel.ChannelScreen
+import com.teamshryne.wediyo.ui.screens.course.CourseScreen
 import com.teamshryne.wediyo.ui.screens.home.HomeScreen
 import com.teamshryne.wediyo.ui.screens.library.LibraryScreen
 import com.teamshryne.wediyo.ui.screens.playlist.PlaylistScreen
 import com.teamshryne.wediyo.ui.screens.search.SearchScreen
 import com.teamshryne.wediyo.ui.screens.settings.SettingsScreen
 import com.teamshryne.wediyo.ui.screens.shorts.ShortsScreen
+import com.teamshryne.wediyo.ui.screens.show.ShowScreen
 import com.teamshryne.wediyo.ui.screens.subscriptions.SubscriptionsScreen
 
 sealed class Screen(val route: String) {
@@ -26,6 +28,12 @@ sealed class Screen(val route: String) {
     object Playlist : Screen("playlist/{playlistId}") {
         fun route(playlistId: String) = "playlist/$playlistId"
     }
+    object Course : Screen("course/{playlistId}") {
+        fun route(playlistId: String) = "course/$playlistId"
+    }
+    object Show : Screen("show/{playlistId}") {
+        fun route(playlistId: String) = "show/$playlistId"
+    }
 }
 
 @Composable
@@ -40,11 +48,25 @@ fun AppNavHost(nav: NavHostController, start: String = Screen.Home.route) {
         }
         composable(Screen.Channel.route) { backStackEntry ->
             val browseId = backStackEntry.arguments?.getString("browseId") ?: ""
-            ChannelScreen(browseId = browseId, onBack = { nav.popBackStack() }, onPlaylistClick = { pid -> nav.navigate(Screen.Playlist.route(pid)) })
+            ChannelScreen(
+                browseId = browseId,
+                onBack = { nav.popBackStack() },
+                onPlaylistClick = { pid -> nav.navigate(Screen.Playlist.route(pid)) },
+                onCourseClick = { pid -> nav.navigate(Screen.Course.route(pid)) },
+                onShowClick = { pid -> nav.navigate(Screen.Show.route(pid)) }
+            )
         }
         composable(Screen.Playlist.route) { backStackEntry ->
             val pid = backStackEntry.arguments?.getString("playlistId") ?: ""
             PlaylistScreen(playlistId = pid, onBack = { nav.popBackStack() })
+        }
+        composable(Screen.Course.route) { backStackEntry ->
+            val pid = backStackEntry.arguments?.getString("playlistId") ?: ""
+            CourseScreen(playlistId = pid, onBack = { nav.popBackStack() })
+        }
+        composable(Screen.Show.route) { backStackEntry ->
+            val pid = backStackEntry.arguments?.getString("playlistId") ?: ""
+            ShowScreen(playlistId = pid, onBack = { nav.popBackStack() })
         }
         composable(Screen.Settings.route) { SettingsScreen(onBack = { nav.popBackStack() }) }
         composable(Screen.Shorts.route) { ShortsScreen() }
