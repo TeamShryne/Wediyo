@@ -58,3 +58,11 @@ data class UiChannelShorts(
     val shorts: List<UiShort>,
     val continuation: String
 )
+
+data class UiChannelLive(
+    val header: UiChannelHeader?,
+    val tabs: List<UiChannelTab>,
+    val chips: List<UiChannelVideoChip>,
+    val lives: List<UiVideo>,
+    val continuation: String
+)

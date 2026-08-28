@@ -214,3 +214,29 @@ func (r *ChannelShortsResult) ToJSON() string {
 	b, _ := json.Marshal(r)
 	return string(b)
 }
+
+func (r *ChannelLiveResult) ChipsJSON() string {
+	b, _ := json.Marshal(r.Chips)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *ChannelLiveResult) LivesJSON() string {
+	b, _ := json.Marshal(r.Lives)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *ChannelLiveResult) TabsJSON() string {
+	b, _ := json.Marshal(r.Tabs)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *ChannelLiveResult) ToJSON() string {
+	b, _ := json.Marshal(r)
+	return string(b)
+}

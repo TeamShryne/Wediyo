@@ -162,6 +162,14 @@ type ChannelShortsResult struct {
 	Continuation string             `json:"continuation"` // next page token
 }
 
+type ChannelLiveResult struct {
+	Header       *ChannelHeader     `json:"header,omitempty"`
+	Tabs         []ChannelTab       `json:"tabs"`
+	Chips        []ChannelVideoChip `json:"chips"` // Latest (dropdown) + Popular/Oldest + Members only/Public
+	Lives        []VideoMetadata    `json:"lives"` // live streams as VideoMetadata (thumbs, title, badges, stream time)
+	Continuation string             `json:"continuation"`
+}
+
 // InnertubeSession — from GET youtube.com Set-Cookie + ytcfg (stateless: caller holds)
 type InnertubeSession struct {
 	VisitorData            string `json:"visitor_data"`

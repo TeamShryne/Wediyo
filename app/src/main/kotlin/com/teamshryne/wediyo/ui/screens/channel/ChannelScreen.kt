@@ -43,14 +43,15 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
     LaunchedEffect(browseId) { vm.load(browseId) }
 
     val listState = rememberLazyListState()
-    // pagination for videos / shorts (chunked rows use same LazyColumn)
-    LaunchedEffect(listState.firstVisibleItemIndex, state.videosContinuation, state.shortsContinuation, state.selectedTab) {
+    // pagination for videos / shorts / live (chunked rows use same LazyColumn)
+    LaunchedEffect(listState.firstVisibleItemIndex, state.videosContinuation, state.shortsContinuation, state.livesContinuation, state.selectedTab) {
         val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
         val total = listState.layoutInfo.totalItemsCount
         if (total > 0 && lastVisible >= total - 4) {
             when (state.selectedTab) {
                 "Videos" -> vm.loadMoreVideos()
                 "Shorts" -> vm.loadMoreShorts()
+                "Live" -> vm.loadMoreLive()
             }
         }
     }
@@ -148,6 +149,7 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                                                     when (tab.title) {
                                                         "Videos" -> vm.selectVideosTab()
                                                         "Shorts" -> vm.selectShortsTab()
+                                                        "Live" -> vm.selectLiveTab()
                                                         "Home" -> vm.selectHomeTab()
                                                         else -> vm.selectHomeTab() // defer other tabs to home for now
                                                     }
@@ -341,6 +343,76 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                             }
                         }
                         if (state.shortsContinuation.isBlank() && state.shortsList.isNotEmpty() && !state.isShortsLoading) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                    Text("You've reached the end", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    } else if (state.selectedTab == "Live") {
+                        // Chips for Live: Latest (dropdown) + Popular/Oldest + Members only/Public
+                        if (state.liveChips.isNotEmpty()) {
+                            item {
+                                LazyRow(
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(state.liveChips.size) { idx ->
+                                        val chip = state.liveChips[idx]
+                                        FilterChip(
+                                            selected = chip.selected,
+                                            onClick = { vm.selectLiveChip(chip) },
+                                            label = { Text(chip.title) },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer
+                                            )
+                                        )
+                                    }
+                                }
+                                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                            }
+                        } else if (state.isLiveLoading && state.livesList.isEmpty()) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                }
+                            }
+                        }
+
+                        if (state.livesList.isNotEmpty()) {
+                            items(state.livesList.size) { idx ->
+                                val v = state.livesList[idx]
+                                com.teamshryne.wediyo.ui.components.ChannelVideoListCard(v, thumbQ) {}
+                            }
+                        } else if (!state.isLiveLoading) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                    Text("No live streams", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+
+                        if (state.isLiveLoading && state.livesList.isNotEmpty()) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                                }
+                            }
+                        }
+
+                        state.error?.let { e ->
+                            item {
+                                Card(
+                                    Modifier.fillMaxWidth().padding(12.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                                ) {
+                                    Text(e, color = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.padding(16.dp))
+                                }
+                            }
+                        }
+
+                        if (state.livesContinuation.isBlank() && state.livesList.isNotEmpty() && !state.isLiveLoading) {
                             item {
                                 Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                                     Text("You've reached the end", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
