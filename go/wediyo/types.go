@@ -75,16 +75,27 @@ type FilterChip struct {
 	Token    string `json:"token"` // continuation token for this filter; empty for selected All
 }
 
+type SearchFilter struct {
+	Label  string `json:"label"`  // e.g. "Videos", "Under 3 minutes", "Live"
+	Params string `json:"params"` // sp value (base64, url decoded e.g. EgIQAQ==)
+}
+
+type SearchFilterGroup struct {
+	Title   string         `json:"title"` // TYPE, DURATION, UPLOAD DATE, FEATURES, PRIORITIZE
+	Filters []SearchFilter `json:"filters"`
+}
+
 type SearchResult struct {
-	Query            string           `json:"query"`
-	Videos           []VideoMetadata  `json:"videos"`
-	Channels         []ChannelResult  `json:"channels"`
-	Shorts           []ShortResult    `json:"shorts"`
-	Playlists        []PlaylistResult `json:"playlists"`
-	TopicCard        *TopicCard       `json:"topic_card,omitempty"`
-	Chips            []FilterChip     `json:"chips"`
-	Continuation     string           `json:"continuation"`      // empty if none
-	EstimatedResults string           `json:"estimated_results"` // e.g. "2494772"
+	Query            string              `json:"query"`
+	Videos           []VideoMetadata     `json:"videos"`
+	Channels         []ChannelResult     `json:"channels"`
+	Shorts           []ShortResult       `json:"shorts"`
+	Playlists        []PlaylistResult    `json:"playlists"`
+	TopicCard        *TopicCard          `json:"topic_card,omitempty"`
+	Chips            []FilterChip        `json:"chips"`
+	FilterGroups     []SearchFilterGroup `json:"filter_groups"`
+	Continuation     string              `json:"continuation"`      // empty if none
+	EstimatedResults string              `json:"estimated_results"` // e.g. "2494772"
 }
 
 // InnertubeSession — from GET youtube.com Set-Cookie + ytcfg (stateless: caller holds)

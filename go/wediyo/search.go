@@ -2,10 +2,12 @@ package wediyo
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 )
@@ -712,13 +714,187 @@ func parseFilterChips(data interface{}) []FilterChip {
 	return out
 }
 
-func collect(json map[string]interface{}) ([]VideoMetadata, []ChannelResult, []ShortResult, []PlaylistResult, *TopicCard, []FilterChip, string, string) {
+func parseFilterGroups(data interface{}) []SearchFilterGroup {
+	// header.searchHeaderRenderer.searchFilterButton.buttonRenderer.command.openPopupAction.popup.searchFilterOptionsDialogRenderer.groups
+	var findDialog func(v interface{}) map[string]interface{}
+	findDialog = func(v interface{}) map[string]interface{} {
+		if m, ok := v.(map[string]interface{}); ok {
+			if d, ok := m["searchFilterOptionsDialogRenderer"]; ok {
+				if dm, ok := d.(map[string]interface{}); ok {
+					return dm
+				}
+			}
+			for _, val := range m {
+				if res := findDialog(val); res != nil {
+					return res
+				}
+			}
+		} else if arr, ok := v.([]interface{}); ok {
+			for _, el := range arr {
+				if res := findDialog(el); res != nil {
+					return res
+				}
+			}
+		}
+		return nil
+	}
+	dlg := findDialog(data)
+	if dlg == nil {
+		return nil
+	}
+	groupsRaw, _ := dlg["groups"].([]interface{})
+	var out []SearchFilterGroup
+	for _, g := range groupsRaw {
+		if gm, ok := g.(map[string]interface{}); ok {
+			if fgr, ok := gm["searchFilterGroupRenderer"].(map[string]interface{}); ok {
+				title := getText(fgr["title"])
+				if title == "" {
+					title = "Unknown"
+				}
+				var filters []SearchFilter
+				if arr, ok := fgr["filters"].([]interface{}); ok {
+					for _, f := range arr {
+						if fm, ok := f.(map[string]interface{}); ok {
+							if sfr, ok := fm["searchFilterRenderer"].(map[string]interface{}); ok {
+								label := getText(sfr["label"])
+								if label == "" {
+									continue
+								}
+								params := ""
+								if ne, ok := sfr["navigationEndpoint"].(map[string]interface{}); ok {
+									if se, ok := ne["searchEndpoint"].(map[string]interface{}); ok {
+										if p, ok := se["params"].(string); ok {
+											// params is url-escaped like EgIQAQ%3D%3D -> decode
+											if u, err := url.QueryUnescape(p); err == nil {
+												p = u
+											}
+											if u2, err := url.QueryUnescape(p); err == nil && strings.Contains(p, "%") {
+												p = u2
+											}
+											params = p
+										}
+									}
+								}
+								filters = append(filters, SearchFilter{Label: label, Params: params})
+							}
+						}
+					}
+				}
+				out = append(out, SearchFilterGroup{Title: title, Filters: filters})
+			}
+		}
+	}
+	return out
+}
+
+// BuildSearchParams builds YouTube search sp param for filters matching research/filters.png
+// Labels must match exactly: TYPE Videos/Shorts/Channels/Playlists/Movies,
+// DURATION Under 3 minutes / 3 - 20 minutes / Over 20 minutes,
+// UPLOAD DATE Today/This week/This month/This year,
+// FEATURES Live/4K/HD/Subtitles/CC/Creative Commons/360°/VR180/3D/HDR/Location/Purchased,
+// PRIORITIZE Relevance/Popularity.
+// Empty or unknown labels are ignored; Relevance = no sort field.
+func BuildSearchParams(typeFilter, duration, uploadDate string, features []string, prioritize string) string {
+	// inner fields for wrapper 0x12 (field 2)
+	var inner [][]byte
+	// upload date field 1 (0x08)
+	switch uploadDate {
+	case "Today":
+		inner = append(inner, []byte{0x08, 0x02})
+	case "This week":
+		inner = append(inner, []byte{0x08, 0x03})
+	case "This month":
+		inner = append(inner, []byte{0x08, 0x04})
+	case "This year":
+		inner = append(inner, []byte{0x08, 0x05})
+	}
+	// type field 2 (0x10)
+	switch typeFilter {
+	case "Videos":
+		inner = append(inner, []byte{0x10, 0x01})
+	case "Channels":
+		inner = append(inner, []byte{0x10, 0x02})
+	case "Playlists":
+		inner = append(inner, []byte{0x10, 0x03})
+	case "Movies":
+		inner = append(inner, []byte{0x10, 0x04})
+	case "Shorts":
+		inner = append(inner, []byte{0x10, 0x09})
+	}
+	// duration field 3 (0x18)
+	switch duration {
+	case "Under 3 minutes":
+		inner = append(inner, []byte{0x18, 0x04})
+	case "3 - 20 minutes":
+		inner = append(inner, []byte{0x18, 0x05})
+	case "Over 20 minutes":
+		inner = append(inner, []byte{0x18, 0x02})
+	}
+	// features: each is a boolean field with value 1, sorted by field number
+	// map label -> inner bytes
+	featureMap := map[string][]byte{
+		"HD":               {0x20, 0x01},             // field 4
+		"Subtitles/CC":     {0x28, 0x01},             // field 5
+		"Creative Commons": {0x30, 0x01},             // field 6
+		"3D":               {0x38, 0x01},             // field 7
+		"Live":             {0x40, 0x01},             // field 8
+		"Purchased":        {0x48, 0x01},             // field 9
+		"4K":               {0x70, 0x01},             // field 14 (112)
+		"360°":             {0x78, 0x01},             // field 15 (120)
+		"HDR":              {0xC8, 0x01, 0x01},       // field 25 (200) varint tag C8 01
+		"VR180":            {0xD0, 0x01, 0x01},       // field 26 (208) D0 01
+		"Location":         {0xB8, 0x01, 0x01},       // field 23 (184) B8 01
+	}
+	// sort features by tag bytes to keep determinism (ascending field number)
+	sort.Strings(features)
+	for _, f := range features {
+		if b, ok := featureMap[f]; ok {
+			inner = append(inner, b)
+		} else if f == "Subtitles" { // alias
+			inner = append(inner, featureMap["Subtitles/CC"])
+		}
+	}
+	// sort inner by first byte (field tag) ascending for deterministic protobuf
+	sort.Slice(inner, func(i, j int) bool {
+		// compare first byte, then second for varint tags
+		if inner[i][0] != inner[j][0] {
+			return inner[i][0] < inner[j][0]
+		}
+		if len(inner[i]) > 1 && len(inner[j]) > 1 && inner[i][1] != inner[j][1] {
+			return inner[i][1] < inner[j][1]
+		}
+		return len(inner[i]) < len(inner[j])
+	})
+	var outer []byte
+	// prioritize param: top-level field 1 (0x08) for Popularity
+	if strings.EqualFold(prioritize, "Popularity") || strings.EqualFold(prioritize, "Popular") {
+		outer = append(outer, 0x08, 0x03)
+	}
+	// wrapper field 2 (0x12) if inner non-empty
+	if len(inner) > 0 {
+		var innerFlat []byte
+		for _, b := range inner {
+			innerFlat = append(innerFlat, b...)
+		}
+		outer = append(outer, 0x12)
+		// length varint (assume <128)
+		outer = append(outer, byte(len(innerFlat)))
+		outer = append(outer, innerFlat...)
+	}
+	if len(outer) == 0 {
+		return ""
+	}
+	return base64.StdEncoding.EncodeToString(outer)
+}
+
+func collect(json map[string]interface{}) ([]VideoMetadata, []ChannelResult, []ShortResult, []PlaylistResult, *TopicCard, []FilterChip, []SearchFilterGroup, string, string) {
 	var videos []VideoMetadata
 	var channels []ChannelResult
 	var shorts []ShortResult
 	var playlists []PlaylistResult
 	var topicCard *TopicCard
 	chips := parseFilterChips(json)
+	filterGroups := parseFilterGroups(json)
 	continuation := ""
 	estimated := ""
 	if er, ok := json["estimatedResults"].(string); ok {
@@ -1025,11 +1201,12 @@ func collect(json map[string]interface{}) ([]VideoMetadata, []ChannelResult, []S
 		}
 		continuation = findToken(json)
 	}
-	return videos, channels, shorts, playlists, topicCard, chips, continuation, estimated
+	return videos, channels, shorts, playlists, topicCard, chips, filterGroups, continuation, estimated
 }
 
-// Search performs innertube search with session cookies, handles pagination via continuation
-func Search(session *InnertubeSession, query string, continuation string) (*SearchResult, error) {
+// SearchWithParams performs innertube search with optional sp params (filters) and pagination.
+// params is base64 sp string e.g. EgIQAQ== for Videos; empty means no filter. Built via BuildSearchParams.
+func SearchWithParams(session *InnertubeSession, query string, params string, continuation string) (*SearchResult, error) {
 	if strings.TrimSpace(query) == "" && strings.TrimSpace(continuation) == "" {
 		return nil, fmt.Errorf("query and continuation empty")
 	}
@@ -1075,11 +1252,24 @@ func Search(session *InnertubeSession, query string, continuation string) (*Sear
 		bodyMap["continuation"] = continuation
 	} else {
 		bodyMap["query"] = query
+		if strings.TrimSpace(params) != "" {
+			bodyMap["params"] = params
+		}
+	}
+	// originalUrl should reflect params for correct filters context
+	if strings.TrimSpace(params) != "" && strings.TrimSpace(continuation) == "" {
+		originalURL = "https://www.youtube.com/results?search_query=" + url.QueryEscape(query) + "&sp=" + url.QueryEscape(params)
+		if c, ok := context["client"].(map[string]interface{}); ok {
+			c["originalUrl"] = originalURL
+		}
 	}
 	bodyBytes, _ := json.Marshal(bodyMap)
 	referer := "https://www.youtube.com/"
 	if strings.TrimSpace(query) != "" {
 		referer = "https://www.youtube.com/results?search_query=" + url.QueryEscape(query)
+		if strings.TrimSpace(params) != "" {
+			referer += "&sp=" + url.QueryEscape(params)
+		}
 	}
 	req, err := http.NewRequest("POST", urlStr, bytes.NewReader(bodyBytes))
 	if err != nil {
@@ -1115,7 +1305,7 @@ func Search(session *InnertubeSession, query string, continuation string) (*Sear
 	if err := json.NewDecoder(resp.Body).Decode(&j); err != nil {
 		return nil, fmt.Errorf("parse search json: %w", err)
 	}
-	videos, channels, shorts, playlists, topicCard, chips, cont, estimated := collect(j)
+	videos, channels, shorts, playlists, topicCard, chips, filterGroups, cont, estimated := collect(j)
 	q := query
 	if strings.TrimSpace(query) == "" {
 		q = continuation
@@ -1128,9 +1318,15 @@ func Search(session *InnertubeSession, query string, continuation string) (*Sear
 		Playlists:        playlists,
 		TopicCard:        topicCard,
 		Chips:            chips,
+		FilterGroups:     filterGroups,
 		Continuation:     cont,
 		EstimatedResults: estimated,
 	}, nil
+}
+
+// Search is backward-compatible wrapper (no filters)
+func Search(session *InnertubeSession, query string, continuation string) (*SearchResult, error) {
+	return SearchWithParams(session, query, "", continuation)
 }
 
 func min(a, b int) int {
