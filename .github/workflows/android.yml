@@ -68,3 +68,42 @@ jobs:
           echo "✅ Local Gradle disabled — builds run only here."
           echo "Go AAR committed by go.yml → android.yml just consumes it."
           echo "Highly compatible: minSdk 21, target 35, NDK 27"
+
+  prune-caches:
+    runs-on: ubuntu-latest
+    needs: build-apk
+    if: always()
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Pruning caches — keep latest 20"
+          # list caches sorted by created_at desc, keep 20, delete rest
+          total=$(gh cache list --limit 100 --json id,createdAt --jq 'length' 2>/dev/null || echo 0)
+          echo "Total caches: $total"
+          if [ "$total" -gt 20 ]; then
+            gh cache list --limit 100 --json id,createdAt --jq 'sort_by(.createdAt) | reverse | .[20:] | .[].id' 2>/dev/null | while read id; do
+              if [ -n "$id" ] && [ "$id" != "null" ]; then
+                echo "Deleting cache $id"
+                gh cache delete "$id" --confirm 2>/dev/null || echo "failed $id"
+              fi
+            done
+            echo "Prune done"
+          else
+            echo "No prune needed"
+          fi
+          # fallback: try API via gh api if cache list not supported
+          if [ "$total" = "0" ]; then
+            echo "Trying API fallback"
+            curl -s -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/caches?per_page=100" | \
+              jq -r '.actions_caches | sort_by(.created_at) | reverse | .[20:] | .[].id' | while read cid; do
+                if [ -n "$cid" ] && [ "$cid" != "null" ]; then
+                  echo "Deleting via API $cid"
+                  curl -s -X DELETE -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+                    "https://api.github.com/repos/${{ github.repository }}/actions/caches/$cid" || true
+                fi
+              done
+          fi

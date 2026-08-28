@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -27,7 +27,7 @@ fun ChipsRow(chips: List<UiChip>, onChipClick: (UiChip) -> Unit, onFilterClick: 
         Box(
             Modifier.background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
                 .clickable { onFilterClick() }.padding(horizontal = 12.dp, vertical = 8.dp)
-        ) { Icon(Icons.Default.Tune, contentDescription = "Filters") }
+        ) { Icon(Icons.Default.Settings, contentDescription = "Filters") }
         chips.forEach { chip ->
             val bg = if (chip.selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surfaceVariant
             val fg = if (chip.selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurface

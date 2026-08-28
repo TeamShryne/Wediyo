@@ -7,10 +7,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material.icons.filled.Subscriptions
-import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -44,19 +44,19 @@ class MainActivity : ComponentActivity() {
                                 NavigationBarItem(
                                     selected = route == Screen.Shorts.route,
                                     onClick = { nav.navigate(Screen.Shorts.route) { launchSingleTop = true } },
-                                    icon = { Icon(Icons.Filled.PlayCircle, contentDescription = "Shorts") },
+                                    icon = { Icon(Icons.Filled.PlayArrow, contentDescription = "Shorts") },
                                     label = { Text("Shorts") }
                                 )
                                 NavigationBarItem(
                                     selected = route == Screen.Subscriptions.route,
                                     onClick = { nav.navigate(Screen.Subscriptions.route) { launchSingleTop = true } },
-                                    icon = { Icon(Icons.Filled.Subscriptions, contentDescription = "Subs") },
+                                    icon = { Icon(Icons.Filled.Favorite, contentDescription = "Subs") },
                                     label = { Text("Subs") }
                                 )
                                 NavigationBarItem(
                                     selected = route == Screen.Library.route,
                                     onClick = { nav.navigate(Screen.Library.route) { launchSingleTop = true } },
-                                    icon = { Icon(Icons.Filled.VideoLibrary, contentDescription = "Library") },
+                                    icon = { Icon(Icons.Filled.Person, contentDescription = "Library") },
                                     label = { Text("You") }
                                 )
                             }
