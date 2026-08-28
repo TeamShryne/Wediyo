@@ -43,12 +43,15 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
     LaunchedEffect(browseId) { vm.load(browseId) }
 
     val listState = rememberLazyListState()
-    // pagination for videos tab
-    LaunchedEffect(listState.firstVisibleItemIndex, state.videosContinuation, state.selectedTab) {
-        if (state.selectedTab == "Videos") {
-            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            val total = listState.layoutInfo.totalItemsCount
-            if (total > 0 && lastVisible >= total - 4) vm.loadMoreVideos()
+    // pagination for videos / shorts (chunked rows use same LazyColumn)
+    LaunchedEffect(listState.firstVisibleItemIndex, state.videosContinuation, state.shortsContinuation, state.selectedTab) {
+        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+        val total = listState.layoutInfo.totalItemsCount
+        if (total > 0 && lastVisible >= total - 4) {
+            when (state.selectedTab) {
+                "Videos" -> vm.loadMoreVideos()
+                "Shorts" -> vm.loadMoreShorts()
+            }
         }
     }
 
@@ -144,6 +147,7 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                                                 onClick = {
                                                     when (tab.title) {
                                                         "Videos" -> vm.selectVideosTab()
+                                                        "Shorts" -> vm.selectShortsTab()
                                                         "Home" -> vm.selectHomeTab()
                                                         else -> vm.selectHomeTab() // defer other tabs to home for now
                                                     }
@@ -231,6 +235,92 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                         }
 
                         if (state.videosContinuation.isBlank() && state.videosList.isNotEmpty() && !state.isVideosLoading) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                    Text("You've reached the end", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    } else if (state.selectedTab == "Shorts") {
+                        // Shorts grid — 3 per row reactive (title + views only, high-quality thumbs)
+                        if (state.isShortsLoading && state.shortsList.isEmpty()) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                }
+                            }
+                        }
+                        if (state.shortsList.isNotEmpty()) {
+                            val rows = state.shortsList.chunked(3)
+                            items(rows.size) { rowIdx ->
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    val row = rows[rowIdx]
+                                    row.forEach { s ->
+                                        Column(Modifier.weight(1f).clickable { /* TODO play short */ }) {
+                                            Box(
+                                                Modifier.fillMaxWidth().aspectRatio(9f / 16f).clip(RoundedCornerShape(12.dp)).background(Color(0xFF111111))
+                                            ) {
+                                                AsyncImage(
+                                                    model = bestThumbUrl(s.thumbsJson, s.thumbUrl, "high"),
+                                                    contentDescription = s.title,
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentScale = ContentScale.Crop
+                                                )
+                                            }
+                                            Spacer(Modifier.height(6.dp))
+                                            Text(
+                                                s.title,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                                modifier = Modifier.padding(horizontal = 2.dp)
+                                            )
+                                            if (s.views.isNotBlank()) {
+                                                Text(
+                                                    s.views,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    repeat(3 - row.size) {
+                                        Spacer(Modifier.weight(1f))
+                                    }
+                                }
+                            }
+                        } else if (!state.isShortsLoading) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                    Text("No shorts", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                        if (state.isShortsLoading && state.shortsList.isNotEmpty()) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                                }
+                            }
+                        }
+                        state.error?.let { e ->
+                            item {
+                                Card(
+                                    Modifier.fillMaxWidth().padding(12.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                                ) {
+                                    Text(e, color = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.padding(16.dp))
+                                }
+                            }
+                        }
+                        if (state.shortsContinuation.isBlank() && state.shortsList.isNotEmpty() && !state.isShortsLoading) {
                             item {
                                 Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                                     Text("You've reached the end", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

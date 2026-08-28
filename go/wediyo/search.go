@@ -403,29 +403,100 @@ func parseShortLockup(v interface{}) *ShortResult {
 	}
 	acc, _ := m["accessibilityText"].(string)
 	title := ""
-	if acc != "" {
-		title = strings.Split(acc, " - play Short")[0]
+	viewText := ""
+	// Prefer rich overlayMetadata (title + views) — accurate and not locale-dependent
+	if om, ok := m["overlayMetadata"].(map[string]interface{}); ok {
+		if pt, ok := om["primaryText"].(map[string]interface{}); ok {
+			if c, ok := pt["content"].(string); ok && c != "" {
+				title = c
+			}
+		}
+		if st, ok := om["secondaryText"].(map[string]interface{}); ok {
+			if c, ok := st["content"].(string); ok && strings.Contains(c, "views") {
+				viewText = c
+			}
+		}
 	}
+	if title == "" && acc != "" {
+		// accessibilityText fallback: "Title, 997K views - play Short" or "Title - play Short"
+		if idx := strings.Index(acc, " - play Short"); idx != -1 {
+			prefix := acc[:idx]
+			// prefix may contain ", 997K views" suffix — strip it if overlayMetadata already gave title, else use heuristic
+			if viewText == "" {
+				title = strings.Split(prefix, ", ")[0]
+				// viewText fallback below will fill from tail
+			} else {
+				title = prefix
+				if comma := strings.LastIndex(title, ","); comma != -1 {
+					tail := strings.TrimSpace(title[comma+1:])
+					if strings.Contains(tail, "views") {
+						title = strings.TrimSpace(title[:comma])
+					}
+				}
+			}
+			if title == "" {
+				title = prefix
+			}
+		} else {
+			title = strings.Split(acc, " - play Short")[0]
+		}
+	}
+	// Thumbnails: merge reelWatchEndpoint (1080x1920) + thumbnailViewModel (405x720 oar2/sar) for richest quality
 	var thumb string
 	var thumbs []Thumbnail
+	var reelThumbs []Thumbnail
+	var viewThumbs []Thumbnail
 	if tap, ok := m["onTap"].(map[string]interface{}); ok {
 		if cmd, ok := tap["innertubeCommand"].(map[string]interface{}); ok {
 			if re, ok := cmd["reelWatchEndpoint"].(map[string]interface{}); ok {
-				thumbs = parseThumbnails(re["thumbnail"])
-				if len(thumbs) > 0 {
-					thumb = thumbs[len(thumbs)-1].URL
+				reelThumbs = parseThumbnails(re["thumbnail"])
+			}
+		}
+	}
+	if tv, ok := m["thumbnailViewModel"].(map[string]interface{}); ok {
+		if inner, ok := tv["thumbnailViewModel"].(map[string]interface{}); ok {
+			if img, ok := inner["image"].(map[string]interface{}); ok {
+				viewThumbs = parseSourcesThumbnails(img)
+			}
+		} else if img, ok := tv["image"].(map[string]interface{}); ok {
+			viewThumbs = parseSourcesThumbnails(img)
+		}
+	}
+	// Fallback generic thumbnail key
+	if len(reelThumbs) == 0 && len(viewThumbs) == 0 {
+		viewThumbs = parseThumbnails(m["thumbnail"])
+	}
+	// Merge: keep all, dedupe by URL, keep highest as last
+	seen := map[string]bool{}
+	for _, th := range reelThumbs {
+		if !seen[th.URL] {
+			thumbs = append(thumbs, th)
+			seen[th.URL] = true
+		}
+	}
+	for _, th := range viewThumbs {
+		if !seen[th.URL] {
+			thumbs = append(thumbs, th)
+			seen[th.URL] = true
+		}
+	}
+	// Order by area (width*height) ascending so last is highest res
+	if len(thumbs) > 1 {
+		// simple sort by pixel count
+		for i := 0; i < len(thumbs)-1; i++ {
+			for j := i + 1; j < len(thumbs); j++ {
+				ai := thumbs[i].Width * thumbs[i].Height
+				aj := thumbs[j].Width * thumbs[j].Height
+				if ai > aj {
+					thumbs[i], thumbs[j] = thumbs[j], thumbs[i]
 				}
 			}
 		}
 	}
-	if len(thumbs) == 0 {
-		thumbs = parseThumbnails(m["thumbnail"])
-		if len(thumbs) > 0 && thumb == "" {
-			thumb = thumbs[len(thumbs)-1].URL
-		}
+	if len(thumbs) > 0 {
+		thumb = thumbs[len(thumbs)-1].URL
 	}
-	viewText := ""
-	if acc != "" {
+	if viewText == "" && acc != "" {
 		if idx := strings.LastIndex(acc, ","); idx != -1 {
 			tail := strings.TrimSpace(acc[idx+1:])
 			if strings.Contains(tail, "views") {
@@ -633,6 +704,87 @@ func parseOfficialCard(v interface{}) *TopicCard {
 			}
 		}
 	}
+	var handle string
+	var subText string
+	var videoText string
+	var verified bool
+	if pageHeader != nil {
+		if md, ok := pageHeader["metadata"].(map[string]interface{}); ok {
+			if cm, ok := md["contentMetadataViewModel"].(map[string]interface{}); ok {
+				if rows, ok := cm["metadataRows"].([]interface{}); ok {
+					if len(rows) > 0 {
+						if r0, ok := rows[0].(map[string]interface{}); ok {
+							if parts, ok := r0["metadataParts"].([]interface{}); ok && len(parts) > 0 {
+								if p0, ok := parts[0].(map[string]interface{}); ok {
+									if txt, ok := p0["text"].(map[string]interface{}); ok {
+										if c, ok := txt["content"].(string); ok {
+											handle = c
+										}
+									}
+								}
+							}
+						}
+					}
+					if len(rows) > 1 {
+						if r1, ok := rows[1].(map[string]interface{}); ok {
+							if parts, ok := r1["metadataParts"].([]interface{}); ok {
+								if len(parts) > 0 {
+									if p0, ok := parts[0].(map[string]interface{}); ok {
+										if txt, ok := p0["text"].(map[string]interface{}); ok {
+											if c, ok := txt["content"].(string); ok {
+												subText = c
+											}
+										}
+									}
+								}
+								if len(parts) > 1 {
+									if p1, ok := parts[1].(map[string]interface{}); ok {
+										if txt, ok := p1["text"].(map[string]interface{}); ok {
+											if c, ok := txt["content"].(string); ok {
+												videoText = c
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		// verified via CHECK_CIRCLE_FILLED already handled for header? also check here for topic
+		if t, ok := pageHeader["title"].(map[string]interface{}); ok {
+			if dyn, ok := t["dynamicTextViewModel"].(map[string]interface{}); ok {
+				if txt, ok := dyn["text"].(map[string]interface{}); ok {
+					if runs, ok := txt["attachmentRuns"].([]interface{}); ok {
+						for _, r := range runs {
+							if rm, ok := r.(map[string]interface{}); ok {
+								if el, ok := rm["element"].(map[string]interface{}); ok {
+									if typ, ok := el["type"].(map[string]interface{}); ok {
+										if imgType, ok := typ["imageType"].(map[string]interface{}); ok {
+											if img, ok := imgType["image"].(map[string]interface{}); ok {
+												if srcs, ok := img["sources"].([]interface{}); ok {
+													for _, s := range srcs {
+														if sm, ok := s.(map[string]interface{}); ok {
+															if cr, ok := sm["clientResource"].(map[string]interface{}); ok {
+																if name, ok := cr["imageName"].(string); ok && name == "CHECK_CIRCLE_FILLED" {
+																	verified = true
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 	if title == "" {
 		title = getText(m["title"])
 	}
@@ -643,10 +795,14 @@ func parseOfficialCard(v interface{}) *TopicCard {
 		browseID = "UCGllT9uTMh-nzEvBCi-9KRQ"
 	}
 	return &TopicCard{
-		Title:     title,
-		BrowseID:  browseID,
-		AvatarURL: avatarURL,
-		Avatars:   avatars,
+		Title:               title,
+		BrowseID:            browseID,
+		AvatarURL:           avatarURL,
+		Avatars:             avatars,
+		Handle:              handle,
+		SubscriberCountText: subText,
+		VideoCountText:      videoText,
+		Verified:            verified,
 	}
 }
 

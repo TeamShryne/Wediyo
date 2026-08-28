@@ -49,10 +49,14 @@ type ShortResult struct {
 }
 
 type TopicCard struct {
-	Title     string      `json:"title"`
-	BrowseID  string      `json:"browse_id"`
-	AvatarURL string      `json:"avatar_url"` // highest
-	Avatars   []Thumbnail `json:"avatars"`    // s176 etc
+	Title               string      `json:"title"`
+	BrowseID            string      `json:"browse_id"`
+	AvatarURL           string      `json:"avatar_url"` // highest
+	Avatars             []Thumbnail `json:"avatars"`    // s176 etc
+	Handle              string      `json:"handle"`               // "@WRLDMusic" etc
+	SubscriberCountText string      `json:"subscriber_count_text"`// "6.77K subscribers"
+	VideoCountText      string      `json:"video_count_text"`     // "1 video"
+	Verified            bool        `json:"verified"`
 }
 
 type PlaylistResult struct {
@@ -148,6 +152,13 @@ type ChannelVideosResult struct {
 	Chips        []ChannelVideoChip `json:"chips"` // filter chips for videos
 	Videos       []VideoMetadata    `json:"videos"`
 	Continuation string             `json:"continuation"` // next page token
+}
+
+type ChannelShortsResult struct {
+	Header       *ChannelHeader `json:"header,omitempty"`
+	Tabs         []ChannelTab   `json:"tabs"`
+	Shorts       []ShortResult  `json:"shorts"`
+	Continuation string         `json:"continuation"` // next page token
 }
 
 // InnertubeSession — from GET youtube.com Set-Cookie + ytcfg (stateless: caller holds)

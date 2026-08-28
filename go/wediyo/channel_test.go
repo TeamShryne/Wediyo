@@ -4,6 +4,7 @@ import (
  "encoding/json"
  "os"
  "path/filepath"
+ "strings"
  "testing"
 )
 
@@ -220,4 +221,67 @@ func TestPrimeTimeVideosChips(t *testing.T) {
   t.Fatal("continuation empty")
  }
  t.Logf("prime chips %d videos %d cont %s", len(res.Chips), len(res.Videos), res.Continuation[:30])
+}
+
+func TestChannelShortsFixture(t *testing.T) {
+	p := filepath.Join("..", "..", "research", "channels", "channel-shorts.json")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Skip("no shorts fixture")
+	}
+	var j map[string]interface{}
+	json.Unmarshal(data, &j)
+	res, err := collectChannelShorts(j)
+	if err != nil {
+		t.Fatalf("collect %v", err)
+	}
+	if len(res.Shorts) < 40 {
+		t.Fatalf("shorts %d", len(res.Shorts))
+	}
+	if res.Shorts[0].Title == "" {
+		t.Fatal("title empty")
+	}
+	if res.Shorts[0].Title != "World’s Largest Tennis Match" {
+		t.Fatalf("first title %q", res.Shorts[0].Title)
+	}
+	if !strings.Contains(res.Shorts[0].ViewCountText, "views") {
+		t.Fatalf("views %q", res.Shorts[0].ViewCountText)
+	}
+	if len(res.Shorts[0].Thumbnails) < 2 {
+		t.Fatalf("thumbs %d", len(res.Shorts[0].Thumbnails))
+	}
+	// highest thumb should be 1080x1920 or 405x720, check https
+	for _, th := range res.Shorts[0].Thumbnails {
+		if th.URL[:8] != "https://" {
+			t.Fatalf("thumb not https %s", th.URL)
+		}
+	}
+	if res.Shorts[0].ThumbnailURL[:8] != "https://" {
+		t.Fatalf("thumb url not https %s", res.Shorts[0].ThumbnailURL)
+	}
+	if res.Continuation == "" {
+		t.Fatal("continuation empty")
+	}
+	t.Logf("shorts %d cont %s first %s %s thumbs %d", len(res.Shorts), res.Continuation[:30], res.Shorts[0].Title, res.Shorts[0].ViewCountText, len(res.Shorts[0].Thumbnails))
+}
+
+func TestChannelShortsContinuationFixture(t *testing.T) {
+	p := filepath.Join("..", "..", "research", "channels", "channel-shorts-page2.json")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Skip("no page2")
+	}
+	var j map[string]interface{}
+	json.Unmarshal(data, &j)
+	res, err := collectChannelShorts(j)
+	if err != nil {
+		t.Fatalf("collect %v", err)
+	}
+	if len(res.Shorts) < 40 {
+		t.Fatalf("shorts %d", len(res.Shorts))
+	}
+	if res.Continuation == "" {
+		t.Fatal("cont empty")
+	}
+	t.Logf("page2 shorts %d cont %s first %s", len(res.Shorts), res.Continuation[:30], res.Shorts[0].Title)
 }

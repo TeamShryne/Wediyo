@@ -7,4 +7,6 @@ class ChannelRepository {
     suspend fun fetchHome(browseId: String): UiChannelHome = WediyoEngine.fetchChannelHome(browseId)
     suspend fun fetchVideos(browseId: String, continuation: String = ""): com.teamshryne.wediyo.data.model.UiChannelVideos =
         WediyoEngine.fetchChannelVideos(browseId, continuation)
+    suspend fun fetchShorts(browseId: String, continuation: String = ""): com.teamshryne.wediyo.data.model.UiChannelShorts =
+        WediyoEngine.fetchChannelShorts(browseId, continuation)
 }

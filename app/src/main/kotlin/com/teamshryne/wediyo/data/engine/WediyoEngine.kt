@@ -51,6 +51,66 @@ object WediyoEngine {
         parseChannelVideos(r)
     }
 
+    suspend fun fetchChannelShorts(browseId: String, continuation: String = ""): UiChannelShorts = withContext(Dispatchers.IO) {
+        val s = getSession()
+        val r = Wediyo.fetchChannelShorts(s, browseId, continuation)
+        parseChannelShorts(r)
+    }
+
+    private fun parseChannelShorts(r: com.teamshryne.wediyo.wediyo.ChannelShortsResult): UiChannelShorts {
+        val jsonStr = r.toJSON()
+        val obj = JSONObject(jsonStr)
+        val headerObj = obj.optJSONObject("header")
+        val header = headerObj?.let { h ->
+            UiChannelHeader(
+                channelId = h.optString("channel_id", ""),
+                title = h.optString("title", ""),
+                handle = h.optString("handle", ""),
+                avatarUrl = h.optString("avatar_url", ""),
+                avatarsJson = h.optJSONArray("avatars")?.toString() ?: "[]",
+                bannerUrl = h.optString("banner_url", ""),
+                bannersJson = h.optJSONArray("banners")?.toString() ?: "[]",
+                subs = h.optString("subscriber_count_text", ""),
+                videoCount = h.optString("video_count_text", ""),
+                description = h.optString("description", ""),
+                verified = h.optBoolean("verified", false),
+                channelUrl = h.optString("channel_url", ""),
+                rssUrl = h.optString("rss_url", ""),
+                keywords = h.optString("keywords", "")
+            )
+        }
+        val tabs = mutableListOf<UiChannelTab>()
+        r.tabsJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    tabs.add(UiChannelTab(o.optString("title"), o.optBoolean("selected"), o.optString("params"), o.optString("browse_id"), o.optString("canonical_base_url")))
+                }
+            }
+        }
+        val shorts = mutableListOf<UiShort>()
+        r.shortsJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    shorts.add(
+                        UiShort(
+                            videoId = o.optString("video_id", ""),
+                            title = o.optString("title", ""),
+                            thumbUrl = o.optString("thumbnail_url", ""),
+                            thumbsJson = o.optJSONArray("thumbnails")?.toString() ?: "[]",
+                            views = o.optString("view_count_text", "")
+                        )
+                    )
+                }
+            }
+        }
+        val cont = obj.optString("continuation", "")
+        return UiChannelShorts(header, tabs, shorts, cont)
+    }
+
     private fun parseChannelVideos(r: com.teamshryne.wediyo.wediyo.ChannelVideosResult): UiChannelVideos {
         val jsonStr = r.toJSON()
         val obj = JSONObject(jsonStr)
@@ -299,10 +359,16 @@ object WediyoEngine {
             }
         }
         var topicTitle: String? = null; var topicBrowse: String? = null; var topicAvatar: String? = null
+        var topicAvatarsJson: String? = null; var topicHandle: String? = null; var topicSubs: String? = null; var topicVideoCount: String? = null; var topicVerified = false
         obj.optJSONObject("topic_card")?.let { t ->
             topicTitle = t.optString("title", null)
             topicBrowse = t.optString("browse_id", null)
             topicAvatar = t.optString("avatar_url", null)
+            topicAvatarsJson = t.optJSONArray("avatars")?.toString()
+            topicHandle = t.optString("handle", null).takeIf { it.isNotEmpty() }
+            topicSubs = t.optString("subscriber_count_text", null).takeIf { it.isNotEmpty() }
+            topicVideoCount = t.optString("video_count_text", null).takeIf { it.isNotEmpty() }
+            topicVerified = t.optBoolean("verified", false)
         }
         val chips = mutableListOf<UiChip>()
         r.chipsJSON().let { js ->
@@ -331,6 +397,6 @@ object WediyoEngine {
                 }
             }
         }
-        return UiSearchResult(query, videos, channels, shorts, playlists, topicTitle, topicBrowse, topicAvatar, chips, filterGroups, cont, est)
+        return UiSearchResult(query, videos, channels, shorts, playlists, topicTitle, topicBrowse, topicAvatar, topicAvatarsJson, topicHandle, topicSubs, topicVideoCount, topicVerified, chips, filterGroups, cont, est)
     }
 }

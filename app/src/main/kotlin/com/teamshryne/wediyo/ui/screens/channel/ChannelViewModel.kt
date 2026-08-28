@@ -3,6 +3,7 @@ package com.teamshryne.wediyo.ui.screens.channel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.teamshryne.wediyo.data.model.UiChannelHome
+import com.teamshryne.wediyo.data.model.UiChannelShorts
 import com.teamshryne.wediyo.data.model.UiChannelVideoChip
 import com.teamshryne.wediyo.data.model.UiChannelVideos
 import com.teamshryne.wediyo.data.repository.ChannelRepository
@@ -21,6 +22,10 @@ data class ChannelUiState(
     val selectedChip: String? = null,
     val videosContinuation: String = "",
     val isVideosLoading: Boolean = false,
+    val shorts: UiChannelShorts? = null,
+    val shortsList: List<com.teamshryne.wediyo.data.model.UiShort> = emptyList(),
+    val shortsContinuation: String = "",
+    val isShortsLoading: Boolean = false,
     val selectedTab: String = "Home",
     val pendingShelfChip: String? = null
 )
@@ -118,10 +123,50 @@ class ChannelViewModel : ViewModel() {
         }
     }
 
+    fun loadShorts(browseId: String = _state.value.browseId, continuation: String = "") {
+        if (browseId.isBlank() && continuation.isBlank()) return
+        if (continuation.isBlank() && _state.value.shortsList.isEmpty()) {
+            _state.value = _state.value.copy(isShortsLoading = true, error = null)
+        } else if (continuation.isNotBlank() && _state.value.isShortsLoading) return
+        else if (continuation.isNotBlank()) _state.value = _state.value.copy(isShortsLoading = true)
+        viewModelScope.launch {
+            try {
+                val res = repo.fetchShorts(browseId, continuation)
+                if (continuation.isBlank()) {
+                    _state.value = _state.value.copy(
+                        shorts = res,
+                        shortsList = res.shorts,
+                        shortsContinuation = res.continuation,
+                        isShortsLoading = false,
+                        selectedTab = "Shorts"
+                    )
+                } else {
+                    val merged = _state.value.shortsList + res.shorts
+                    val cont = if (res.continuation.isNotBlank()) res.continuation else _state.value.shortsContinuation
+                    _state.value = _state.value.copy(
+                        shorts = res,
+                        shortsList = merged,
+                        shortsContinuation = cont,
+                        isShortsLoading = false
+                    )
+                }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(isShortsLoading = false, error = e.message ?: "Failed to load shorts")
+            }
+        }
+    }
+
     fun selectVideosTab(browseId: String = _state.value.browseId) {
         _state.value = _state.value.copy(selectedTab = "Videos", pendingShelfChip = null)
         if (_state.value.videosList.isEmpty() && !_state.value.isVideosLoading) {
             loadVideos(browseId, "")
+        }
+    }
+
+    fun selectShortsTab(browseId: String = _state.value.browseId) {
+        _state.value = _state.value.copy(selectedTab = "Shorts", pendingShelfChip = null)
+        if (_state.value.shortsList.isEmpty() && !_state.value.isShortsLoading) {
+            loadShorts(browseId, "")
         }
     }
 
@@ -178,6 +223,12 @@ class ChannelViewModel : ViewModel() {
         val cont = _state.value.videosContinuation
         if (cont.isBlank() || _state.value.isVideosLoading) return
         loadVideos(_state.value.browseId, cont)
+    }
+
+    fun loadMoreShorts() {
+        val cont = _state.value.shortsContinuation
+        if (cont.isBlank() || _state.value.isShortsLoading) return
+        loadShorts(_state.value.browseId, cont)
     }
 
     fun retry() {

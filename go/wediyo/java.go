@@ -188,3 +188,22 @@ func (r *ChannelVideosResult) ToJSON() string {
 	b, _ := json.Marshal(r)
 	return string(b)
 }
+
+func (r *ChannelShortsResult) ShortsJSON() string {
+	b, _ := json.Marshal(r.Shorts)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *ChannelShortsResult) TabsJSON() string {
+	b, _ := json.Marshal(r.Tabs)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *ChannelShortsResult) ToJSON() string {
+	b, _ := json.Marshal(r)
+	return string(b)
+}
