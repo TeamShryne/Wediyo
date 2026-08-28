@@ -168,6 +168,6 @@ object WediyoEngine {
                 }
             }
         }
-        UiSearchResult(query, videos, channels, shorts, playlists, topicTitle, topicBrowse, topicAvatar, chips, filterGroups, cont, est)
+        return UiSearchResult(query, videos, channels, shorts, playlists, topicTitle, topicBrowse, topicAvatar, chips, filterGroups, cont, est)
     }
 }
