@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.teamshryne.wediyo.data.model.UiChannelHome
 import com.teamshryne.wediyo.data.model.UiChannelLive
+import com.teamshryne.wediyo.data.model.UiChannelPodcasts
 import com.teamshryne.wediyo.data.model.UiChannelShorts
 import com.teamshryne.wediyo.data.model.UiChannelVideoChip
 import com.teamshryne.wediyo.data.model.UiChannelVideos
@@ -35,6 +36,10 @@ data class ChannelUiState(
     val selectedLiveChip: String? = null,
     val livesContinuation: String = "",
     val isLiveLoading: Boolean = false,
+    val podcasts: UiChannelPodcasts? = null,
+    val podcastsList: List<com.teamshryne.wediyo.data.model.UiChannelPodcast> = emptyList(),
+    val podcastsContinuation: String = "",
+    val isPodcastsLoading: Boolean = false,
     val selectedTab: String = "Home",
     val pendingShelfChip: String? = null
 )
@@ -273,6 +278,39 @@ class ChannelViewModel : ViewModel() {
         }
     }
 
+    fun loadPodcasts(browseId: String = _state.value.browseId, continuation: String = "") {
+        if (browseId.isBlank() && continuation.isBlank()) return
+        if (continuation.isBlank() && _state.value.podcastsList.isEmpty()) {
+            _state.value = _state.value.copy(isPodcastsLoading = true, error = null)
+        } else if (continuation.isNotBlank() && _state.value.isPodcastsLoading) return
+        else if (continuation.isNotBlank()) _state.value = _state.value.copy(isPodcastsLoading = true)
+        viewModelScope.launch {
+            try {
+                val res = repo.fetchPodcasts(browseId, continuation)
+                if (continuation.isBlank()) {
+                    _state.value = _state.value.copy(
+                        podcasts = res,
+                        podcastsList = res.podcasts,
+                        podcastsContinuation = res.continuation,
+                        isPodcastsLoading = false,
+                        selectedTab = "Podcasts"
+                    )
+                } else {
+                    val merged = _state.value.podcastsList + res.podcasts
+                    val cont = if (res.continuation.isNotBlank()) res.continuation else _state.value.podcastsContinuation
+                    _state.value = _state.value.copy(
+                        podcasts = res,
+                        podcastsList = merged,
+                        podcastsContinuation = cont,
+                        isPodcastsLoading = false
+                    )
+                }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(isPodcastsLoading = false, error = e.message ?: "Failed to load podcasts")
+            }
+        }
+    }
+
     fun selectVideosTab(browseId: String = _state.value.browseId) {
         _state.value = _state.value.copy(selectedTab = "Videos", pendingShelfChip = null)
         if (_state.value.videosList.isEmpty() && !_state.value.isVideosLoading) {
@@ -291,6 +329,13 @@ class ChannelViewModel : ViewModel() {
         _state.value = _state.value.copy(selectedTab = "Live", pendingShelfChip = null)
         if (_state.value.livesList.isEmpty() && !_state.value.isLiveLoading) {
             loadLive(browseId, "")
+        }
+    }
+
+    fun selectPodcastsTab(browseId: String = _state.value.browseId) {
+        _state.value = _state.value.copy(selectedTab = "Podcasts", pendingShelfChip = null)
+        if (_state.value.podcastsList.isEmpty() && !_state.value.isPodcastsLoading) {
+            loadPodcasts(browseId, "")
         }
     }
 
@@ -359,6 +404,12 @@ class ChannelViewModel : ViewModel() {
         val cont = _state.value.livesContinuation
         if (cont.isBlank() || _state.value.isLiveLoading) return
         loadLive(_state.value.browseId, cont)
+    }
+
+    fun loadMorePodcasts() {
+        val cont = _state.value.podcastsContinuation
+        if (cont.isBlank() || _state.value.isPodcastsLoading) return
+        loadPodcasts(_state.value.browseId, cont)
     }
 
     fun retry() {

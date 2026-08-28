@@ -43,8 +43,8 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
     LaunchedEffect(browseId) { vm.load(browseId) }
 
     val listState = rememberLazyListState()
-    // pagination for videos / shorts / live (chunked rows use same LazyColumn)
-    LaunchedEffect(listState.firstVisibleItemIndex, state.videosContinuation, state.shortsContinuation, state.livesContinuation, state.selectedTab) {
+    // pagination for videos / shorts / live / podcasts (chunked rows use same LazyColumn)
+    LaunchedEffect(listState.firstVisibleItemIndex, state.videosContinuation, state.shortsContinuation, state.livesContinuation, state.podcastsContinuation, state.selectedTab) {
         val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
         val total = listState.layoutInfo.totalItemsCount
         if (total > 0 && lastVisible >= total - 4) {
@@ -52,6 +52,7 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                 "Videos" -> vm.loadMoreVideos()
                 "Shorts" -> vm.loadMoreShorts()
                 "Live" -> vm.loadMoreLive()
+                "Podcasts" -> vm.loadMorePodcasts()
             }
         }
     }
@@ -150,6 +151,7 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                                                         "Videos" -> vm.selectVideosTab()
                                                         "Shorts" -> vm.selectShortsTab()
                                                         "Live" -> vm.selectLiveTab()
+                                                        "Podcasts" -> vm.selectPodcastsTab()
                                                         "Home" -> vm.selectHomeTab()
                                                         else -> vm.selectHomeTab() // defer other tabs to home for now
                                                     }
@@ -413,6 +415,86 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                         }
 
                         if (state.livesContinuation.isBlank() && state.livesList.isNotEmpty() && !state.isLiveLoading) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                    Text("You've reached the end", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    } else if (state.selectedTab == "Podcasts") {
+                        if (state.isPodcastsLoading && state.podcastsList.isEmpty()) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                }
+                            }
+                        }
+                        if (state.podcastsList.isNotEmpty()) {
+                            items(state.podcastsList.size) { idx ->
+                                val p = state.podcastsList[idx]
+                                Row(
+                                    Modifier.fillMaxWidth().clickable { /* TODO open podcast */ }.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF111111))
+                                    ) {
+                                        AsyncImage(
+                                            model = bestThumbUrl(p.thumbsJson, p.thumbUrl, "high"),
+                                            contentDescription = p.title,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                        if (p.episodeCountText.isNotBlank()) {
+                                            Box(
+                                                Modifier.align(Alignment.BottomEnd).padding(4.dp)
+                                                    .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
+                                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(p.episodeCountText, color = Color.White, style = MaterialTheme.typography.labelSmall)
+                                            }
+                                        }
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(p.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold))
+                                        Spacer(Modifier.height(4.dp))
+                                        if (p.updatedText.isNotBlank()) {
+                                            Text(p.updatedText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                        }
+                                        if (p.episodeCountText.isNotBlank() && p.updatedText.isBlank()) {
+                                            Text(p.episodeCountText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                    Box(Modifier.size(24.dp)) { Text("⋮", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                }
+                            }
+                        } else if (!state.isPodcastsLoading) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                    Text("No podcasts", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                        if (state.isPodcastsLoading && state.podcastsList.isNotEmpty()) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                                }
+                            }
+                        }
+                        state.error?.let { e ->
+                            item {
+                                Card(
+                                    Modifier.fillMaxWidth().padding(12.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                                ) {
+                                    Text(e, color = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.padding(16.dp))
+                                }
+                            }
+                        }
+                        if (state.podcastsContinuation.isBlank() && state.podcastsList.isNotEmpty() && !state.isPodcastsLoading) {
                             item {
                                 Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                                     Text("You've reached the end", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

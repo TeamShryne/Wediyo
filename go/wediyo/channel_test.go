@@ -348,3 +348,39 @@ func TestChannelLiveContinuationFixture(t *testing.T) {
 	}
 	t.Logf("page2 lives %d cont %s first %s", len(res.Lives), res.Continuation[:30], res.Lives[0].Title)
 }
+
+func TestChannelPodcastsFixture(t *testing.T) {
+	p := filepath.Join("..", "..", "research", "channels", "channel-podcasts.json")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Skip("no podcasts fixture")
+	}
+	var j map[string]interface{}
+	json.Unmarshal(data, &j)
+	res, err := collectChannelPodcasts(j)
+	if err != nil {
+		t.Fatalf("collect %v", err)
+	}
+	if len(res.Podcasts) != 3 {
+		t.Fatalf("podcasts %d want 3 got %v", len(res.Podcasts), res.Podcasts)
+	}
+	if res.Podcasts[0].Title != "The Standup" {
+		t.Fatalf("first %q", res.Podcasts[0].Title)
+	}
+	if res.Podcasts[0].PodcastID != "PL2Fq-K0QdOQiJpufsnhEd1z3xOv2JMHuk" {
+		t.Fatalf("id %q", res.Podcasts[0].PodcastID)
+	}
+	if res.Podcasts[0].EpisodeCountText != "65 episodes" {
+		t.Fatalf("ep %q", res.Podcasts[0].EpisodeCountText)
+	}
+	if res.Podcasts[0].BrowseID != "VLPL2Fq-K0QdOQiJpufsnhEd1z3xOv2JMHuk" {
+		t.Fatalf("browse %q", res.Podcasts[0].BrowseID)
+	}
+	if len(res.Podcasts[0].Thumbnails) == 0 {
+		t.Fatalf("thumbs empty")
+	}
+	if res.Podcasts[0].ThumbnailURL[:8] != "https://" {
+		t.Fatalf("thumb %s", res.Podcasts[0].ThumbnailURL)
+	}
+	t.Logf("podcasts %d cont '%s' first %s %s", len(res.Podcasts), res.Continuation, res.Podcasts[0].Title, res.Podcasts[0].EpisodeCountText)
+}

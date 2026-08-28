@@ -11,4 +11,6 @@ class ChannelRepository {
         WediyoEngine.fetchChannelShorts(browseId, continuation)
     suspend fun fetchLive(browseId: String, continuation: String = ""): com.teamshryne.wediyo.data.model.UiChannelLive =
         WediyoEngine.fetchChannelLive(browseId, continuation)
+    suspend fun fetchPodcasts(browseId: String, continuation: String = ""): com.teamshryne.wediyo.data.model.UiChannelPodcasts =
+        WediyoEngine.fetchChannelPodcasts(browseId, continuation)
 }
