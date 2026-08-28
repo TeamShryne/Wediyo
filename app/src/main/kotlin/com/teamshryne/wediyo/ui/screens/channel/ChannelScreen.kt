@@ -200,7 +200,7 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                         if (state.videosList.isNotEmpty()) {
                             items(state.videosList.size) { idx ->
                                 val v = state.videosList[idx]
-                                VideoCard(v, thumbQ, avatarQ) {}
+                                com.teamshryne.wediyo.ui.components.ChannelVideoListCard(v, thumbQ) {}
                             }
                         } else if (!state.isVideosLoading) {
                             item {
