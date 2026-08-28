@@ -2769,6 +2769,74 @@ func collectChannelPosts(j map[string]interface{}) (*ChannelPostsResult, error) 
 				}
 			}
 		}
+		// YT paginated posts via onResponseReceivedEndpoints (not Actions) — observed for PrimeTime/SET India
+		if eps, ok := j["onResponseReceivedEndpoints"].([]interface{}); ok && len(posts) == 0 {
+			var allE []ChannelPost
+			contE := continuation
+			for _, ep := range eps {
+				if em, ok := ep.(map[string]interface{}); ok {
+					if appendAct, ok := em["appendContinuationItemsAction"].(map[string]interface{}); ok {
+						if items, ok := appendAct["continuationItems"].([]interface{}); ok {
+							for _, it := range items {
+								if tok := extractContinuationToken(it); tok != "" {
+									contE = tok
+									continue
+								}
+								if im, ok := it.(map[string]interface{}); ok {
+									if sec, ok := im["itemSectionRenderer"].(map[string]interface{}); ok {
+										if contents2, ok := sec["contents"].([]interface{}); ok {
+											for _, sub := range contents2 {
+												if im2, ok := sub.(map[string]interface{}); ok {
+													if _, hasPost := im2["backstagePostThreadRenderer"]; hasPost {
+														if p := parseChannelPost(im2); p != nil {
+															allE = append(allE, *p)
+														}
+													} else if tok := extractContinuationToken(sub); tok != "" {
+														contE = tok
+													}
+												}
+											}
+										}
+									} else if _, hasPost := im["backstagePostThreadRenderer"]; hasPost {
+										if p := parseChannelPost(im); p != nil {
+											allE = append(allE, *p)
+										}
+									}
+								}
+							}
+						}
+						if tgt, _ := appendAct["targetId"].(string); tgt != "" {
+							// targetId is typically backstage-item-section, ignore
+						}
+					}
+					// also append may be under reloadContinuationItemsCommand
+					if reload, ok := em["reloadContinuationItemsCommand"].(map[string]interface{}); ok {
+						if items, ok := reload["continuationItems"].([]interface{}); ok {
+							for _, it := range items {
+								if im, ok := it.(map[string]interface{}); ok {
+									if _, hasPost := im["backstagePostThreadRenderer"]; hasPost {
+										if p := parseChannelPost(im); p != nil {
+											allE = append(allE, *p)
+										}
+									}
+								}
+								if tok := extractContinuationToken(it); tok != "" {
+									contE = tok
+								}
+							}
+						}
+					}
+				}
+			}
+			if len(allE) > 0 || contE != "" {
+				if len(allE) > 0 {
+					posts = allE
+				}
+				if contE != "" {
+					continuation = contE
+				}
+			}
+		}
 	}
 	if continuation == "" {
 		continuation = extractContinuationToken(j)
