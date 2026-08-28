@@ -5,15 +5,23 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.teamshryne.wediyo.ui.navigation.AppNavHost
@@ -32,38 +40,104 @@ class MainActivity : ComponentActivity() {
                 val showBottom = route in setOf(Screen.Home.route, Screen.Shorts.route, Screen.Subscriptions.route, Screen.Library.route)
 
                 Scaffold(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    // Remove default window insets — inner screens handle status bar padding themselves
+                    // This fixes the "extra space above header" from nested scaffolds
+                    contentWindowInsets = WindowInsets(0.dp),
                     bottomBar = {
                         if (showBottom) {
-                            NavigationBar {
+                            NavigationBar(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                tonalElevation = 0.dp
+                            ) {
                                 NavigationBarItem(
                                     selected = route == Screen.Home.route,
-                                    onClick = { nav.navigate(Screen.Home.route) { popUpTo(Screen.Home.route) { inclusive = false }; launchSingleTop = true } },
-                                    icon = { Icon(Icons.Filled.Home, contentDescription = "Home") },
-                                    label = { Text("Home") }
+                                    onClick = {
+                                        nav.navigate(Screen.Home.route) {
+                                            popUpTo(Screen.Home.route) { inclusive = false }
+                                            launchSingleTop = true
+                                        }
+                                    },
+                                    icon = {
+                                        Icon(
+                                            if (route == Screen.Home.route) Icons.Filled.Home else Icons.Outlined.Home,
+                                            contentDescription = "Home"
+                                        )
+                                    },
+                                    label = { Text("Home", style = MaterialTheme.typography.labelSmall) },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 )
                                 NavigationBarItem(
                                     selected = route == Screen.Shorts.route,
                                     onClick = { nav.navigate(Screen.Shorts.route) { launchSingleTop = true } },
-                                    icon = { Icon(Icons.Filled.PlayArrow, contentDescription = "Shorts") },
-                                    label = { Text("Shorts") }
+                                    icon = {
+                                        Icon(
+                                            if (route == Screen.Shorts.route) Icons.Filled.PlayArrow else Icons.Outlined.PlayArrow,
+                                            contentDescription = "Shorts"
+                                        )
+                                    },
+                                    label = { Text("Shorts", style = MaterialTheme.typography.labelSmall) },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 )
                                 NavigationBarItem(
                                     selected = route == Screen.Subscriptions.route,
                                     onClick = { nav.navigate(Screen.Subscriptions.route) { launchSingleTop = true } },
-                                    icon = { Icon(Icons.Filled.Favorite, contentDescription = "Subs") },
-                                    label = { Text("Subs") }
+                                    icon = {
+                                        Icon(
+                                            if (route == Screen.Subscriptions.route) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                            contentDescription = "Subscriptions"
+                                        )
+                                    },
+                                    label = { Text("Subscriptions", style = MaterialTheme.typography.labelSmall) },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 )
                                 NavigationBarItem(
                                     selected = route == Screen.Library.route,
                                     onClick = { nav.navigate(Screen.Library.route) { launchSingleTop = true } },
-                                    icon = { Icon(Icons.Filled.Person, contentDescription = "Library") },
-                                    label = { Text("You") }
+                                    icon = {
+                                        Icon(
+                                            if (route == Screen.Library.route) Icons.Filled.Person else Icons.Outlined.Person,
+                                            contentDescription = "You"
+                                        )
+                                    },
+                                    label = { Text("You", style = MaterialTheme.typography.labelSmall) },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 )
                             }
                         }
                     }
                 ) { inner ->
-                    Box(Modifier.padding(inner)) {
+                    // Only apply bottom padding (nav bar) — top is handled inside each screen
+                    // This eliminates the double-header gap
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .padding(bottom = inner.calculateBottomPadding())
+                    ) {
                         AppNavHost(nav)
                     }
                 }
