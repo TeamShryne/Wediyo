@@ -188,6 +188,112 @@ type ChannelPodcastsResult struct {
 	Continuation string           `json:"continuation"`
 }
 
+type ChannelPlaylist struct {
+	PlaylistID     string      `json:"playlist_id"` // PL...
+	BrowseID       string      `json:"browse_id"`   // VL...
+	Title          string      `json:"title"`
+	ThumbnailURL   string      `json:"thumbnail_url"`
+	Thumbnails     []Thumbnail `json:"thumbnails"` // all qualities 480x270 etc
+	VideoCountText string      `json:"video_count_text"` // "2 videos"
+	VideoCount     int         `json:"video_count"`
+}
+
+type ChannelPlaylistsResult struct {
+	Header       *ChannelHeader    `json:"header,omitempty"`
+	Tabs         []ChannelTab      `json:"tabs"`
+	Playlists    []ChannelPlaylist `json:"playlists"`
+	Continuation string            `json:"continuation"`
+}
+
+type ChannelPostPollChoice struct {
+	Text string `json:"text"`
+}
+
+type ChannelPostPoll struct {
+	Choices        []ChannelPostPollChoice `json:"choices"`
+	TotalVotesText string                  `json:"total_votes_text"` // "769 votes"
+	Type           string                  `json:"type"`             // POLL_TYPE_TEXT
+}
+
+type ChannelPostImage struct {
+	URL        string      `json:"url"`
+	Thumbnails []Thumbnail `json:"thumbnails"`
+}
+
+type ChannelPost struct {
+	PostID            string            `json:"post_id"`
+	AuthorText        string            `json:"author_text"`
+	AuthorThumbnailURL string           `json:"author_thumbnail_url"`
+	AuthorThumbnails  []Thumbnail       `json:"author_thumbnails"`
+	ContentText       string            `json:"content_text"`
+	PublishedTimeText string            `json:"published_time_text"`
+	VoteCountText     string            `json:"vote_count_text"` // "23" / "1.8K"
+	VoteCount         string            `json:"vote_count_label"`// accessibility label
+	AttachmentType    string            `json:"attachment_type"` // poll | singleImage | multiImage | video | none
+	Poll              *ChannelPostPoll  `json:"poll,omitempty"`
+	Images            []ChannelPostImage `json:"images,omitempty"`
+	Video             *VideoMetadata    `json:"video,omitempty"`
+}
+
+type ChannelPostsResult struct {
+	Header       *ChannelHeader `json:"header,omitempty"`
+	Tabs         []ChannelTab   `json:"tabs"`
+	Posts        []ChannelPost  `json:"posts"`
+	Continuation string         `json:"continuation"`
+}
+
+type ChannelStoreProduct struct {
+	Title            string      `json:"title"`
+	ThumbnailURL     string      `json:"thumbnail_url"`
+	Thumbnails       []Thumbnail `json:"thumbnails"`
+	PriceText        string      `json:"price_text"` // "₹2,767.40"
+	MerchantName     string      `json:"merchant_name"`
+	FromText         string      `json:"from_text"` // "From ThePrimeagen"
+	ProductURL       string      `json:"product_url"` // https://...
+}
+
+type ChannelStoreResult struct {
+	Header       *ChannelHeader        `json:"header,omitempty"`
+	Tabs         []ChannelTab          `json:"tabs"`
+	Products     []ChannelStoreProduct `json:"products"`
+	Continuation string                `json:"continuation"`
+}
+
+type ChannelCourse struct {
+	PlaylistID     string      `json:"playlist_id"` // PL...
+	BrowseID       string      `json:"browse_id"`   // VL...
+	Title          string      `json:"title"`
+	ThumbnailURL   string      `json:"thumbnail_url"`
+	Thumbnails     []Thumbnail `json:"thumbnails"` // main 480x270 + stacked preview 43x20? main only for now
+	VideoCountText string      `json:"video_count_text"` // "13"
+	VideoCount     int         `json:"video_count"`
+}
+
+type ChannelCoursesResult struct {
+	Header       *ChannelHeader  `json:"header,omitempty"`
+	Tabs         []ChannelTab    `json:"tabs"`
+	Courses      []ChannelCourse `json:"courses"`
+	Continuation string          `json:"continuation"`
+}
+
+type ChannelShow struct {
+	ShowID           string      `json:"show_id"`   // VLPL...
+	BrowseID         string      `json:"browse_id"` // same
+	Title            string      `json:"title"`
+	ThumbnailURL     string      `json:"thumbnail_url"`
+	Thumbnails       []Thumbnail `json:"thumbnails"`
+	Subtitle         string      `json:"subtitle"` // "SET India"
+	EpisodeCountText string      `json:"episode_count_text"` // "57 episodes"
+	EpisodeCount     int         `json:"episode_count"`
+}
+
+type ChannelShowsResult struct {
+	Header       *ChannelHeader `json:"header,omitempty"`
+	Tabs         []ChannelTab   `json:"tabs"`
+	Shows        []ChannelShow  `json:"shows"`
+	Continuation string         `json:"continuation"`
+}
+
 // InnertubeSession — from GET youtube.com Set-Cookie + ytcfg (stateless: caller holds)
 type InnertubeSession struct {
 	VisitorData            string `json:"visitor_data"`

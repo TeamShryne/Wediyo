@@ -384,3 +384,180 @@ func TestChannelPodcastsFixture(t *testing.T) {
 	}
 	t.Logf("podcasts %d cont '%s' first %s %s", len(res.Podcasts), res.Continuation, res.Podcasts[0].Title, res.Podcasts[0].EpisodeCountText)
 }
+
+func TestChannelPlaylistsFixture(t *testing.T) {
+	p := filepath.Join("..", "..", "research", "channels", "channel-playlists.json")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Skip("no playlists fixture")
+	}
+	var j map[string]interface{}
+	json.Unmarshal(data, &j)
+	res, err := collectChannelPlaylists(j)
+	if err != nil {
+		t.Fatalf("collect %v", err)
+	}
+	if len(res.Playlists) != 18 {
+		t.Fatalf("playlists %d want 18 got %v", len(res.Playlists), res.Playlists)
+	}
+	if res.Playlists[0].Title != "Tech Stories" {
+		t.Fatalf("first %q", res.Playlists[0].Title)
+	}
+	if res.Playlists[0].PlaylistID != "PLMeNX7FnO_Vc" {
+		t.Fatalf("id %q", res.Playlists[0].PlaylistID)
+	}
+	if len(res.Playlists[0].Thumbnails) == 0 {
+		t.Fatalf("thumbs empty")
+	}
+	if res.Playlists[0].ThumbnailURL[:8] != "https://" {
+		t.Fatalf("thumb %s", res.Playlists[0].ThumbnailURL)
+	}
+	// podcast included as playlist should have 240x square thumbs multiple qualities
+	hasPodcast := false
+	for _, pl := range res.Playlists {
+		if pl.PlaylistID == "PL2Fq-K0QdOQiJpufsnhEd1z3xOv2JMHuk" {
+			hasPodcast = true
+			if len(pl.Thumbnails) < 2 { t.Fatalf("podcast thumbs %d", len(pl.Thumbnails)) }
+		}
+	}
+	if !hasPodcast { t.Fatal("podcast not in playlists grid") }
+	t.Logf("playlists %d cont '%s' first %s %s", len(res.Playlists), res.Continuation, res.Playlists[0].Title, res.Playlists[0].VideoCountText)
+}
+
+func TestChannelPostsFixture(t *testing.T) {
+	p := filepath.Join("..", "..", "research", "channels", "channel-posts.json")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Skip("no posts fixture")
+	}
+	var j map[string]interface{}
+	json.Unmarshal(data, &j)
+	res, err := collectChannelPosts(j)
+	if err != nil {
+		t.Fatalf("collect %v", err)
+	}
+	if len(res.Posts) != 10 {
+		t.Fatalf("posts %d want 10 got %v", len(res.Posts), res.Posts)
+	}
+	if res.Posts[0].PostID != "Ugkx2Tj-2mEE6VJAzsw_CRh7CJAfWwz8PE0i" {
+		t.Fatalf("first %q", res.Posts[0].PostID)
+	}
+	if res.Posts[0].AttachmentType != "poll" {
+		t.Fatalf("att %q", res.Posts[0].AttachmentType)
+	}
+	if res.Posts[0].Poll == nil || len(res.Posts[0].Poll.Choices) != 4 {
+		t.Fatalf("poll choices %v", res.Posts[0].Poll)
+	}
+	if res.Posts[0].Poll.TotalVotesText != "769 votes" {
+		t.Fatalf("total %q", res.Posts[0].Poll.TotalVotesText)
+	}
+	// check poll parsing for second poll
+	hasMulti := false
+	for _, po := range res.Posts {
+		if po.AttachmentType == "multiImage" {
+			hasMulti = true
+			if len(po.Images) < 2 { t.Fatalf("multi images %d", len(po.Images)) }
+			if len(po.Images[0].Thumbnails) == 0 { t.Fatal("image thumbs empty") }
+			if po.Images[0].URL[:8] != "https://" { t.Fatalf("img url %s", po.Images[0].URL) }
+		}
+		if po.AttachmentType == "singleImage" {
+			if len(po.Images) != 1 { t.Fatalf("single images %d", len(po.Images)) }
+		}
+		// author thumbnails multiple qualities
+		if len(po.AuthorThumbnails) < 2 { t.Fatalf("author thumbs %d for %s", len(po.AuthorThumbnails), po.PostID) }
+	}
+	if !hasMulti { t.Fatal("no multiImage found") }
+	if res.Continuation == "" { t.Fatal("continuation empty") }
+	t.Logf("posts %d cont %s first poll %s", len(res.Posts), res.Continuation[:30], res.Posts[0].Poll.Choices[0].Text)
+}
+
+func TestChannelStoreFixture(t *testing.T) {
+	p := filepath.Join("..", "..", "research", "channels", "channel-store.json")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Skip("no store fixture")
+	}
+	var j map[string]interface{}
+	json.Unmarshal(data, &j)
+	res, err := collectChannelStore(j)
+	if err != nil {
+		t.Fatalf("collect %v", err)
+	}
+	if len(res.Products) != 3 {
+		t.Fatalf("products %d want 3 got %v", len(res.Products), res.Products)
+	}
+	if res.Products[0].Title != "Trad/Vibe Hat" {
+		t.Fatalf("first %q", res.Products[0].Title)
+	}
+	if len(res.Products[0].Thumbnails) == 0 {
+		t.Fatalf("thumbs empty")
+	}
+	if res.Products[0].ThumbnailURL[:8] != "https://" {
+		t.Fatalf("thumb %s", res.Products[0].ThumbnailURL)
+	}
+	if res.Products[0].PriceText == "" { t.Fatalf("price empty") }
+	if res.Products[0].ProductURL == "" { t.Fatalf("url empty") }
+	t.Logf("store %d first %s %s", len(res.Products), res.Products[0].Title, res.Products[0].PriceText)
+}
+
+func TestChannelCoursesFixture(t *testing.T) {
+	p := filepath.Join("..", "..", "research", "channels", "channel-courses.json")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Skip("no courses fixture")
+	}
+	var j map[string]interface{}
+	json.Unmarshal(data, &j)
+	res, err := collectChannelCourses(j)
+	if err != nil {
+		t.Fatalf("collect %v", err)
+	}
+	if len(res.Courses) != 30 {
+		t.Fatalf("courses %d want 30 got %v", len(res.Courses), res.Courses)
+	}
+	if res.Courses[0].Title != "CS50x em Português" {
+		t.Fatalf("first %q", res.Courses[0].Title)
+	}
+	if res.Courses[0].PlaylistID != "PLXSX209johrU" {
+		t.Fatalf("id %q", res.Courses[0].PlaylistID)
+	}
+	if len(res.Courses[0].Thumbnails) == 0 {
+		t.Fatalf("thumbs empty")
+	}
+	if res.Courses[0].ThumbnailURL[:8] != "https://" {
+		t.Fatalf("thumb %s", res.Courses[0].ThumbnailURL)
+	}
+	if res.Continuation == "" { t.Fatal("cont empty") }
+	t.Logf("courses %d cont %s first %s", len(res.Courses), res.Continuation[:30], res.Courses[0].Title)
+}
+
+func TestChannelShowsFixture(t *testing.T) {
+	p := filepath.Join("..", "..", "research", "channels", "channel-shows.json")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Skip("no shows fixture")
+	}
+	var j map[string]interface{}
+	json.Unmarshal(data, &j)
+	res, err := collectChannelShows(j)
+	if err != nil {
+		t.Fatalf("collect %v", err)
+	}
+	if len(res.Shows) != 7 {
+		t.Fatalf("shows %d want 7 got %v", len(res.Shows), res.Shows)
+	}
+	if res.Shows[0].Title != "Indian Idol S13 | Full Episodes Here" {
+		t.Fatalf("first %q", res.Shows[0].Title)
+	}
+	if res.Shows[0].Subtitle != "SET India" {
+		t.Fatalf("subtitle %q", res.Shows[0].Subtitle)
+	}
+	if len(res.Shows[0].Thumbnails) == 0 {
+		t.Fatalf("thumbs empty")
+	}
+	if res.Shows[0].ThumbnailURL[:8] != "https://" {
+		t.Fatalf("thumb %s", res.Shows[0].ThumbnailURL)
+	}
+	if res.Shows[0].EpisodeCountText == "" { t.Fatalf("ep empty") }
+	t.Logf("shows %d first %s %s", len(res.Shows), res.Shows[0].Title, res.Shows[0].EpisodeCountText)
+}
