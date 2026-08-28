@@ -1,5 +1,6 @@
 package com.teamshryne.wediyo.ui.screens.channel
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -22,10 +23,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.teamshryne.wediyo.data.prefs.SettingsManager
-import com.teamshryne.wediyo.ui.components.VideoCard
 import com.teamshryne.wediyo.util.bestThumbUrl
 import kotlinx.coroutines.flow.collectLatest
 
@@ -64,7 +65,7 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(state.home?.header?.title ?: "Channel", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(state.home?.header?.title ?: "Channel", maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.clickable { vm.selectAboutTab() }) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") }
                 }
@@ -95,32 +96,33 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                                     val bannerUrl = bestThumbUrl(h.bannersJson, h.bannerUrl, "high")
                                     AsyncImage(model = bannerUrl, contentDescription = null, modifier = Modifier.fillMaxWidth().height(140.dp).background(Color(0xFF111111)), contentScale = ContentScale.Crop)
                                 }
-                                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.Top) {
+                                Row(Modifier.fillMaxWidth().clickable { vm.selectAboutTab() }.padding(16.dp), verticalAlignment = Alignment.Top) {
                                     val avatarUrl = bestThumbUrl(h.avatarsJson, h.avatarUrl, avatarQ)
                                     AsyncImage(model = avatarUrl, contentDescription = h.title, modifier = Modifier.size(80.dp).clip(CircleShape).background(Color(0xFF222222)), contentScale = ContentScale.Crop)
                                     Spacer(Modifier.width(16.dp))
                                     Column(Modifier.weight(1f)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(h.title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), maxLines = 2)
+                                            Text(h.title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), maxLines = 2, modifier = Modifier.clickable { vm.selectAboutTab() })
                                             if (h.verified) Text("  ✓", color = MaterialTheme.colorScheme.primary)
                                         }
                                         Spacer(Modifier.height(2.dp))
-                                        Text(h.handle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(h.handle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.clickable { vm.selectAboutTab() })
                                         Spacer(Modifier.height(4.dp))
                                         Text(listOf(h.subs, h.videoCount).filter { it.isNotBlank() }.joinToString(" • "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         if (h.description.isNotBlank()) {
                                             Spacer(Modifier.height(8.dp))
-                                            Text(h.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                                            Text(h.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.clickable { vm.selectAboutTab() })
                                         }
                                     }
                                 }
                                 HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                                 if (home.tabs.isNotEmpty()) {
+                                    val allTabs = home.tabs + com.teamshryne.wediyo.data.model.UiChannelTab("About", state.selectedTab == "About", "", "", "")
                                     ScrollableTabRow(
-                                        selectedTabIndex = home.tabs.indexOfFirst { it.title == state.selectedTab }.coerceAtLeast(0),
+                                        selectedTabIndex = allTabs.indexOfFirst { it.title == state.selectedTab }.coerceAtLeast(0),
                                         edgePadding = 16.dp, indicator = {}, divider = {}
                                     ) {
-                                        home.tabs.forEach { tab ->
+                                        allTabs.forEach { tab ->
                                             val selected = tab.title == state.selectedTab
                                             Tab(
                                                 selected = selected,
@@ -348,7 +350,11 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                             if (state.storeList.isNotEmpty()) {
                                 items(state.storeList.size) { idx ->
                                     val prod = state.storeList[idx]
-                                    Row(Modifier.fillMaxWidth().clickable { }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Row(Modifier.fillMaxWidth().clickable {
+                                        if (prod.productUrl.isNotBlank()) {
+                                            try { ctx.startActivity(Intent(Intent.ACTION_VIEW, prod.productUrl.toUri())) } catch (_: Exception) {}
+                                        }
+                                    }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF111111))) {
                                             AsyncImage(model = bestThumbUrl(prod.thumbsJson, prod.thumbUrl, "high"), contentDescription = prod.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                         }
@@ -413,6 +419,57 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                             if (state.isShowsLoading && state.showsList.isNotEmpty()) { item { Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp) } } }
                             state.error?.let { e -> item { Card(Modifier.fillMaxWidth().padding(12.dp), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) { Text(e, color = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.padding(16.dp)) } } }
                             if (state.showsContinuation.isBlank() && state.showsList.isNotEmpty() && !state.isShowsLoading) { item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Text("You've reached the end", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) } } }
+                        }
+                        "About" -> {
+                            if (state.isAboutLoading && state.aboutData == null) {
+                                item { Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(32.dp)) } }
+                            } else if (state.aboutData != null) {
+                                val about = state.aboutData!!
+                                item {
+                                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        Text("Description", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                                        Text(about.description.ifBlank { "No description" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                                        Text("Details", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            if (about.country.isNotBlank()) Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) { Text("Location", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)); Text(about.country, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                            if (about.joinedDateText.isNotBlank()) Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) { Text("Joined", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)); Text(about.joinedDateText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                            if (about.subscriberCountText.isNotBlank()) Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) { Text("Subscribers", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)); Text(about.subscriberCountText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                            if (about.viewCountText.isNotBlank()) Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) { Text("Views", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)); Text(about.viewCountText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                                            if (about.videoCountText.isNotBlank()) Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) { Text("Videos", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)); Text(about.videoCountText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                            if (about.canonicalUrl.isNotBlank()) Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) { Text("Channel URL", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)); Text(about.displayUrl.ifBlank { about.canonicalUrl }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.clickable { try { ctx.startActivity(Intent(Intent.ACTION_VIEW, about.canonicalUrl.toUri())) } catch (_: Exception) {} }) }
+                                        }
+                                        if (about.links.isNotEmpty()) {
+                                            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                                            Text("Links", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                                            about.links.forEach { link ->
+                                                Row(Modifier.fillMaxWidth().clickable {
+                                                    val url = link.url.ifBlank { link.linkText }
+                                                    if (url.isNotBlank()) {
+                                                        val finalUrl = if (url.startsWith("http")) url else "https://$url"
+                                                        try { ctx.startActivity(Intent(Intent.ACTION_VIEW, finalUrl.toUri())) } catch (_: Exception) {}
+                                                    }
+                                                }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                    val fav = bestThumbUrl(link.faviconsJson, link.faviconUrl, "high")
+                                                    if (fav.isNotBlank()) {
+                                                        AsyncImage(model = fav, contentDescription = link.title, modifier = Modifier.size(24.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFEEEEEE)), contentScale = ContentScale.Crop)
+                                                    } else {
+                                                        Box(Modifier.size(24.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFEEEEEE)), contentAlignment = Alignment.Center) { Text(link.title.take(1), style = MaterialTheme.typography.labelSmall) }
+                                                    }
+                                                    Spacer(Modifier.width(12.dp))
+                                                    Column(Modifier.weight(1f)) {
+                                                        Text(link.title, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                        Text(link.linkText.ifBlank { link.url }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                item { Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { Text("No about info", color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+                            }
+                            state.error?.let { e -> item { Card(Modifier.fillMaxWidth().padding(12.dp), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) { Text(e, color = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.padding(16.dp)) } } }
                         }
                         else -> {
                             items(home.shelves.size) { idx ->

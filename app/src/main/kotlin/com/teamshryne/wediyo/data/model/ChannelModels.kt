@@ -188,3 +188,31 @@ data class UiChannelShows(
     val shows: List<UiChannelShow>,
     val continuation: String
 )
+
+data class UiChannelAboutLink(
+    val title: String,
+    val url: String,
+    val linkText: String,
+    val faviconUrl: String,
+    val faviconsJson: String
+)
+
+data class UiChannelAbout(
+    val description: String,
+    val country: String,
+    val subscriberCountText: String,
+    val viewCountText: String,
+    val joinedDateText: String,
+    val canonicalUrl: String,
+    val displayUrl: String,
+    val channelId: String,
+    val videoCountText: String,
+    val videoCount: Int,
+    val links: List<UiChannelAboutLink>
+)
+
+data class UiChannelAboutResult(
+    val header: UiChannelHeader?,
+    val tabs: List<UiChannelTab>,
+    val about: UiChannelAbout?
+)

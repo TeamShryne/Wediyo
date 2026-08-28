@@ -294,6 +294,34 @@ type ChannelShowsResult struct {
 	Continuation string         `json:"continuation"`
 }
 
+type ChannelAboutLink struct {
+	Title       string      `json:"title"` // e.g. "Subscribe Now"
+	URL         string      `json:"url"`   // resolved https://...
+	LinkText    string      `json:"link_text"` // e.g. "youtube.com/c/setindia..."
+	FaviconURL  string      `json:"favicon_url"` // highest
+	Favicons    []Thumbnail `json:"favicons"` // 16..256
+}
+
+type ChannelAbout struct {
+	Description                string             `json:"description"`
+	Country                    string             `json:"country"`
+	SubscriberCountText        string             `json:"subscriber_count_text"` // "190M subscribers"
+	ViewCountText              string             `json:"view_count_text"`       // "191,694,059,731 views"
+	JoinedDateText             string             `json:"joined_date_text"`      // "Joined Sep 20, 2006"
+	CanonicalChannelUrl        string             `json:"canonical_channel_url"` // "http://www.youtube.com/@SETIndia"
+	DisplayCanonicalChannelUrl string             `json:"display_canonical_channel_url"` // "www.youtube.com/@SETIndia"
+	ChannelId                  string             `json:"channel_id"`
+	VideoCountText             string             `json:"video_count_text"` // "175,115 videos"
+	VideoCount                 int                `json:"video_count"`
+	Links                      []ChannelAboutLink `json:"links"`
+}
+
+type ChannelAboutResult struct {
+	Header *ChannelHeader `json:"header,omitempty"`
+	Tabs   []ChannelTab   `json:"tabs"`
+	About  *ChannelAbout  `json:"about,omitempty"`
+}
+
 // InnertubeSession — from GET youtube.com Set-Cookie + ytcfg (stateless: caller holds)
 type InnertubeSession struct {
 	VisitorData            string `json:"visitor_data"`
