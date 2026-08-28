@@ -10,7 +10,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Autorenew
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -157,7 +157,7 @@ fun PlaylistScreen(playlistId: String, onBack: () -> Unit, vm: PlaylistViewModel
                                             try { ctx.startActivity(Intent(Intent.ACTION_VIEW, "https://www.youtube.com/watch?v=${shuffled.videoId}&list=$playlistId".toUri())) } catch (_: Exception) {}
                                         }
                                     }, modifier = Modifier.weight(1f)) {
-                                        Icon(Icons.Filled.Autorenew, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                                         Spacer(Modifier.width(6.dp))
                                         Text("Shuffle")
                                     }
