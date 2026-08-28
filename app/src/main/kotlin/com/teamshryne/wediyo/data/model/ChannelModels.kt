@@ -36,3 +36,17 @@ data class UiChannelHome(
     val tabs: List<UiChannelTab>,
     val shelves: List<UiChannelShelf>
 )
+
+data class UiChannelVideoChip(
+    val title: String,
+    val selected: Boolean,
+    val token: String
+)
+
+data class UiChannelVideos(
+    val header: UiChannelHeader?,
+    val tabs: List<UiChannelTab>,
+    val chips: List<UiChannelVideoChip>,
+    val videos: List<UiVideo>,
+    val continuation: String
+)

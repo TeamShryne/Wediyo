@@ -408,22 +408,43 @@ func parseChannelLockupVideo(v interface{}) *VideoMetadata {
 			if md, ok := lockup["metadata"].(map[string]interface{}); ok {
 				if cm, ok := md["contentMetadataViewModel"].(map[string]interface{}); ok {
 					if rows, ok := cm["metadataRows"].([]interface{}); ok {
-						// row 0 channel
+						// handle both channel home (channel row + views row) and channel videos (single views row)
+						// detect if first row is channel row (has browseEndpoint) vs views row (contains "views")
+						isChannelRow := func(row map[string]interface{}) bool {
+							if parts, ok := row["metadataParts"].([]interface{}); ok && len(parts) > 0 {
+								if p0, ok := parts[0].(map[string]interface{}); ok {
+									if txt, ok := p0["text"].(map[string]interface{}); ok {
+										if c, ok := txt["content"].(string); ok && strings.Contains(strings.ToLower(c), "views") {
+											return false
+										}
+										if _, hasCmd := txt["commandRuns"]; hasCmd {
+											return true
+										}
+										// if only one part and no views keyword, treat as channel if rows==2+ else views
+									}
+								}
+							}
+							return false
+						}
+						rowIdx := 0
 						if len(rows) > 0 {
 							if r0, ok := rows[0].(map[string]interface{}); ok {
-								if parts, ok := r0["metadataParts"].([]interface{}); ok && len(parts) > 0 {
-									if p0, ok := parts[0].(map[string]interface{}); ok {
-										if txt, ok := p0["text"].(map[string]interface{}); ok {
-											if c, ok := txt["content"].(string); ok {
-												channelName = c
-											}
-											if runs, ok := txt["commandRuns"].([]interface{}); ok && len(runs) > 0 {
-												if r0, ok := runs[0].(map[string]interface{}); ok {
-													if tap, ok := r0["onTap"].(map[string]interface{}); ok {
-														if cmd, ok := tap["innertubeCommand"].(map[string]interface{}); ok {
-															if be, ok := cmd["browseEndpoint"].(map[string]interface{}); ok {
-																if id, ok := be["browseId"].(string); ok {
-																	channelID = id
+								if isChannelRow(r0) && len(rows) > 1 {
+									// row 0 is channel
+									if parts, ok := r0["metadataParts"].([]interface{}); ok && len(parts) > 0 {
+										if p0, ok := parts[0].(map[string]interface{}); ok {
+											if txt, ok := p0["text"].(map[string]interface{}); ok {
+												if c, ok := txt["content"].(string); ok {
+													channelName = c
+												}
+												if runs, ok := txt["commandRuns"].([]interface{}); ok && len(runs) > 0 {
+													if r0, ok := runs[0].(map[string]interface{}); ok {
+														if tap, ok := r0["onTap"].(map[string]interface{}); ok {
+															if cmd, ok := tap["innertubeCommand"].(map[string]interface{}); ok {
+																if be, ok := cmd["browseEndpoint"].(map[string]interface{}); ok {
+																	if id, ok := be["browseId"].(string); ok {
+																		channelID = id
+																	}
 																}
 															}
 														}
@@ -432,12 +453,15 @@ func parseChannelLockupVideo(v interface{}) *VideoMetadata {
 											}
 										}
 									}
+									rowIdx = 1
+								} else {
+									rowIdx = 0
 								}
 							}
 						}
-						// row 1 views + age
-						if len(rows) > 1 {
-							if r1, ok := rows[1].(map[string]interface{}); ok {
+						// views + age row
+						if len(rows) > rowIdx {
+							if r1, ok := rows[rowIdx].(map[string]interface{}); ok {
 								if parts, ok := r1["metadataParts"].([]interface{}); ok {
 									if len(parts) > 0 {
 										if p0, ok := parts[0].(map[string]interface{}); ok {
@@ -460,9 +484,10 @@ func parseChannelLockupVideo(v interface{}) *VideoMetadata {
 								}
 							}
 						}
-						// row 2 badges
-						if len(rows) > 2 {
-							if r2, ok := rows[2].(map[string]interface{}); ok {
+						// badges row (after views) — handle both home (channel+views+badges) and videos (views+badges)
+						badgeIdx := rowIdx + 1
+						if len(rows) > badgeIdx {
+							if r2, ok := rows[badgeIdx].(map[string]interface{}); ok {
 								if parts, ok := r2["metadataParts"].([]interface{}); ok {
 									for _, p := range parts {
 										if pm, ok := p.(map[string]interface{}); ok {
@@ -746,3 +771,370 @@ func FetchChannelHome(session *InnertubeSession, browseId string) (*ChannelHomeR
 	}
 	return collectChannelHome(j)
 }
+
+// ---------- channel videos ----------
+
+const channelVideosParams = "EgZ2aWRlb3PyBgQKAjoA"
+
+func parseChannelVideoChipsFromRichGrid(header map[string]interface{}) []ChannelVideoChip {
+	var out []ChannelVideoChip
+	if header == nil {
+		return out
+	}
+	if cb, ok := header["chipBarViewModel"].(map[string]interface{}); ok {
+		if chips, ok := cb["chips"].([]interface{}); ok {
+			for _, c := range chips {
+				if cm, ok := c.(map[string]interface{}); ok {
+					if vm, ok := cm["chipViewModel"].(map[string]interface{}); ok {
+						text, _ := vm["text"].(string)
+						if text == "" {
+							text = getText(vm["text"])
+						}
+						if text == "" {
+							continue
+						}
+						selected, _ := vm["selected"].(bool)
+						token := ""
+						if tap, ok := vm["tapCommand"].(map[string]interface{}); ok {
+							if cmd, ok := tap["innertubeCommand"].(map[string]interface{}); ok {
+								if cc, ok := cmd["continuationCommand"].(map[string]interface{}); ok {
+									token, _ = cc["token"].(string)
+								}
+							}
+						}
+						out = append(out, ChannelVideoChip{Title: text, Selected: selected, Token: token})
+					}
+				}
+			}
+		}
+	}
+	return out
+}
+
+func parseChannelVideosFromRichGrid(j map[string]interface{}) ([]ChannelVideoChip, []VideoMetadata, string) {
+	var chips []ChannelVideoChip
+	var videos []VideoMetadata
+	continuation := ""
+	contents, ok := j["contents"].(map[string]interface{})
+	if !ok {
+		return chips, videos, continuation
+	}
+	two, ok := contents["twoColumnBrowseResultsRenderer"].(map[string]interface{})
+	if !ok {
+		return chips, videos, continuation
+	}
+	tabsRaw, ok := two["tabs"].([]interface{})
+	if !ok {
+		return chips, videos, continuation
+	}
+	var richGrid map[string]interface{}
+	for _, t := range tabsRaw {
+		if tm, ok := t.(map[string]interface{}); ok {
+			if tr, ok := tm["tabRenderer"].(map[string]interface{}); ok {
+				selected, _ := tr["selected"].(bool)
+				title := ""
+				if s, ok := tr["title"].(string); ok {
+					title = s
+				} else {
+					title = getText(tr["title"])
+				}
+				if selected && strings.EqualFold(title, "Videos") {
+					if c, ok := tr["content"].(map[string]interface{}); ok {
+						if rg, ok := c["richGridRenderer"].(map[string]interface{}); ok {
+							richGrid = rg
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+	if richGrid == nil {
+		return chips, videos, continuation
+	}
+	if h, ok := richGrid["header"].(map[string]interface{}); ok {
+		chips = parseChannelVideoChipsFromRichGrid(h)
+	}
+	if arr, ok := richGrid["contents"].([]interface{}); ok {
+		for _, item := range arr {
+			if tok := extractContinuationToken(item); tok != "" {
+				continuation = tok
+				continue
+			}
+			if im, ok := item.(map[string]interface{}); ok {
+				if ri, ok := im["richItemRenderer"].(map[string]interface{}); ok {
+					if content, ok := ri["content"].(map[string]interface{}); ok {
+						if lockup, ok := content["lockupViewModel"]; ok {
+							if vm := parseChannelLockupVideo(lockup); vm != nil {
+								videos = append(videos, *vm)
+							}
+						}
+					}
+				} else if lockup, ok := im["lockupViewModel"]; ok {
+					if vm := parseChannelLockupVideo(lockup); vm != nil {
+						videos = append(videos, *vm)
+					}
+				}
+			}
+		}
+	}
+	return chips, videos, continuation
+}
+
+func collectChannelVideos(j map[string]interface{}) (*ChannelVideosResult, error) {
+	header := parseChannelHeader(j)
+	tabs := parseChannelTabs(j)
+	chips, videos, continuation := parseChannelVideosFromRichGrid(j)
+
+	// handle continuation responses (pagination + chip reload)
+	if len(chips) == 0 && len(videos) == 0 {
+		var allChips []ChannelVideoChip
+		var allVideos []VideoMetadata
+		cont := continuation
+		// onResponseReceivedActions - appendContinuationItemsAction and reloadContinuationItemsCommand
+		if acts, ok := j["onResponseReceivedActions"].([]interface{}); ok {
+			for _, a := range acts {
+				if am, ok := a.(map[string]interface{}); ok {
+					if appendAct, ok := am["appendContinuationItemsAction"].(map[string]interface{}); ok {
+						if items, ok := appendAct["continuationItems"].([]interface{}); ok {
+							for _, it := range items {
+								if tok := extractContinuationToken(it); tok != "" {
+									cont = tok
+									continue
+								}
+								if im, ok := it.(map[string]interface{}); ok {
+									if ri, ok := im["richItemRenderer"].(map[string]interface{}); ok {
+										if content, ok := ri["content"].(map[string]interface{}); ok {
+											if lockup, ok := content["lockupViewModel"]; ok {
+												if vm := parseChannelLockupVideo(lockup); vm != nil {
+													allVideos = append(allVideos, *vm)
+												}
+											}
+										}
+									} else if lockup, ok := im["lockupViewModel"]; ok {
+										if vm := parseChannelLockupVideo(lockup); vm != nil {
+											allVideos = append(allVideos, *vm)
+										}
+									}
+								}
+							}
+						}
+					}
+					if reload, ok := am["reloadContinuationItemsCommand"].(map[string]interface{}); ok {
+						if items, ok := reload["continuationItems"].([]interface{}); ok {
+							for _, it := range items {
+								if im, ok := it.(map[string]interface{}); ok {
+									// header chips reload
+									if cb, ok := im["chipBarViewModel"].(map[string]interface{}); ok {
+										chips2 := parseChannelVideoChipsFromRichGrid(map[string]interface{}{"chipBarViewModel": cb})
+										if len(chips2) > 0 {
+											allChips = chips2
+										}
+										continue
+									}
+									if ri, ok := im["richItemRenderer"].(map[string]interface{}); ok {
+										if content, ok := ri["content"].(map[string]interface{}); ok {
+											if lockup, ok := content["lockupViewModel"]; ok {
+												if vm := parseChannelLockupVideo(lockup); vm != nil {
+													allVideos = append(allVideos, *vm)
+												}
+											}
+										}
+									} else if lockup, ok := im["lockupViewModel"]; ok {
+										if vm := parseChannelLockupVideo(lockup); vm != nil {
+											allVideos = append(allVideos, *vm)
+										}
+									}
+									if tok := extractContinuationToken(it); tok != "" {
+										cont = tok
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			// onResponseReceivedActions continuation responses have no initial chips/videos, so override
+			if len(allVideos) > 0 || len(allChips) > 0 || cont != "" {
+				if len(allChips) > 0 {
+					chips = allChips
+				}
+				if len(allVideos) > 0 {
+					videos = allVideos
+				}
+				if cont != "" {
+					continuation = cont
+				}
+			}
+		}
+		// alternative key onResponseReceivedCommands (search style) - handle for robustness
+		if cmds, ok := j["onResponseReceivedCommands"].([]interface{}); ok && len(videos) == 0 {
+			for _, cmd := range cmds {
+				if cm, ok := cmd.(map[string]interface{}); ok {
+					if appendAct, ok := cm["appendContinuationItemsAction"].(map[string]interface{}); ok {
+						if items, ok := appendAct["continuationItems"].([]interface{}); ok {
+							for _, it := range items {
+								if tok := extractContinuationToken(it); tok != "" {
+									continuation = tok
+									continue
+								}
+								if im, ok := it.(map[string]interface{}); ok {
+									if ri, ok := im["richItemRenderer"].(map[string]interface{}); ok {
+										if content, ok := ri["content"].(map[string]interface{}); ok {
+											if lockup, ok := content["lockupViewModel"]; ok {
+												if vm := parseChannelLockupVideo(lockup); vm != nil {
+													videos = append(videos, *vm)
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					if reload, ok := cm["reloadContinuationItemsCommand"].(map[string]interface{}); ok {
+						if items, ok := reload["continuationItems"].([]interface{}); ok {
+							for _, it := range items {
+								if im, ok := it.(map[string]interface{}); ok {
+									if _, ok := im["chipBarViewModel"]; ok {
+										c2 := parseChannelVideoChipsFromRichGrid(map[string]interface{}{"chipBarViewModel": im["chipBarViewModel"]})
+										if len(c2) > 0 {
+											chips = c2
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// fallback continuation search generic
+	if continuation == "" {
+		continuation = extractContinuationToken(j)
+		// re-extract via deep find token with request field
+		if continuation == "" {
+			var findToken func(v interface{}) string
+			findToken = func(v interface{}) string {
+				if m, ok := v.(map[string]interface{}); ok {
+					if tok, ok := m["token"].(string); ok {
+						if _, hasReq := m["request"]; hasReq {
+							return tok
+						}
+					}
+					for _, val := range m {
+						if res := findToken(val); res != "" {
+							return res
+						}
+					}
+				} else if arr, ok := v.([]interface{}); ok {
+					for _, el := range arr {
+						if res := findToken(el); res != "" {
+							return res
+						}
+					}
+				}
+				return ""
+			}
+			continuation = findToken(j)
+		}
+	}
+
+	return &ChannelVideosResult{Header: header, Tabs: tabs, Chips: chips, Videos: videos, Continuation: continuation}, nil
+}
+
+// FetchChannelVideos fetches channel videos tab (Latest by default). If continuation != "" it paginates or applies chip filter (continuation is chip token or next page token).
+func FetchChannelVideos(session *InnertubeSession, browseId string, continuation string) (*ChannelVideosResult, error) {
+	if strings.TrimSpace(browseId) == "" && strings.TrimSpace(continuation) == "" {
+		return nil, fmt.Errorf("browseId and continuation empty")
+	}
+	client := &http.Client{Timeout: 15 * time.Second}
+	urlStr := fmt.Sprintf("https://www.youtube.com/youtubei/v1/browse?prettyPrint=false&key=%s", session.APIKey)
+	tz := "UTC"
+	if idx := strings.Index(session.Pref, "tz="); idx != -1 {
+		rest := session.Pref[idx+3:]
+		if amp := strings.Index(rest, "&"); amp != -1 {
+			tz = rest[:amp]
+		} else {
+			tz = rest
+		}
+	}
+	originalURL := ""
+	if strings.TrimSpace(browseId) != "" {
+		if strings.HasPrefix(browseId, "@") {
+			originalURL = "https://www.youtube.com/" + browseId + "/videos"
+		} else if strings.HasPrefix(browseId, "UC") {
+			originalURL = "https://www.youtube.com/channel/" + browseId + "/videos"
+		} else {
+			originalURL = "https://www.youtube.com/channel/" + browseId + "/videos"
+		}
+	} else {
+		originalURL = "https://www.youtube.com"
+	}
+	context := map[string]interface{}{
+		"client": map[string]interface{}{
+			"hl": "en", "gl": "IN", "remoteHost": "", "deviceMake": "", "deviceModel": "",
+			"visitorData": session.VisitorData, "userAgent": userAgent + ",gzip(gfe)", "clientName": session.ClientName, "clientVersion": session.ClientVersion,
+			"osName": "Windows", "osVersion": "10.0", "originalUrl": originalURL, "screenPixelDensity": 2, "platform": "DESKTOP", "clientFormFactor": "UNKNOWN_FORM_FACTOR",
+			"configInfo": map[string]interface{}{}, "timeZone": tz, "browserName": "Chrome", "browserVersion": "124.0.0.0",
+			"acceptHeader": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "screenWidthPoints": 1280, "screenHeightPoints": 720, "utcOffsetMinutes": 0, "userInterfaceTheme": "USER_INTERFACE_THEME_LIGHT",
+		},
+		"user":    map[string]interface{}{"lockedSafetyMode": false},
+		"request": map[string]interface{}{"useSsl": true, "internalExperimentFlags": []interface{}{}, "consistencyTokenJars": []interface{}{}},
+	}
+	if session.RolloutToken != "" {
+		if c, ok := context["client"].(map[string]interface{}); ok {
+			c["rolloutToken"] = session.RolloutToken
+		}
+	}
+	bodyMap := map[string]interface{}{"context": context}
+	if strings.TrimSpace(continuation) != "" {
+		bodyMap["continuation"] = continuation
+	} else {
+		bodyMap["browseId"] = browseId
+		bodyMap["params"] = channelVideosParams
+	}
+	bodyBytes, _ := json.Marshal(bodyMap)
+	referer := originalURL
+	if strings.TrimSpace(continuation) != "" && strings.TrimSpace(browseId) != "" {
+		referer = originalURL
+	}
+	req, err := http.NewRequest("POST", urlStr, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Origin", "https://www.youtube.com")
+	req.Header.Set("Referer", referer)
+	req.Header.Set("X-Goog-Visitor-Id", session.VisitorData)
+	req.Header.Set("X-Youtube-Client-Name", "1")
+	req.Header.Set("X-Youtube-Client-Version", session.ClientVersion)
+	req.Header.Set("X-Youtube-Bootstrap-Logged-In", "false")
+	req.Header.Set("Cookie", session.CookieHeader)
+	req.Header.Set("User-Agent", userAgent)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("browse POST: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(resp.Body)
+		s := buf.String()
+		if len(s) > 500 {
+			s = s[:500]
+		}
+		return nil, fmt.Errorf("browse status %d: %s", resp.StatusCode, s)
+	}
+	var j map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&j); err != nil {
+		return nil, fmt.Errorf("parse browse json: %w", err)
+	}
+	return collectChannelVideos(j)
+}
+
