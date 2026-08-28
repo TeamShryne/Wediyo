@@ -83,7 +83,7 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                         val h = home.header
                         if (h != null) {
                             Column(Modifier.fillMaxWidth()) {
-                                // Banner with all qualities
+                                // Banner with all qualities (hide if no banner)
                                 if (h.bannerUrl.isNotBlank() || h.bannersJson != "[]") {
                                     val bannerUrl = bestThumbUrl(h.bannersJson, h.bannerUrl, "high")
                                     AsyncImage(
@@ -92,8 +92,6 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                                         modifier = Modifier.fillMaxWidth().height(140.dp).background(Color(0xFF111111)),
                                         contentScale = ContentScale.Crop
                                     )
-                                } else {
-                                    Box(Modifier.fillMaxWidth().height(100.dp).background(Color(0xFF1A1A1A)))
                                 }
                                 // Avatar + title row with full-res avatars
                                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.Top) {
@@ -244,8 +242,19 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                         items(home.shelves.size) { idx ->
                             val shelf = home.shelves[idx]
                             Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(shelf.title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold))
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clickable { vm.openShelf(shelf.title) }
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        "${shelf.title} ›",
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                        modifier = Modifier.clickable { vm.openShelf(shelf.title) }
+                                    )
                                 }
                                 LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     items(shelf.videos) { v ->
@@ -269,13 +278,16 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, vm: ChannelViewModel = v
                                             }
                                             Spacer(Modifier.height(6.dp))
                                             Text(v.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium))
-                                            Text(
-                                                "${v.viewCountText} • ${v.publishedText}",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
+                                            val meta = listOf(v.viewCountText, v.publishedText).filter { it.isNotBlank() }.joinToString(" • ")
+                                            if (meta.isNotBlank()) {
+                                                Text(
+                                                    meta,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
                                         }
                                     }
                                 }
