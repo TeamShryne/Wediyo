@@ -69,6 +69,363 @@ object WediyoEngine {
         parseChannelPodcasts(r)
     }
 
+    suspend fun fetchChannelPlaylists(browseId: String, continuation: String = ""): UiChannelPlaylists = withContext(Dispatchers.IO) {
+        val s = getSession()
+        val r = Wediyo.fetchChannelPlaylists(s, browseId, continuation)
+        parseChannelPlaylists(r)
+    }
+
+    suspend fun fetchChannelPosts(browseId: String, continuation: String = ""): UiChannelPosts = withContext(Dispatchers.IO) {
+        val s = getSession()
+        val r = Wediyo.fetchChannelPosts(s, browseId, continuation)
+        parseChannelPosts(r)
+    }
+
+    suspend fun fetchChannelStore(browseId: String, continuation: String = ""): UiChannelStore = withContext(Dispatchers.IO) {
+        val s = getSession()
+        val r = Wediyo.fetchChannelStore(s, browseId, continuation)
+        parseChannelStore(r)
+    }
+
+    suspend fun fetchChannelCourses(browseId: String, continuation: String = ""): UiChannelCourses = withContext(Dispatchers.IO) {
+        val s = getSession()
+        val r = Wediyo.fetchChannelCourses(s, browseId, continuation)
+        parseChannelCourses(r)
+    }
+
+    suspend fun fetchChannelShows(browseId: String, continuation: String = ""): UiChannelShows = withContext(Dispatchers.IO) {
+        val s = getSession()
+        val r = Wediyo.fetchChannelShows(s, browseId, continuation)
+        parseChannelShows(r)
+    }
+
+    private fun parseChannelShows(r: com.teamshryne.wediyo.wediyo.ChannelShowsResult): UiChannelShows {
+        val jsonStr = r.toJSON()
+        val obj = JSONObject(jsonStr)
+        val headerObj = obj.optJSONObject("header")
+        val header = headerObj?.let { h ->
+            UiChannelHeader(
+                channelId = h.optString("channel_id", ""),
+                title = h.optString("title", ""),
+                handle = h.optString("handle", ""),
+                avatarUrl = h.optString("avatar_url", ""),
+                avatarsJson = h.optJSONArray("avatars")?.toString() ?: "[]",
+                bannerUrl = h.optString("banner_url", ""),
+                bannersJson = h.optJSONArray("banners")?.toString() ?: "[]",
+                subs = h.optString("subscriber_count_text", ""),
+                videoCount = h.optString("video_count_text", ""),
+                description = h.optString("description", ""),
+                verified = h.optBoolean("verified", false),
+                channelUrl = h.optString("channel_url", ""),
+                rssUrl = h.optString("rss_url", ""),
+                keywords = h.optString("keywords", "")
+            )
+        }
+        val tabs = mutableListOf<UiChannelTab>()
+        r.tabsJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    tabs.add(UiChannelTab(o.optString("title"), o.optBoolean("selected"), o.optString("params"), o.optString("browse_id"), o.optString("canonical_base_url")))
+                }
+            }
+        }
+        val shows = mutableListOf<UiChannelShow>()
+        r.showsJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    shows.add(
+                        UiChannelShow(
+                            showId = o.optString("show_id", ""),
+                            browseId = o.optString("browse_id", ""),
+                            title = o.optString("title", ""),
+                            thumbUrl = o.optString("thumbnail_url", ""),
+                            thumbsJson = o.optJSONArray("thumbnails")?.toString() ?: "[]",
+                            subtitle = o.optString("subtitle", ""),
+                            episodeCountText = o.optString("episode_count_text", ""),
+                            episodeCount = o.optInt("episode_count", 0)
+                        )
+                    )
+                }
+            }
+        }
+        val cont = obj.optString("continuation", "")
+        return UiChannelShows(header, tabs, shows, cont)
+    }
+
+    private fun parseChannelCourses(r: com.teamshryne.wediyo.wediyo.ChannelCoursesResult): UiChannelCourses {
+        val jsonStr = r.toJSON()
+        val obj = JSONObject(jsonStr)
+        val headerObj = obj.optJSONObject("header")
+        val header = headerObj?.let { h ->
+            UiChannelHeader(
+                channelId = h.optString("channel_id", ""),
+                title = h.optString("title", ""),
+                handle = h.optString("handle", ""),
+                avatarUrl = h.optString("avatar_url", ""),
+                avatarsJson = h.optJSONArray("avatars")?.toString() ?: "[]",
+                bannerUrl = h.optString("banner_url", ""),
+                bannersJson = h.optJSONArray("banners")?.toString() ?: "[]",
+                subs = h.optString("subscriber_count_text", ""),
+                videoCount = h.optString("video_count_text", ""),
+                description = h.optString("description", ""),
+                verified = h.optBoolean("verified", false),
+                channelUrl = h.optString("channel_url", ""),
+                rssUrl = h.optString("rss_url", ""),
+                keywords = h.optString("keywords", "")
+            )
+        }
+        val tabs = mutableListOf<UiChannelTab>()
+        r.tabsJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    tabs.add(UiChannelTab(o.optString("title"), o.optBoolean("selected"), o.optString("params"), o.optString("browse_id"), o.optString("canonical_base_url")))
+                }
+            }
+        }
+        val courses = mutableListOf<UiChannelCourse>()
+        r.coursesJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    courses.add(
+                        UiChannelCourse(
+                            playlistId = o.optString("playlist_id", ""),
+                            browseId = o.optString("browse_id", ""),
+                            title = o.optString("title", ""),
+                            thumbUrl = o.optString("thumbnail_url", ""),
+                            thumbsJson = o.optJSONArray("thumbnails")?.toString() ?: "[]",
+                            videoCountText = o.optString("video_count_text", ""),
+                            videoCount = o.optInt("video_count", 0)
+                        )
+                    )
+                }
+            }
+        }
+        val cont = obj.optString("continuation", "")
+        return UiChannelCourses(header, tabs, courses, cont)
+    }
+
+    private fun parseChannelStore(r: com.teamshryne.wediyo.wediyo.ChannelStoreResult): UiChannelStore {
+        val jsonStr = r.toJSON()
+        val obj = JSONObject(jsonStr)
+        val headerObj = obj.optJSONObject("header")
+        val header = headerObj?.let { h ->
+            UiChannelHeader(
+                channelId = h.optString("channel_id", ""),
+                title = h.optString("title", ""),
+                handle = h.optString("handle", ""),
+                avatarUrl = h.optString("avatar_url", ""),
+                avatarsJson = h.optJSONArray("avatars")?.toString() ?: "[]",
+                bannerUrl = h.optString("banner_url", ""),
+                bannersJson = h.optJSONArray("banners")?.toString() ?: "[]",
+                subs = h.optString("subscriber_count_text", ""),
+                videoCount = h.optString("video_count_text", ""),
+                description = h.optString("description", ""),
+                verified = h.optBoolean("verified", false),
+                channelUrl = h.optString("channel_url", ""),
+                rssUrl = h.optString("rss_url", ""),
+                keywords = h.optString("keywords", "")
+            )
+        }
+        val tabs = mutableListOf<UiChannelTab>()
+        r.tabsJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    tabs.add(UiChannelTab(o.optString("title"), o.optBoolean("selected"), o.optString("params"), o.optString("browse_id"), o.optString("canonical_base_url")))
+                }
+            }
+        }
+        val products = mutableListOf<UiChannelStoreProduct>()
+        r.productsJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    products.add(
+                        UiChannelStoreProduct(
+                            title = o.optString("title", ""),
+                            thumbUrl = o.optString("thumbnail_url", ""),
+                            thumbsJson = o.optJSONArray("thumbnails")?.toString() ?: "[]",
+                            priceText = o.optString("price_text", ""),
+                            merchantName = o.optString("merchant_name", ""),
+                            fromText = o.optString("from_text", ""),
+                            productUrl = o.optString("product_url", "")
+                        )
+                    )
+                }
+            }
+        }
+        val cont = obj.optString("continuation", "")
+        return UiChannelStore(header, tabs, products, cont)
+    }
+
+    private fun parseChannelPosts(r: com.teamshryne.wediyo.wediyo.ChannelPostsResult): UiChannelPosts {
+        val jsonStr = r.toJSON()
+        val obj = JSONObject(jsonStr)
+        val headerObj = obj.optJSONObject("header")
+        val header = headerObj?.let { h ->
+            UiChannelHeader(
+                channelId = h.optString("channel_id", ""),
+                title = h.optString("title", ""),
+                handle = h.optString("handle", ""),
+                avatarUrl = h.optString("avatar_url", ""),
+                avatarsJson = h.optJSONArray("avatars")?.toString() ?: "[]",
+                bannerUrl = h.optString("banner_url", ""),
+                bannersJson = h.optJSONArray("banners")?.toString() ?: "[]",
+                subs = h.optString("subscriber_count_text", ""),
+                videoCount = h.optString("video_count_text", ""),
+                description = h.optString("description", ""),
+                verified = h.optBoolean("verified", false),
+                channelUrl = h.optString("channel_url", ""),
+                rssUrl = h.optString("rss_url", ""),
+                keywords = h.optString("keywords", "")
+            )
+        }
+        val tabs = mutableListOf<UiChannelTab>()
+        r.tabsJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    tabs.add(UiChannelTab(o.optString("title"), o.optBoolean("selected"), o.optString("params"), o.optString("browse_id"), o.optString("canonical_base_url")))
+                }
+            }
+        }
+        val posts = mutableListOf<UiChannelPost>()
+        r.postsJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    val pollObj = o.optJSONObject("poll")
+                    val poll = pollObj?.let { p ->
+                        val choices = mutableListOf<UiChannelPostPollChoice>()
+                        val carr = p.optJSONArray("choices")
+                        if (carr != null) {
+                            for (j in 0 until carr.length()) {
+                                val cj = carr.getJSONObject(j)
+                                choices.add(UiChannelPostPollChoice(cj.optString("text", "")))
+                            }
+                        }
+                        UiChannelPostPoll(choices, p.optString("total_votes_text", ""), p.optString("type", ""))
+                    }
+                    val images = mutableListOf<UiChannelPostImage>()
+                    val iarr = o.optJSONArray("images")
+                    if (iarr != null) {
+                        for (j in 0 until iarr.length()) {
+                            val ij = iarr.getJSONObject(j)
+                            images.add(UiChannelPostImage(ij.optString("url", ""), ij.optJSONArray("thumbnails")?.toString() ?: "[]"))
+                        }
+                    }
+                    var video: UiVideo? = null
+                    o.optJSONObject("video")?.let { v ->
+                        if (v.optString("id", "").isNotEmpty()) {
+                            video = UiVideo(
+                                id = v.optString("id", ""),
+                                title = v.optString("title", ""),
+                                author = v.optString("author", ""),
+                                channelId = v.optString("channel_id", ""),
+                                thumbnailUrl = v.optString("thumbnail_url", ""),
+                                thumbnailsJson = v.optJSONArray("thumbnails")?.toString() ?: "[]",
+                                avatarUrl = v.optString("channel_avatar_url", ""),
+                                avatarsJson = v.optJSONArray("channel_avatars")?.toString() ?: "[]",
+                                viewCountText = v.optString("view_count_text", ""),
+                                publishedText = v.optString("published_time_text", ""),
+                                durationText = v.optString("duration_text", ""),
+                                isLive = v.optBoolean("is_live", false),
+                                badges = emptyList(),
+                                description = v.optString("description_snippet", "")
+                            )
+                        }
+                    }
+                    posts.add(
+                        UiChannelPost(
+                            postId = o.optString("post_id", ""),
+                            authorText = o.optString("author_text", ""),
+                            authorThumbUrl = o.optString("author_thumbnail_url", ""),
+                            authorThumbsJson = o.optJSONArray("author_thumbnails")?.toString() ?: "[]",
+                            contentText = o.optString("content_text", ""),
+                            publishedTimeText = o.optString("published_time_text", ""),
+                            voteCountText = o.optString("vote_count_text", ""),
+                            voteCountLabel = o.optString("vote_count_label", ""),
+                            attachmentType = o.optString("attachment_type", "none"),
+                            poll = poll,
+                            images = images,
+                            video = video
+                        )
+                    )
+                }
+            }
+        }
+        val cont = obj.optString("continuation", "")
+        return UiChannelPosts(header, tabs, posts, cont)
+    }
+
+    private fun parseChannelPlaylists(r: com.teamshryne.wediyo.wediyo.ChannelPlaylistsResult): UiChannelPlaylists {
+        val jsonStr = r.toJSON()
+        val obj = JSONObject(jsonStr)
+        val headerObj = obj.optJSONObject("header")
+        val header = headerObj?.let { h ->
+            UiChannelHeader(
+                channelId = h.optString("channel_id", ""),
+                title = h.optString("title", ""),
+                handle = h.optString("handle", ""),
+                avatarUrl = h.optString("avatar_url", ""),
+                avatarsJson = h.optJSONArray("avatars")?.toString() ?: "[]",
+                bannerUrl = h.optString("banner_url", ""),
+                bannersJson = h.optJSONArray("banners")?.toString() ?: "[]",
+                subs = h.optString("subscriber_count_text", ""),
+                videoCount = h.optString("video_count_text", ""),
+                description = h.optString("description", ""),
+                verified = h.optBoolean("verified", false),
+                channelUrl = h.optString("channel_url", ""),
+                rssUrl = h.optString("rss_url", ""),
+                keywords = h.optString("keywords", "")
+            )
+        }
+        val tabs = mutableListOf<UiChannelTab>()
+        r.tabsJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    tabs.add(UiChannelTab(o.optString("title"), o.optBoolean("selected"), o.optString("params"), o.optString("browse_id"), o.optString("canonical_base_url")))
+                }
+            }
+        }
+        val playlists = mutableListOf<UiChannelPlaylist>()
+        r.playlistsJSON().let { js ->
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    playlists.add(
+                        UiChannelPlaylist(
+                            playlistId = o.optString("playlist_id", ""),
+                            browseId = o.optString("browse_id", ""),
+                            title = o.optString("title", ""),
+                            thumbUrl = o.optString("thumbnail_url", ""),
+                            thumbsJson = o.optJSONArray("thumbnails")?.toString() ?: "[]",
+                            videoCountText = o.optString("video_count_text", ""),
+                            videoCount = o.optInt("video_count", 0)
+                        )
+                    )
+                }
+            }
+        }
+        val cont = obj.optString("continuation", "")
+        return UiChannelPlaylists(header, tabs, playlists, cont)
+    }
+
     private fun parseChannelPodcasts(r: com.teamshryne.wediyo.wediyo.ChannelPodcastsResult): UiChannelPodcasts {
         val jsonStr = r.toJSON()
         val obj = JSONObject(jsonStr)

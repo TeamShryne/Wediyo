@@ -84,3 +84,107 @@ data class UiChannelPodcasts(
     val podcasts: List<UiChannelPodcast>,
     val continuation: String
 )
+
+data class UiChannelPlaylist(
+    val playlistId: String,
+    val browseId: String,
+    val title: String,
+    val thumbUrl: String,
+    val thumbsJson: String,
+    val videoCountText: String,
+    val videoCount: Int
+)
+
+data class UiChannelPlaylists(
+    val header: UiChannelHeader?,
+    val tabs: List<UiChannelTab>,
+    val playlists: List<UiChannelPlaylist>,
+    val continuation: String
+)
+
+data class UiChannelPostPollChoice(val text: String)
+
+data class UiChannelPostPoll(
+    val choices: List<UiChannelPostPollChoice>,
+    val totalVotesText: String,
+    val type: String
+)
+
+data class UiChannelPostImage(
+    val url: String,
+    val thumbsJson: String
+)
+
+data class UiChannelPost(
+    val postId: String,
+    val authorText: String,
+    val authorThumbUrl: String,
+    val authorThumbsJson: String,
+    val contentText: String,
+    val publishedTimeText: String,
+    val voteCountText: String,
+    val voteCountLabel: String,
+    val attachmentType: String,
+    val poll: UiChannelPostPoll?,
+    val images: List<UiChannelPostImage>,
+    val video: UiVideo? = null
+)
+
+data class UiChannelPosts(
+    val header: UiChannelHeader?,
+    val tabs: List<UiChannelTab>,
+    val posts: List<UiChannelPost>,
+    val continuation: String
+)
+
+data class UiChannelStoreProduct(
+    val title: String,
+    val thumbUrl: String,
+    val thumbsJson: String,
+    val priceText: String,
+    val merchantName: String,
+    val fromText: String,
+    val productUrl: String
+)
+
+data class UiChannelStore(
+    val header: UiChannelHeader?,
+    val tabs: List<UiChannelTab>,
+    val products: List<UiChannelStoreProduct>,
+    val continuation: String
+)
+
+data class UiChannelCourse(
+    val playlistId: String,
+    val browseId: String,
+    val title: String,
+    val thumbUrl: String,
+    val thumbsJson: String,
+    val videoCountText: String,
+    val videoCount: Int
+)
+
+data class UiChannelCourses(
+    val header: UiChannelHeader?,
+    val tabs: List<UiChannelTab>,
+    val courses: List<UiChannelCourse>,
+    val continuation: String
+)
+
+data class UiChannelShow(
+    val showId: String,
+    val browseId: String,
+    val title: String,
+    val thumbUrl: String,
+    val thumbsJson: String,
+    val subtitle: String,
+    val episodeCountText: String,
+    val episodeCount: Int
+)
+
+data class UiChannelShows(
+    val header: UiChannelHeader?,
+    val tabs: List<UiChannelTab>,
+    val shows: List<UiChannelShow>,
+    val continuation: String
+)
