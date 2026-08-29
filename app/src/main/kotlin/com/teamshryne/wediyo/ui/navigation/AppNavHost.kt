@@ -15,6 +15,7 @@ import com.teamshryne.wediyo.ui.screens.settings.SettingsScreen
 import com.teamshryne.wediyo.ui.screens.shorts.ShortsScreen
 import com.teamshryne.wediyo.ui.screens.show.ShowScreen
 import com.teamshryne.wediyo.ui.screens.subscriptions.SubscriptionsScreen
+import com.teamshryne.wediyo.ui.screens.video.VideoScreen
 
 sealed class Screen(val route: String) {
     object Home : Screen("home")
@@ -38,6 +39,9 @@ sealed class Screen(val route: String) {
     object Podcast : Screen("podcast/{playlistId}") {
         fun route(playlistId: String) = "podcast/$playlistId"
     }
+    object Video : Screen("video/{videoId}") {
+        fun route(videoId: String) = "video/$videoId"
+    }
 }
 
 @Composable
@@ -51,7 +55,8 @@ fun AppNavHost(nav: NavHostController, start: String = Screen.Home.route) {
                 onPlaylistClick = { pid -> nav.navigate(Screen.Playlist.route(pid)) },
                 onCourseClick = { pid -> nav.navigate(Screen.Course.route(pid)) },
                 onShowClick = { pid -> nav.navigate(Screen.Show.route(pid)) },
-                onPodcastClick = { pid -> nav.navigate(Screen.Podcast.route(pid)) }
+                onPodcastClick = { pid -> nav.navigate(Screen.Podcast.route(pid)) },
+                onVideoClick = { vid -> nav.navigate(Screen.Video.route(vid)) }
             )
         }
         composable(Screen.Channel.route) { backStackEntry ->
@@ -80,6 +85,15 @@ fun AppNavHost(nav: NavHostController, start: String = Screen.Home.route) {
         composable(Screen.Podcast.route) { backStackEntry ->
             val pid = backStackEntry.arguments?.getString("playlistId") ?: ""
             PodcastScreen(playlistId = pid, onBack = { nav.popBackStack() })
+        }
+        composable(Screen.Video.route) { backStackEntry ->
+            val vid = backStackEntry.arguments?.getString("videoId") ?: ""
+            VideoScreen(
+                videoId = vid,
+                onBack = { nav.popBackStack() },
+                onChannelClick = { bid -> nav.navigate(Screen.Channel.route(bid)) },
+                onVideoClick = { nid -> nav.navigate(Screen.Video.route(nid)) }
+            )
         }
         composable(Screen.Settings.route) { SettingsScreen(onBack = { nav.popBackStack() }) }
         composable(Screen.Shorts.route) { ShortsScreen() }

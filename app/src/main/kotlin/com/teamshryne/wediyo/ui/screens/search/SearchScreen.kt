@@ -37,6 +37,7 @@ fun SearchScreen(
     onCourseClick: (String) -> Unit = {},
     onShowClick: (String) -> Unit = {},
     onPodcastClick: (String) -> Unit = {},
+    onVideoClick: (String) -> Unit = {},
     vm: SearchViewModel = viewModel()
 ) {
     val state by vm.state.collectAsState()
@@ -234,7 +235,7 @@ fun SearchScreen(
                     }
 
                     // Videos
-                    items(r.videos.size) { idx -> VideoCard(r.videos[idx], thumbQ, avatarQ) {} }
+                    items(r.videos.size) { idx -> VideoCard(r.videos[idx], thumbQ, avatarQ) { onVideoClick(r.videos[idx].id) } }
 
                     if (state.isLoading) item {
                         Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
