@@ -409,7 +409,9 @@ func parsePodcastEpisodes(j map[string]interface{}) ([]PodcastEpisode, string) {
 				}
 			} else {
 				if tok := extractContinuationToken(sm); tok != "" {
-					continuation = tok
+					if continuation == "" {
+						continuation = tok
+					}
 				}
 			}
 		}
