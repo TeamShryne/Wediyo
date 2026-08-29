@@ -401,7 +401,20 @@ func parsePlayerDetail(j map[string]interface{}, res *VideoDetailResult) {
 				res.LengthSeconds = parseDurationSeconds(s)
 				res.DurationText = formatDuration(res.LengthSeconds)
 			}
-			res.ChannelHandle, _ = pmr["ownerProfileUrl"].(string)
+			rawHandle, _ := pmr["ownerProfileUrl"].(string)
+			// ownerProfileUrl is like "http://www.youtube.com/@ThePrimeTimeagen" -> extract "@ThePrimeTimeagen"
+			if idx := strings.LastIndex(rawHandle, "/@"); idx != -1 {
+				rawHandle = "@" + rawHandle[idx+2:]
+			} else if idx := strings.LastIndex(rawHandle, "/c/"); idx != -1 {
+				rawHandle = rawHandle[idx+3:]
+			} else if idx := strings.LastIndex(rawHandle, "/"); idx != -1 && idx+1 < len(rawHandle) {
+				// fallback: last segment
+				last := rawHandle[idx+1:]
+				if last != "" && !strings.Contains(last, ".") {
+					rawHandle = last
+				}
+			}
+			res.ChannelHandle = rawHandle
 			res.ChannelID, _ = pmr["externalChannelId"].(string)
 			if b, ok := pmr["isFamilySafe"].(bool); ok {
 				res.IsFamilySafe = b
