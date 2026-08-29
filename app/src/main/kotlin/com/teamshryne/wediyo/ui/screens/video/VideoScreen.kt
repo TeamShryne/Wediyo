@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -26,9 +27,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.teamshryne.wediyo.data.model.UiVideo
 import com.teamshryne.wediyo.data.prefs.SettingsManager
-import com.teamshryne.wediyo.ui.components.VideoCard
+import com.teamshryne.wediyo.ui.components.ChannelVideoListCard
 import com.teamshryne.wediyo.util.bestThumbUrl
 import kotlinx.coroutines.flow.collectLatest
 
@@ -50,6 +50,18 @@ fun VideoScreen(
     LaunchedEffect(Unit) { settings.thumbQuality.collectLatest { thumbQ = it } }
     LaunchedEffect(Unit) { settings.avatarQuality.collectLatest { avatarQ = it } }
     LaunchedEffect(videoId) { vm.load(videoId) }
+
+    val listState = rememberLazyListState()
+
+    // pagination triggers for related + comments
+    LaunchedEffect(listState.firstVisibleItemIndex, state.relatedContinuation, state.commentsContinuation) {
+        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+        val total = listState.layoutInfo.totalItemsCount
+        if (total > 0 && lastVisible >= total - 6) {
+            if (state.relatedContinuation != null && !state.relatedLoading) vm.loadMoreRelated()
+            if (state.commentsContinuation != null && !state.commentsLoading) vm.loadMoreComments()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -81,7 +93,112 @@ fun VideoScreen(
             }
             state.detail != null -> {
                 val d = state.detail!!
+
+                // Bottom sheet for title details (views/likes/duration/details)
+                if (state.showDetailsSheet) {
+                    ModalBottomSheet(onDismissRequest = { vm.setDetailsSheet(false) }) {
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                                .padding(bottom = 32.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(d.title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                            // quick meta
+                            val meta = buildList {
+                                if (d.viewCountText.isNotBlank()) add(d.viewCountText) else if (d.viewCount > 0) add("${d.viewCount} views")
+                                if (d.publishDate.isNotBlank()) add(d.publishDate) else if (d.uploadDate.isNotBlank()) add(d.uploadDate)
+                                if (d.category.isNotBlank()) add(d.category)
+                                if (d.isLiveContent) add("Live")
+                            }.joinToString(" • ")
+                            if (meta.isNotBlank()) Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                            // Stats grid moved inside sheet
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                StatChip("Views", d.viewCountText.ifBlank { if (d.viewCount > 0) d.viewCount.toString() else "—" }, Modifier.weight(1f))
+                                StatChip("Likes", d.likeCountText.ifBlank { d.likeCount.takeIf { it > 0 }?.toString() ?: "—" }, Modifier.weight(1f))
+                                StatChip("Duration", d.durationText.ifBlank { formatDuration(d.lengthSeconds) }, Modifier.weight(1f))
+                            }
+
+                            // Captions
+                            if (d.captionTracks.isNotEmpty()) {
+                                Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                                    Column(Modifier.padding(14.dp)) {
+                                        Text("Captions • ${d.captionTracks.size}", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold))
+                                        Spacer(Modifier.height(6.dp))
+                                        d.captionTracks.take(6).forEach { ct ->
+                                            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                Text(ct.name.ifBlank { ct.languageCode }, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                                                Text(ct.kind.ifBlank { "standard" }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                        }
+                                        if (d.translationLanguages.isNotEmpty()) {
+                                            Spacer(Modifier.height(6.dp))
+                                            Text("${d.translationLanguages.size} translation languages", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Streams
+                            if (d.formats.isNotEmpty() || d.adaptiveFormats.isNotEmpty()) {
+                                Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                                    Column(Modifier.padding(14.dp)) {
+                                        Text("Streams", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold))
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                            "${d.formats.size} progressive • ${d.adaptiveFormats.size} adaptive • expires in ${d.expiresInSeconds}s",
+                                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        if (d.hlsManifestUrl.isNotBlank() || d.dashManifestUrl.isNotBlank()) {
+                                            Spacer(Modifier.height(4.dp))
+                                            Text("HLS/DASH manifests available", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                        }
+                                        if (d.storyboardSpec.isNotBlank()) {
+                                            Spacer(Modifier.height(4.dp))
+                                            Text("Storyboards: ${d.storyboardSpec.take(90)}…", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                        }
+                                        val top = d.adaptiveFormats.filter { !it.isAudio }.sortedByDescending { it.bitrate }.take(3)
+                                        if (top.isNotEmpty()) {
+                                            Spacer(Modifier.height(6.dp))
+                                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                top.forEach { f ->
+                                                    AssistChip(onClick = {}, label = { Text(f.qualityLabel.ifBlank { "${f.height}p" }) })
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Details
+                            Card(shape = RoundedCornerShape(12.dp)) {
+                                Column(Modifier.padding(14.dp)) {
+                                    Text("Details", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold))
+                                    Spacer(Modifier.height(6.dp))
+                                    DetailRow("Video ID", d.videoId)
+                                    DetailRow("Channel ID", d.channelId)
+                                    DetailRow("Channel", d.channelTitle.ifBlank { d.author })
+                                    DetailRow("Category", d.category)
+                                    DetailRow("Published", d.publishDate.ifBlank { d.uploadDate })
+                                    DetailRow("Family safe", if (d.isFamilySafe) "Yes" else "No")
+                                    DetailRow("Playable in embed", if (d.playableInEmbed) "Yes" else "No")
+                                    DetailRow("Countries", if (d.availableCountries.isNotEmpty()) "${d.availableCountries.size} • ${d.availableCountries.take(5).joinToString(", ")}…" else "—")
+                                    if (d.keywords.isNotEmpty()) DetailRow("Keywords", d.keywords.take(8).joinToString(", "))
+                                    if (d.paidPromotionText.isNotBlank()) DetailRow("Paid promotion", d.paidPromotionText)
+                                    if (d.canonicalUrl.isNotBlank()) DetailRow("Canonical", d.canonicalUrl)
+                                    if (d.embedUrl.isNotBlank()) DetailRow("Embed", d.embedUrl)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize().padding(pad),
                     contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
@@ -99,7 +216,6 @@ fun VideoScreen(
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop
                             )
-                            // centered play icon placeholder
                             Box(
                                 Modifier
                                     .align(Alignment.Center)
@@ -110,7 +226,6 @@ fun VideoScreen(
                             ) {
                                 Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
                             }
-                            // duration badge
                             if (d.durationText.isNotBlank()) {
                                 Box(
                                     Modifier
@@ -134,24 +249,26 @@ fun VideoScreen(
                         }
                     }
 
-                    // Title + meta
+                    // Title — clickable opens sheet (whole details part lives in sheet now)
                     item {
-                        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { vm.setDetailsSheet(true) }
+                                .padding(16.dp)
+                        ) {
                             Text(d.title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), maxLines = 4)
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(4.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                // views • date • category
-                                val meta = buildList {
+                                Text("Tap for details", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                Spacer(Modifier.width(6.dp))
+                                Text("•", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(Modifier.width(6.dp))
+                                val quick = buildList {
                                     if (d.viewCountText.isNotBlank()) add(d.viewCountText) else if (d.viewCount > 0) add("${d.viewCount} views")
-                                    if (d.publishDate.isNotBlank()) add(d.publishDate)
-                                    else if (d.uploadDate.isNotBlank()) add(d.uploadDate)
-                                    if (d.category.isNotBlank()) add(d.category)
-                                    if (d.isLiveContent) add("Live")
-                                    if (d.paidPromotionText.isNotBlank()) add(d.paidPromotionText)
+                                    if (d.publishDate.isNotBlank()) add(d.publishDate.take(12))
                                 }.joinToString(" • ")
-                                if (meta.isNotBlank()) {
-                                    Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                                }
+                                if (quick.isNotBlank()) Text(quick, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                             }
                             if (d.keywords.isNotEmpty()) {
                                 Spacer(Modifier.height(6.dp))
@@ -213,14 +330,14 @@ fun VideoScreen(
                                 leadingIcon = { Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp)) }
                             )
                             AssistChip(
-                                onClick = {},
-                                label = { Text(d.playabilityStatus.ifBlank { "More" }) },
+                                onClick = { vm.setDetailsSheet(true) },
+                                label = { Text(d.playabilityStatus.ifBlank { "Details" }) },
                                 leadingIcon = { Icon(Icons.Filled.MoreVert, contentDescription = null, modifier = Modifier.size(18.dp)) }
                             )
                         }
                     }
 
-                    // Description expandable
+                    // Description expandable (stays in main list)
                     item {
                         val desc = d.description.ifBlank { d.shortDescription }
                         if (desc.isNotBlank()) {
@@ -245,121 +362,102 @@ fun VideoScreen(
                                         maxLines = if (state.expandedDesc) Int.MAX_VALUE else 3,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                    if (!state.expandedDesc && desc.length > 180) {
-                                        Text("...more", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
-                                    }
-                                    if (state.expandedDesc) {
-                                        Spacer(Modifier.height(8.dp))
-                                        if (d.canonicalUrl.isNotBlank()) Text(d.canonicalUrl, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                                        if (d.embedUrl.isNotBlank()) Text(d.embedUrl, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
                                 }
                             }
                             Spacer(Modifier.height(12.dp))
                         }
                     }
 
-                    // Stats grid
+                    // Up next — paginated, all quality thumbs, channel + views
                     item {
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            StatChip("Views", d.viewCountText.ifBlank { d.viewCount.toString() })
-                            StatChip("Likes", d.likeCountText.ifBlank { d.likeCount.takeIf { it > 0 }?.toString() ?: "—" })
-                            StatChip("Duration", d.durationText.ifBlank { formatDuration(d.lengthSeconds) })
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("Up next", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
+                            if (state.related.isNotEmpty()) Text("${state.related.size}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Spacer(Modifier.height(12.dp))
                     }
-
-                    // Captions / translations
-                    if (d.captionTracks.isNotEmpty()) {
-                        item {
-                            Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(12.dp)) {
-                                Column(Modifier.padding(14.dp)) {
-                                    Text("Captions • ${d.captionTracks.size}", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold))
-                                    Spacer(Modifier.height(6.dp))
-                                    d.captionTracks.take(6).forEach { ct ->
-                                        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                                            Text(ct.name.ifBlank { ct.languageCode }, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                                            Text(ct.kind.ifBlank { "standard" }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        }
-                                    }
-                                    if (d.translationLanguages.isNotEmpty()) {
-                                        Spacer(Modifier.height(6.dp))
-                                        Text("${d.translationLanguages.size} translation languages", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
+                    if (state.related.isNotEmpty()) {
+                        items(state.related.size) { idx ->
+                            val v = state.related[idx]
+                            // Use ChannelVideoListCard which shows thumbnail (all qualities), duration, title, views·time — no broken avatar, views fixed for 269K case
+                            ChannelVideoListCard(video = v, thumbQuality = thumbQ, onClick = { onVideoClick(v.id) })
+                        }
+                        if (state.relatedLoading) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                                 }
                             }
-                            Spacer(Modifier.height(12.dp))
-                        }
-                    }
-
-                    // Streams info (metadata only, no playback)
-                    if (d.formats.isNotEmpty() || d.adaptiveFormats.isNotEmpty()) {
-                        item {
-                            Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(12.dp)) {
-                                Column(Modifier.padding(14.dp)) {
-                                    Text("Streams", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold))
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        "${d.formats.size} progressive • ${d.adaptiveFormats.size} adaptive • expires in ${d.expiresInSeconds}s",
-                                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    if (d.hlsManifestUrl.isNotBlank() || d.dashManifestUrl.isNotBlank()) {
-                                        Spacer(Modifier.height(4.dp))
-                                        Text("HLS/DASH manifests available", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                                    }
-                                    if (d.storyboardSpec.isNotBlank()) {
-                                        Spacer(Modifier.height(4.dp))
-                                        Text("Storyboards: ${d.storyboardSpec.take(80)}…", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                                    }
-                                    // top quality labels
-                                    val top = d.adaptiveFormats.filter { !it.isAudio }.sortedByDescending { it.bitrate }.take(3)
-                                    if (top.isNotEmpty()) {
-                                        Spacer(Modifier.height(6.dp))
-                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            top.forEach { f ->
-                                                AssistChip(onClick = {}, label = { Text(f.qualityLabel.ifBlank { "${f.height}p" }) })
-                                            }
-                                        }
-                                    }
+                        } else if (state.relatedContinuation != null) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
+                                    TextButton(onClick = { vm.loadMoreRelated() }) { Text("Load more") }
                                 }
                             }
-                            Spacer(Modifier.height(12.dp))
-                        }
-                    }
-
-                    // Extra meta
-                    item {
-                        Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(12.dp)) {
-                            Column(Modifier.padding(14.dp)) {
-                                Text("Details", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold))
-                                Spacer(Modifier.height(6.dp))
-                                DetailRow("Video ID", d.videoId)
-                                DetailRow("Channel ID", d.channelId)
-                                DetailRow("Category", d.category)
-                                DetailRow("Published", d.publishDate.ifBlank { d.uploadDate })
-                                DetailRow("Family safe", if (d.isFamilySafe) "Yes" else "No")
-                                DetailRow("Playable in embed", if (d.playableInEmbed) "Yes" else "No")
-                                DetailRow("Countries", if (d.availableCountries.isNotEmpty()) "${d.availableCountries.size} • ${d.availableCountries.take(5).joinToString(", ")}…" else "—")
-                                if (d.paidPromotionText.isNotBlank()) DetailRow("Paid promotion", d.paidPromotionText)
-                            }
-                        }
-                        Spacer(Modifier.height(16.dp))
-                    }
-
-                    // Related videos
-                    if (d.relatedVideos.isNotEmpty()) {
-                        item {
-                            Text("Up next • ${d.relatedVideos.size}", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-                        }
-                        items(d.relatedVideos) { v ->
-                            VideoCard(video = v, thumbQuality = thumbQ, avatarQuality = avatarQ, onClick = { onVideoClick(v.id) })
                         }
                     } else {
                         item {
                             Text("No related videos", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp))
+                        }
+                    }
+
+                    // Comments — Mediyo flow port
+                    item {
+                        Spacer(Modifier.height(16.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = state.commentsCount ?: d.commentsCountText.takeIf { it.isNotBlank() }?.let { it } ?: "Comments",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (state.commentsSortFilters.isNotEmpty()) {
+                                // show selected sort
+                                val selected = state.commentsSortFilters.find { it.selected }?.title ?: state.commentsSortFilters.firstOrNull()?.title ?: ""
+                                if (selected.isNotBlank()) AssistChip(onClick = {}, label = { Text(selected) })
+                            }
+                        }
+                        // sort chips (Top/Newest) — Mediyo style
+                        if (state.commentsSortFilters.isNotEmpty()) {
+                            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                state.commentsSortFilters.take(4).forEach { sf ->
+                                    FilterChip(
+                                        selected = sf.selected,
+                                        onClick = { vm.switchCommentsSort(sf.continuationToken) },
+                                        label = { Text(sf.title) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (state.comments.isEmpty() && state.commentsLoading) {
+                        item {
+                            Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(24.dp)) }
+                        }
+                    } else if (state.comments.isEmpty()) {
+                        item {
+                            Text(
+                                if (state.commentsContinuation == null && state.detail?.commentsContinuation.isNullOrBlank()) "Comments unavailable" else "No comments yet — be first",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+                    } else {
+                        items(state.comments.size) { idx ->
+                            val c = state.comments[idx]
+                            CommentCard(comment = c, avatarQ = avatarQ, onReplyClick = { cont ->
+                                // simple inline replies expansion via ViewModel
+                                // for brevity, just no-op or could fetch
+                            })
+                        }
+                        if (state.commentsLoading) {
+                            item { Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) } }
+                        } else if (state.commentsContinuation != null) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+                                    TextButton(onClick = { vm.loadMoreComments() }) { Text("Load more comments") }
+                                }
+                            }
                         }
                     }
                 }
@@ -369,8 +467,8 @@ fun VideoScreen(
 }
 
 @Composable
-private fun StatChip(label: String, value: String) {
-    Card(shape = RoundedCornerShape(10.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+private fun StatChip(label: String, value: String, modifier: Modifier = Modifier) {
+    Card(modifier = modifier, shape = RoundedCornerShape(10.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(value, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -384,6 +482,40 @@ private fun DetailRow(label: String, value: String) {
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(120.dp))
         Text(value, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun CommentCard(comment: com.teamshryne.wediyo.data.model.UiComment, avatarQ: String, onReplyClick: (String) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.Top) {
+        AsyncImage(
+            model = com.teamshryne.wediyo.util.bestThumbUrl("", comment.author.avatar, avatarQ),
+            contentDescription = comment.author.name,
+            modifier = Modifier.size(32.dp).clip(CircleShape).background(Color(0xFF222222)),
+            contentScale = ContentScale.Crop
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(comment.author.name, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
+                if (comment.author.isVerified) Text("  ✓", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                if (comment.author.isCreator) {
+                    Spacer(Modifier.width(6.dp))
+                    Box(Modifier.background(Color(0xFF3EA6FF), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 1.dp)) {
+                        Text("Creator", style = MaterialTheme.typography.labelSmall, color = Color.White)
+                    }
+                }
+                Spacer(Modifier.width(6.dp))
+                Text(comment.publishedTime, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(comment.content, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (comment.likeCount.isNotBlank()) Text("♥ ${comment.likeCount}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (comment.replyCount.isNotBlank()) Text(comment.replyCount, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable(enabled = comment.repliesContinuation.isNotBlank()) { onReplyClick(comment.repliesContinuation) })
+            }
+        }
     }
 }
 

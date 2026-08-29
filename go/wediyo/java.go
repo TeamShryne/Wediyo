@@ -645,3 +645,29 @@ func (c *VideoCaptionTrack) ToJSON() string {
 	b, _ := json.Marshal(c)
 	return string(b)
 }
+func (r *CommentsPage) ToJSON() string {
+	b, _ := json.Marshal(r)
+	return string(b)
+}
+func (r *CommentsPage) CommentsJSON() string {
+	b, _ := json.Marshal(r.Comments)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *CommentsPage) SortFiltersJSON() string {
+	b, _ := json.Marshal(r.SortFilters)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (c *Comment) ToJSON() string {
+	b, _ := json.Marshal(c)
+	return string(b)
+}
+func (c *CommentAuthor) ToJSON() string {
+	b, _ := json.Marshal(c)
+	return string(b)
+}

@@ -83,5 +83,41 @@ data class UiVideoDetail(
     val embedUrl: String,
     val canonicalUrl: String,
     val relatedVideos: List<UiVideo>,
-    val relatedContinuation: String
+    val relatedContinuation: String,
+    val commentsContinuation: String,
+    val commentsCountText: String
+)
+
+data class UiCommentAuthor(
+    val channelId: String,
+    val name: String,
+    val avatar: String,
+    val isVerified: Boolean,
+    val isCreator: Boolean,
+    val isArtist: Boolean
+)
+
+data class UiComment(
+    val commentId: String,
+    val content: String,
+    val publishedTime: String,
+    val author: UiCommentAuthor,
+    val likeCount: String,
+    val replyCount: String,
+    val replyLevel: Int,
+    val repliesContinuation: String
+)
+
+data class UiCommentSortFilter(
+    val title: String,
+    val selected: Boolean,
+    val continuationToken: String,
+    val subtitle: String?
+)
+
+data class UiCommentsPage(
+    val count: String?,
+    val comments: List<UiComment>,
+    val continuation: String?,
+    val sortFilters: List<UiCommentSortFilter>
 )
