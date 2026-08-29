@@ -25,7 +25,8 @@ data class VideoUiState(
     val commentsLoading: Boolean = false,
     val error: String? = null,
     val expandedDesc: Boolean = false,
-    val showDetailsSheet: Boolean = false
+    val showDetailsSheet: Boolean = false,
+    val showCommentsSheet: Boolean = false
 )
 
 class VideoViewModel : ViewModel() {
@@ -137,6 +138,10 @@ class VideoViewModel : ViewModel() {
 
     fun setDetailsSheet(show: Boolean) {
         _state.value = _state.value.copy(showDetailsSheet = show)
+    }
+
+    fun setCommentsSheet(show: Boolean) {
+        _state.value = _state.value.copy(showCommentsSheet = show)
     }
 
     fun retry() {
