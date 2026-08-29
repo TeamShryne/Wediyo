@@ -30,6 +30,9 @@ captures/
 .DS_Store
 Thumbs.db
 
+# research fixtures — local only (contains cURL cookies/tokens + large JSON), never commit
+research/
+
 # UniFFI committed bindings live in app/src/main/kotlin/uniffi/ — tracked
 # GH Actions
 # (gradle wrapper jar is intentionally tracked for CI)
