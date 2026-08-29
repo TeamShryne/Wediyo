@@ -732,8 +732,35 @@ func parseNextDetail(j map[string]interface{}, res *VideoDetailResult) {
 	if len(related) > 0 {
 		res.RelatedVideos = related
 	}
-	// also try continuation if any
-	res.RelatedContinuation = extractContinuationToken(j)
+	// prefer specific related continuation over generic
+	if rc := extractRelatedContinuationFromNext(j); rc != "" {
+		res.RelatedContinuation = rc
+	} else {
+		res.RelatedContinuation = extractContinuationToken(j)
+	}
+	// comments continuation (Mediyo flow: engagement-panel-comments-section)
+	if cc := extractCommentsTokenFromNext(j); cc != "" {
+		res.CommentsContinuation = cc
+	}
+	// comments count from engagementPanels header if available (fallback)
+	if res.CommentsCountText == "" {
+		if eps, ok := j["engagementPanels"].([]interface{}); ok {
+			for _, ep := range eps {
+				if em, ok := ep.(map[string]interface{}); ok {
+					if r, ok := em["engagementPanelSectionListRenderer"].(map[string]interface{}); ok {
+						if hdr, ok := r["header"].(map[string]interface{}); ok {
+							if h, ok := hdr["engagementPanelTitleHeaderRenderer"].(map[string]interface{}); ok {
+								if t := getText(h["title"]); strings.Contains(strings.ToLower(t), "comment") {
+									// try to find count in title or subtitle
+									res.CommentsCountText = t
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 func parseCompactVideoRenderer(v interface{}) *VideoMetadata {
@@ -886,14 +913,41 @@ func parseLockupToVideo(v interface{}) *VideoMetadata {
 			if md, ok := lvm["metadata"].(map[string]interface{}); ok {
 				if cm, ok := md["contentMetadataViewModel"].(map[string]interface{}); ok {
 					if rows, ok := cm["metadataRows"].([]interface{}); ok {
-						for _, r := range rows {
+						for rowIdx, r := range rows {
 							if rm, ok := r.(map[string]interface{}); ok {
 								if parts, ok := rm["metadataParts"].([]interface{}); ok {
-									for _, p := range parts {
+									for partIdx, p := range parts {
 										if pm, ok := p.(map[string]interface{}); ok {
 											if txt, ok := pm["text"].(map[string]interface{}); ok {
 												if c, ok := txt["content"].(string); ok {
 													low := strings.ToLower(c)
+													// row0 single part is always channel
+													if rowIdx == 0 && partIdx == 0 && channelName == "" {
+														channelName = c
+														if runs, ok := txt["commandRuns"].([]interface{}); ok && len(runs) > 0 {
+															if r0, ok := runs[0].(map[string]interface{}); ok {
+																if tap, ok := r0["onTap"].(map[string]interface{}); ok {
+																	if cmd, ok := tap["innertubeCommand"].(map[string]interface{}); ok {
+																		if be, ok := cmd["browseEndpoint"].(map[string]interface{}); ok {
+																			channelId, _ = be["browseId"].(string)
+																		}
+																	}
+																}
+															}
+														}
+														continue
+													}
+													// row1 part0 is views (may be just "269K" or "8.3M" without suffix), part1 is published
+													if rowIdx == 1 {
+														if partIdx == 0 && viewCountText == "" {
+															viewCountText = c
+															continue
+														}
+														if partIdx == 1 && publishedText == "" {
+															publishedText = c
+															continue
+														}
+													}
 													if strings.Contains(low, "view") || strings.Contains(low, "watching") {
 														viewCountText = c
 													} else if strings.Contains(low, "ago") || strings.Contains(low, "streamed") || strings.Contains(low, "premiered") {

@@ -582,6 +582,42 @@ type VideoDetailResult struct {
 	HasYpcMetadata       bool                       `json:"has_ypc_metadata"`
 	ViewCountRaw         string                     `json:"view_count_raw"` // original string from microformat/player
 	AudioLoudnessDb      float64                    `json:"audio_loudness_db"`
+	CommentsContinuation string                     `json:"comments_continuation"`
+	CommentsCountText    string                     `json:"comments_count_text"`
+}
+
+type CommentAuthor struct {
+	ChannelID  string `json:"channel_id"`
+	Name       string `json:"name"`
+	Avatar     string `json:"avatar"`
+	IsVerified bool   `json:"is_verified"`
+	IsCreator  bool   `json:"is_creator"`
+	IsArtist   bool   `json:"is_artist"`
+}
+
+type Comment struct {
+	CommentID           string        `json:"comment_id"`
+	Content             string        `json:"content"`
+	PublishedTime       string        `json:"published_time"`
+	Author              CommentAuthor `json:"author"`
+	LikeCount           string        `json:"like_count"`
+	ReplyCount          string        `json:"reply_count"`
+	ReplyLevel          int           `json:"reply_level"`
+	RepliesContinuation string        `json:"replies_continuation"`
+}
+
+type CommentSortFilter struct {
+	Title             string `json:"title"`
+	Selected          bool   `json:"selected"`
+	ContinuationToken string `json:"continuation_token"`
+	Subtitle          string `json:"subtitle"`
+}
+
+type CommentsPage struct {
+	Count        string              `json:"count"`
+	Comments     []Comment           `json:"comments"`
+	Continuation string              `json:"continuation"`
+	SortFilters  []CommentSortFilter `json:"sort_filters"`
 }
 
 // InnertubeSession — from GET youtube.com Set-Cookie + ytcfg (stateless: caller holds)

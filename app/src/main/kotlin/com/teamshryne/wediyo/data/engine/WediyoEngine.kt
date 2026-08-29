@@ -286,7 +286,9 @@ object WediyoEngine {
             embedUrl = obj.optString("embed_url", ""),
             canonicalUrl = obj.optString("canonical_url", ""),
             relatedVideos = related,
-            relatedContinuation = obj.optString("related_continuation", "")
+            relatedContinuation = obj.optString("related_continuation", ""),
+            commentsContinuation = obj.optString("comments_continuation", ""),
+            commentsCountText = obj.optString("comments_count_text", "")
         )
     }
 
@@ -319,6 +321,105 @@ object WediyoEngine {
                 )
             )
         }
+    }
+
+    // Comments — Mediyo flow port
+    suspend fun fetchComments(continuation: String): UiCommentsPage = withContext(Dispatchers.IO) {
+        val s = getSession()
+        val r: Any = try {
+            Wediyo.fetchCommentsPage(s, continuation)
+        } catch (_: Throwable) {
+            val cls = Wediyo::class.java
+            val method = cls.methods.find { it.name == "fetchCommentsPage" }
+                ?: throw IllegalStateException("fetchCommentsPage not found in AAR")
+            method.invoke(null, s, continuation)!!
+        }
+        parseCommentsPage(r)
+    }
+
+    suspend fun fetchReplies(continuation: String): UiCommentsPage = withContext(Dispatchers.IO) {
+        val s = getSession()
+        val r: Any = try {
+            Wediyo.fetchRepliesPage(s, continuation)
+        } catch (_: Throwable) {
+            val cls = Wediyo::class.java
+            val method = cls.methods.find { it.name == "fetchRepliesPage" }
+                ?: throw IllegalStateException("fetchRepliesPage not found in AAR")
+            method.invoke(null, s, continuation)!!
+        }
+        parseCommentsPage(r)
+    }
+
+    suspend fun fetchRelated(continuation: String): UiVideoDetail = withContext(Dispatchers.IO) {
+        val s = getSession()
+        val r: Any = try {
+            Wediyo.fetchRelatedContinuation(s, continuation)
+        } catch (_: Throwable) {
+            val cls = Wediyo::class.java
+            val method = cls.methods.find { it.name == "fetchRelatedContinuation" }
+                ?: throw IllegalStateException("fetchRelatedContinuation not found in AAR")
+            method.invoke(null, s, continuation)!!
+        }
+        parseVideoDetail(r)
+    }
+
+    private fun parseCommentsPage(r: Any): UiCommentsPage {
+        val jsonStr = try { r::class.java.getMethod("toJSON").invoke(r) as String } catch (_: Exception) { "{}" }
+        val obj = JSONObject(jsonStr)
+        val comments = mutableListOf<UiComment>()
+        val arr = try {
+            val m = r::class.java.getMethod("commentsJSON").invoke(r) as String
+            JSONArray(m)
+        } catch (_: Exception) {
+            obj.optJSONArray("comments") ?: JSONArray()
+        }
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            val authorObj = o.optJSONObject("author") ?: JSONObject()
+            comments.add(
+                UiComment(
+                    commentId = o.optString("comment_id", ""),
+                    content = o.optString("content", ""),
+                    publishedTime = o.optString("published_time", ""),
+                    author = UiCommentAuthor(
+                        channelId = authorObj.optString("channel_id", ""),
+                        name = authorObj.optString("name", ""),
+                        avatar = authorObj.optString("avatar", ""),
+                        isVerified = authorObj.optBoolean("is_verified", false),
+                        isCreator = authorObj.optBoolean("is_creator", false),
+                        isArtist = authorObj.optBoolean("is_artist", false)
+                    ),
+                    likeCount = o.optString("like_count", ""),
+                    replyCount = o.optString("reply_count", ""),
+                    replyLevel = o.optInt("reply_level", 0),
+                    repliesContinuation = o.optString("replies_continuation", "")
+                )
+            )
+        }
+        val sortFilters = mutableListOf<UiCommentSortFilter>()
+        val sfArr = try {
+            val m = r::class.java.getMethod("sortFiltersJSON").invoke(r) as String
+            JSONArray(m)
+        } catch (_: Exception) {
+            obj.optJSONArray("sort_filters") ?: JSONArray()
+        }
+        for (i in 0 until sfArr.length()) {
+            val o = sfArr.getJSONObject(i)
+            sortFilters.add(
+                UiCommentSortFilter(
+                    title = o.optString("title", ""),
+                    selected = o.optBoolean("selected", false),
+                    continuationToken = o.optString("continuation_token", ""),
+                    subtitle = o.optString("subtitle", "").takeIf { it.isNotBlank() }
+                )
+            )
+        }
+        return UiCommentsPage(
+            count = obj.optString("count", "").takeIf { it.isNotBlank() },
+            comments = comments,
+            continuation = obj.optString("continuation", "").takeIf { it.isNotBlank() },
+            sortFilters = sortFilters
+        )
     }
 
     suspend fun fetchPodcast(playlistId: String, continuation: String = ""): UiPodcastDetail = withContext(Dispatchers.IO) {
