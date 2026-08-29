@@ -231,7 +231,7 @@ fun SearchScreen(
 
                     // Shorts shelf
                     if (r.shorts.isNotEmpty()) {
-                        item { ShortsShelf(r.shorts, thumbQ) {} }
+                        item { ShortsShelf(r.shorts, thumbQ) { vid -> onVideoClick(vid) } }
                     }
 
                     // Videos

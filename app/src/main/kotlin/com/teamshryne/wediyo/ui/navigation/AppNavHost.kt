@@ -67,7 +67,9 @@ fun AppNavHost(nav: NavHostController, start: String = Screen.Home.route) {
                 onPlaylistClick = { pid -> nav.navigate(Screen.Playlist.route(pid)) },
                 onCourseClick = { pid -> nav.navigate(Screen.Course.route(pid)) },
                 onShowClick = { pid -> nav.navigate(Screen.Show.route(pid)) },
-                onPodcastClick = { pid -> nav.navigate(Screen.Podcast.route(pid)) }
+                onPodcastClick = { pid -> nav.navigate(Screen.Podcast.route(pid)) },
+                onVideoClick = { vid -> nav.navigate(Screen.Video.route(vid)) },
+                onShortClick = { vid -> nav.navigate(Screen.Video.route(vid)) }
             )
         }
         composable(Screen.Playlist.route) { backStackEntry ->
