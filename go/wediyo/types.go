@@ -477,6 +477,113 @@ type PodcastDetailResult struct {
 	PlaylistId   string           `json:"playlist_id"`
 }
 
+// Video detail — exhaustive from player + next + microformat
+type VideoCaptionTrack struct {
+	BaseURL        string `json:"base_url"`
+	Name           string `json:"name"`
+	LanguageCode   string `json:"language_code"`
+	Kind           string `json:"kind"` // asr, standard
+	IsTranslatable bool   `json:"is_translatable"`
+	VssID          string `json:"vss_id"`
+	TrackName      string `json:"track_name"`
+}
+
+type VideoTranslationLanguage struct {
+	LanguageCode string `json:"language_code"`
+	LanguageName string `json:"language_name"`
+}
+
+type VideoAudioTrack struct {
+	DisplayName string `json:"display_name"`
+	ID          string `json:"id"`
+	IsAutoDubbed bool  `json:"is_auto_dubbed"`
+	IsDefault    bool  `json:"is_default"`
+}
+
+type StreamingFormat struct {
+	Itag               int     `json:"itag"`
+	URL                string  `json:"url"`
+	MimeType           string  `json:"mime_type"`
+	Bitrate            int     `json:"bitrate"`
+	Width              int     `json:"width"`
+	Height             int     `json:"height"`
+	Quality            string  `json:"quality"`
+	FPS                int     `json:"fps"`
+	QualityLabel       string  `json:"quality_label"`
+	ApproxDurationMs   string  `json:"approx_duration_ms"`
+	AudioQuality       string  `json:"audio_quality"`
+	AudioSampleRate    int     `json:"audio_sample_rate"`
+	AudioChannels      int     `json:"audio_channels"`
+	ContentLength      string  `json:"content_length"`
+	AverageBitrate     int     `json:"average_bitrate"`
+	LastModified       string  `json:"last_modified"`
+	SignatureCipher    string  `json:"signature_cipher"`
+	Cipher             string  `json:"cipher"`
+	LoudnessDb         float64 `json:"loudness_db"`
+	AudioTrack         *VideoAudioTrack `json:"audio_track,omitempty"`
+	IsDRC              bool    `json:"is_drc"`
+	XTags              string  `json:"xtags"`
+	InitRangeStart     string  `json:"init_range_start"`
+	InitRangeEnd       string  `json:"init_range_end"`
+	IndexRangeStart    string  `json:"index_range_start"`
+	IndexRangeEnd      string  `json:"index_range_end"`
+	IsAudio            bool    `json:"is_audio"`
+}
+
+type VideoDetailResult struct {
+	VideoID              string                     `json:"video_id"`
+	Title                string                     `json:"title"`
+	Author               string                     `json:"author"`
+	ChannelID            string                     `json:"channel_id"`
+	ChannelHandle        string                     `json:"channel_handle"` // http://www.youtube.com/@Handle
+	ChannelTitle         string                     `json:"channel_title"`
+	ChannelAvatarURL     string                     `json:"channel_avatar_url"`
+	ChannelAvatars       []Thumbnail                `json:"channel_avatars"`
+	SubscriberCountText  string                     `json:"subscriber_count_text"`
+	Description          string                     `json:"description"`       // full from microformat
+	ShortDescription     string                     `json:"short_description"` // from videoDetails
+	ViewCount            int64                      `json:"view_count"`
+	ViewCountText        string                     `json:"view_count_text"`
+	LikeCount            int64                      `json:"like_count"`
+	LikeCountText        string                     `json:"like_count_text"`
+	PublishDate          string                     `json:"publish_date"` // 2026-08-28T06:00:03-07:00
+	UploadDate           string                     `json:"upload_date"`
+	Category             string                     `json:"category"`
+	CategoryID           string                     `json:"category_id"`
+	Keywords             []string                   `json:"keywords"`
+	LengthSeconds        int64                      `json:"length_seconds"`
+	DurationText         string                     `json:"duration_text"` // mm:ss
+	IsLiveContent        bool                       `json:"is_live_content"`
+	IsLive               bool                       `json:"is_live"`
+	IsPrivate            bool                       `json:"is_private"`
+	IsUnlisted           bool                       `json:"is_unlisted"`
+	IsCrawlable          bool                       `json:"is_crawlable"`
+	IsFamilySafe         bool                       `json:"is_family_safe"`
+	AllowRatings         bool                       `json:"allow_ratings"`
+	PlayabilityStatus    string                     `json:"playability_status"`
+	PlayableInEmbed      bool                       `json:"playable_in_embed"`
+	PaidPromotionText    string                     `json:"paid_promotion_text"`
+	ThumbnailURL         string                     `json:"thumbnail_url"`
+	Thumbnails           []Thumbnail                `json:"thumbnails"`
+	StoryboardSpec       string                     `json:"storyboard_spec"`
+	AvailableCountries   []string                   `json:"available_countries"`
+	CaptionTracks        []VideoCaptionTrack        `json:"caption_tracks"`
+	TranslationLanguages []VideoTranslationLanguage `json:"translation_languages"`
+	Formats              []StreamingFormat          `json:"formats"`
+	AdaptiveFormats      []StreamingFormat          `json:"adaptive_formats"`
+	ExpiresInSeconds     int                        `json:"expires_in_seconds"`
+	ServerAbrStreamingURL string                    `json:"server_abr_streaming_url"`
+	HlsManifestURL       string                     `json:"hls_manifest_url"`
+	DashManifestURL      string                     `json:"dash_manifest_url"`
+	EmbedURL             string                     `json:"embed_url"`
+	CanonicalURL         string                     `json:"canonical_url"`
+	RelatedVideos        []VideoMetadata            `json:"related_videos"`
+	RelatedContinuation  string                     `json:"related_continuation"`
+	HasYpcMetadata       bool                       `json:"has_ypc_metadata"`
+	ViewCountRaw         string                     `json:"view_count_raw"` // original string from microformat/player
+	AudioLoudnessDb      float64                    `json:"audio_loudness_db"`
+}
+
 // InnertubeSession — from GET youtube.com Set-Cookie + ytcfg (stateless: caller holds)
 type InnertubeSession struct {
 	VisitorData            string `json:"visitor_data"`

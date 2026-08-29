@@ -129,6 +129,198 @@ object WediyoEngine {
         parseShowDetail(r)
     }
 
+    suspend fun fetchVideoDetail(videoId: String): UiVideoDetail = withContext(Dispatchers.IO) {
+        val s = getSession()
+        // Try new gomobile method, fallback to reflection if AAR stale
+        val r: Any = try {
+            Wediyo.fetchVideoDetail(s, videoId)
+        } catch (_: Throwable) {
+            val cls = Wediyo::class.java
+            val method = cls.methods.find { it.name == "fetchVideoDetail" }
+                ?: throw IllegalStateException("fetchVideoDetail not found in AAR")
+            method.invoke(null, s, videoId)!!
+        }
+        parseVideoDetail(r)
+    }
+
+    private fun parseVideoDetail(r: Any): UiVideoDetail {
+        val jsonStr = try { r::class.java.getMethod("toJSON").invoke(r) as String } catch (_: Exception) { "{}" }
+        val obj = JSONObject(jsonStr)
+        fun optThumbs(key: String): String = obj.optJSONArray(key)?.toString() ?: "[]"
+        val channelAvatarsJson = obj.optJSONArray("channel_avatars")?.toString() ?: "[]"
+        val thumbnailsJson = obj.optJSONArray("thumbnails")?.toString() ?: "[]"
+        val keywords = mutableListOf<String>()
+        obj.optJSONArray("keywords")?.let { arr ->
+            for (i in 0 until arr.length()) keywords.add(arr.optString(i))
+        }
+        val availableCountries = mutableListOf<String>()
+        obj.optJSONArray("available_countries")?.let { arr ->
+            for (i in 0 until arr.length()) availableCountries.add(arr.optString(i))
+        }
+        val captionTracks = mutableListOf<UiCaptionTrack>()
+        obj.optJSONArray("caption_tracks")?.let { arr ->
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                captionTracks.add(
+                    UiCaptionTrack(
+                        baseUrl = o.optString("base_url", ""),
+                        name = o.optString("name", ""),
+                        languageCode = o.optString("language_code", ""),
+                        kind = o.optString("kind", ""),
+                        isTranslatable = o.optBoolean("is_translatable", false),
+                        vssId = o.optString("vss_id", ""),
+                        trackName = o.optString("track_name", "")
+                    )
+                )
+            }
+        }
+        val translationLanguages = mutableListOf<UiTranslationLanguage>()
+        obj.optJSONArray("translation_languages")?.let { arr ->
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                translationLanguages.add(UiTranslationLanguage(o.optString("language_code", ""), o.optString("language_name", "")))
+            }
+        }
+        val formats = mutableListOf<UiStreamingFormat>()
+        parseFormats(obj.optJSONArray("formats"), formats)
+        val adaptiveFormats = mutableListOf<UiStreamingFormat>()
+        parseFormats(obj.optJSONArray("adaptive_formats"), adaptiveFormats)
+        val related = mutableListOf<UiVideo>()
+        // related_videos is []VideoMetadata reuse
+        try {
+            val method = r::class.java.getMethod("relatedVideosJSON")
+            val js = method.invoke(r) as String
+            if (js != "[]") {
+                val arr = JSONArray(js)
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    related.add(
+                        UiVideo(
+                            id = o.optString("id", ""),
+                            title = o.optString("title", ""),
+                            author = o.optString("author", ""),
+                            channelId = o.optString("channel_id", ""),
+                            thumbnailUrl = o.optString("thumbnail_url", ""),
+                            thumbnailsJson = o.optJSONArray("thumbnails")?.toString() ?: "[]",
+                            avatarUrl = o.optString("channel_avatar_url", ""),
+                            avatarsJson = o.optJSONArray("channel_avatars")?.toString() ?: "[]",
+                            viewCountText = o.optString("view_count_text", ""),
+                            publishedText = o.optString("published_time_text", ""),
+                            durationText = o.optString("duration_text", ""),
+                            isLive = o.optBoolean("is_live", false),
+                            badges = o.optJSONArray("badges")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList(),
+                            description = o.optString("description_snippet", "")
+                        )
+                    )
+                }
+            }
+        } catch (_: Exception) {
+            // fallback via JSON
+            obj.optJSONArray("related_videos")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    related.add(
+                        UiVideo(
+                            id = o.optString("id", ""),
+                            title = o.optString("title", ""),
+                            author = o.optString("author", ""),
+                            channelId = o.optString("channel_id", ""),
+                            thumbnailUrl = o.optString("thumbnail_url", ""),
+                            thumbnailsJson = o.optJSONArray("thumbnails")?.toString() ?: "[]",
+                            avatarUrl = o.optString("channel_avatar_url", ""),
+                            avatarsJson = o.optJSONArray("channel_avatars")?.toString() ?: "[]",
+                            viewCountText = o.optString("view_count_text", ""),
+                            publishedText = o.optString("published_time_text", ""),
+                            durationText = o.optString("duration_text", ""),
+                            isLive = o.optBoolean("is_live", false),
+                            badges = emptyList(),
+                            description = o.optString("description_snippet", "")
+                        )
+                    )
+                }
+            }
+        }
+        return UiVideoDetail(
+            videoId = obj.optString("video_id", ""),
+            title = obj.optString("title", ""),
+            author = obj.optString("author", ""),
+            channelId = obj.optString("channel_id", ""),
+            channelHandle = obj.optString("channel_handle", ""),
+            channelTitle = obj.optString("channel_title", ""),
+            channelAvatarUrl = obj.optString("channel_avatar_url", ""),
+            channelAvatarsJson = channelAvatarsJson,
+            subscriberCountText = obj.optString("subscriber_count_text", ""),
+            description = obj.optString("description", ""),
+            shortDescription = obj.optString("short_description", ""),
+            viewCount = obj.optLong("view_count", 0),
+            viewCountText = obj.optString("view_count_text", ""),
+            likeCount = obj.optLong("like_count", 0),
+            likeCountText = obj.optString("like_count_text", ""),
+            publishDate = obj.optString("publish_date", ""),
+            uploadDate = obj.optString("upload_date", ""),
+            category = obj.optString("category", ""),
+            keywords = keywords,
+            lengthSeconds = obj.optLong("length_seconds", 0),
+            durationText = obj.optString("duration_text", ""),
+            isLiveContent = obj.optBoolean("is_live_content", false),
+            isLive = obj.optBoolean("is_live", false),
+            isPrivate = obj.optBoolean("is_private", false),
+            isUnlisted = obj.optBoolean("is_unlisted", false),
+            isFamilySafe = obj.optBoolean("is_family_safe", true),
+            allowRatings = obj.optBoolean("allow_ratings", true),
+            playabilityStatus = obj.optString("playability_status", ""),
+            playableInEmbed = obj.optBoolean("playable_in_embed", true),
+            paidPromotionText = obj.optString("paid_promotion_text", ""),
+            thumbnailUrl = obj.optString("thumbnail_url", ""),
+            thumbnailsJson = thumbnailsJson,
+            storyboardSpec = obj.optString("storyboard_spec", ""),
+            availableCountries = availableCountries,
+            captionTracks = captionTracks,
+            translationLanguages = translationLanguages,
+            formats = formats,
+            adaptiveFormats = adaptiveFormats,
+            expiresInSeconds = obj.optInt("expires_in_seconds", 0),
+            serverAbrStreamingUrl = obj.optString("server_abr_streaming_url", ""),
+            hlsManifestUrl = obj.optString("hls_manifest_url", ""),
+            dashManifestUrl = obj.optString("dash_manifest_url", ""),
+            embedUrl = obj.optString("embed_url", ""),
+            canonicalUrl = obj.optString("canonical_url", ""),
+            relatedVideos = related,
+            relatedContinuation = obj.optString("related_continuation", "")
+        )
+    }
+
+    private fun parseFormats(arr: JSONArray?, out: MutableList<UiStreamingFormat>) {
+        if (arr == null) return
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            val trackObj = o.optJSONObject("audio_track")
+            out.add(
+                UiStreamingFormat(
+                    itag = o.optInt("itag", 0),
+                    url = o.optString("url", ""),
+                    mimeType = o.optString("mime_type", ""),
+                    bitrate = o.optInt("bitrate", 0),
+                    width = o.optInt("width", 0),
+                    height = o.optInt("height", 0),
+                    quality = o.optString("quality", ""),
+                    fps = o.optInt("fps", 0),
+                    qualityLabel = o.optString("quality_label", ""),
+                    approxDurationMs = o.optString("approx_duration_ms", ""),
+                    audioQuality = o.optString("audio_quality", ""),
+                    audioSampleRate = o.optInt("audio_sample_rate", 0),
+                    audioChannels = o.optInt("audio_channels", 0),
+                    contentLength = o.optString("content_length", ""),
+                    averageBitrate = o.optInt("average_bitrate", 0),
+                    lastModified = o.optString("last_modified", ""),
+                    isAudio = o.optBoolean("is_audio", false),
+                    isDrc = o.optBoolean("is_drc", false),
+                    xtags = o.optString("xtags", "")
+                )
+            )
+        }
+    }
+
     suspend fun fetchPodcast(playlistId: String, continuation: String = ""): UiPodcastDetail = withContext(Dispatchers.IO) {
         val s = getSession()
         // Use playlist fetch as base; podcast is playlist with square thumb. Until AAR rebuilt with FetchPodcast, fallback to FetchPlaylist.

@@ -569,3 +569,79 @@ func (r *PodcastDetailResult) ToJSON() string {
 	b, _ := json.Marshal(r)
 	return string(b)
 }
+
+func (r *VideoDetailResult) ToJSON() string {
+	b, _ := json.Marshal(r)
+	return string(b)
+}
+func (r *VideoDetailResult) ThumbnailsJSON() string {
+	b, _ := json.Marshal(r.Thumbnails)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *VideoDetailResult) ChannelAvatarsJSON() string {
+	b, _ := json.Marshal(r.ChannelAvatars)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *VideoDetailResult) CaptionTracksJSON() string {
+	b, _ := json.Marshal(r.CaptionTracks)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *VideoDetailResult) TranslationLanguagesJSON() string {
+	b, _ := json.Marshal(r.TranslationLanguages)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *VideoDetailResult) FormatsJSON() string {
+	b, _ := json.Marshal(r.Formats)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *VideoDetailResult) AdaptiveFormatsJSON() string {
+	b, _ := json.Marshal(r.AdaptiveFormats)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *VideoDetailResult) RelatedVideosJSON() string {
+	b, _ := json.Marshal(r.RelatedVideos)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *VideoDetailResult) KeywordsJSON() string {
+	b, _ := json.Marshal(r.Keywords)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (r *VideoDetailResult) AvailableCountriesJSON() string {
+	b, _ := json.Marshal(r.AvailableCountries)
+	if string(b) == "null" {
+		return "[]"
+	}
+	return string(b)
+}
+func (f *StreamingFormat) ToJSON() string {
+	b, _ := json.Marshal(f)
+	return string(b)
+}
+func (c *VideoCaptionTrack) ToJSON() string {
+	b, _ := json.Marshal(c)
+	return string(b)
+}
