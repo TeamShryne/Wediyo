@@ -32,7 +32,17 @@ import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChannelScreen(browseId: String, onBack: () -> Unit, onPlaylistClick: (String) -> Unit = {}, onCourseClick: (String) -> Unit = {}, onShowClick: (String) -> Unit = {}, onPodcastClick: (String) -> Unit = {}, vm: ChannelViewModel = viewModel()) {
+fun ChannelScreen(
+    browseId: String,
+    onBack: () -> Unit,
+    onPlaylistClick: (String) -> Unit = {},
+    onCourseClick: (String) -> Unit = {},
+    onShowClick: (String) -> Unit = {},
+    onPodcastClick: (String) -> Unit = {},
+    onVideoClick: (String) -> Unit = {},
+    onShortClick: (String) -> Unit = {},
+    vm: ChannelViewModel = viewModel()
+) {
     val state by vm.state.collectAsState()
     val ctx = LocalContext.current
     val settings = remember { SettingsManager(ctx) }
@@ -154,7 +164,7 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, onPlaylistClick: (String
                                 item { Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(24.dp)) } }
                             }
                             if (state.videosList.isNotEmpty()) {
-                                items(state.videosList.size) { idx -> val v = state.videosList[idx]; com.teamshryne.wediyo.ui.components.ChannelVideoListCard(v, thumbQ) {} }
+                                items(state.videosList.size) { idx -> val v = state.videosList[idx]; com.teamshryne.wediyo.ui.components.ChannelVideoListCard(v, thumbQ) { onVideoClick(v.id) } }
                             } else if (!state.isVideosLoading) {
                                 item { Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { Text("No videos", color = MaterialTheme.colorScheme.onSurfaceVariant) } }
                             }
@@ -183,7 +193,7 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, onPlaylistClick: (String
                                     Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         val row = rows[rowIdx]
                                         row.forEach { s ->
-                                            Column(Modifier.weight(1f).clickable { }) {
+                                            Column(Modifier.weight(1f).clickable { onShortClick(s.videoId) }) {
                                                 Box(Modifier.fillMaxWidth().aspectRatio(9f/16f).clip(RoundedCornerShape(12.dp)).background(Color(0xFF111111))) {
                                                     AsyncImage(model = bestThumbUrl(s.thumbsJson, s.thumbUrl, "high"), contentDescription = s.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                                 }
@@ -218,7 +228,7 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, onPlaylistClick: (String
                                 item { Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(24.dp)) } }
                             }
                             if (state.livesList.isNotEmpty()) {
-                                items(state.livesList.size) { idx -> val v = state.livesList[idx]; com.teamshryne.wediyo.ui.components.ChannelVideoListCard(v, thumbQ) {} }
+                                items(state.livesList.size) { idx -> val v = state.livesList[idx]; com.teamshryne.wediyo.ui.components.ChannelVideoListCard(v, thumbQ) { onVideoClick(v.id) } }
                             } else if (!state.isLiveLoading) {
                                 item { Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { Text("No live streams", color = MaterialTheme.colorScheme.onSurfaceVariant) } }
                             }
@@ -480,7 +490,7 @@ fun ChannelScreen(browseId: String, onBack: () -> Unit, onPlaylistClick: (String
                                     }
                                     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                         items(shelf.videos) { v ->
-                                            Column(Modifier.width(180.dp).clickable { }) {
+                                            Column(Modifier.width(180.dp).clickable { onVideoClick(v.id) }) {
                                                 Box(Modifier.fillMaxWidth().aspectRatio(16f/9f).clip(RoundedCornerShape(8.dp)).background(Color(0xFF111111))) {
                                                     AsyncImage(model = bestThumbUrl(v.thumbnailsJson, v.thumbnailUrl, thumbQ), contentDescription = v.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                                     if (v.durationText.isNotBlank()) Box(Modifier.align(Alignment.BottomEnd).padding(4.dp).background(Color.Black.copy(alpha = 0.8f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 2.dp)) { Text(v.durationText, color = Color.White, style = MaterialTheme.typography.labelSmall) }
