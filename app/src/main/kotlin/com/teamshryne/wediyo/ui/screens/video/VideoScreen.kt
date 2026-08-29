@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import android.content.Intent
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -17,7 +18,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -71,8 +71,18 @@ fun VideoScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = {}) { Icon(Icons.Filled.Share, contentDescription = "Share") }
-                    IconButton(onClick = {}) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
+                    IconButton(onClick = {
+                        state.detail?.let { det ->
+                            val url = det.canonicalUrl.ifBlank { "https://www.youtube.com/watch?v=${det.videoId}" }
+                            val send = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, "${det.title}\n$url")
+                                putExtra(Intent.EXTRA_SUBJECT, det.title)
+                            }
+                            try { ctx.startActivity(Intent.createChooser(send, "Share video")) } catch (_: Exception) {}
+                        }
+                    }) { Icon(Icons.Filled.Share, contentDescription = "Share") }
+                    IconButton(onClick = { state.detail?.let { vm.setDetailsSheet(true) } }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
@@ -342,16 +352,7 @@ fun VideoScreen(
                                     Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(22.dp).padding(2.dp))
                                 }
                             }
-                            if (d.keywords.isNotEmpty()) {
-                                Spacer(Modifier.height(8.dp))
-                                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    d.keywords.take(6).forEach { kw ->
-                                        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
-                                            Text("#$kw", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp))
-                                        }
-                                    }
-                                }
-                            }
+                            // tags removed from title — kept in description sheet Details > Tags
                         }
                     }
 
@@ -414,7 +415,15 @@ fun VideoScreen(
                                     }
                                 }
                             }
-                            ActionPill(icon = Icons.Filled.Share, label = "Share")
+                            ActionPill(icon = Icons.Filled.Share, label = "Share", onClick = {
+                                val url = d.canonicalUrl.ifBlank { "https://www.youtube.com/watch?v=${d.videoId}" }
+                                val send = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, "${d.title}\n$url")
+                                    putExtra(Intent.EXTRA_SUBJECT, d.title)
+                                }
+                                try { ctx.startActivity(Intent.createChooser(send, "Share video")) } catch (_: Exception) {}
+                            })
                             ActionPill(icon = Icons.Filled.Favorite, label = "Save")
                             ActionPill(icon = Icons.Filled.ArrowDropDown, label = "Download")
                             Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.clickable { vm.setDetailsSheet(true) }) {
@@ -707,8 +716,8 @@ private fun PolishedStatChip(label: String, value: String, icon: androidx.compos
 }
 
 @Composable
-private fun ActionPill(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String) {
-    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.clickable {}) {
+private fun ActionPill(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: (() -> Unit)? = null) {
+    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.clickable(enabled = onClick != null) { onClick?.invoke() }) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
             Text(label, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold))

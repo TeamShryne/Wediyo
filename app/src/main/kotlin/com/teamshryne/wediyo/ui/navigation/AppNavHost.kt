@@ -96,7 +96,12 @@ fun AppNavHost(nav: NavHostController, start: String = Screen.Home.route) {
             )
         }
         composable(Screen.Settings.route) { SettingsScreen(onBack = { nav.popBackStack() }) }
-        composable(Screen.Shorts.route) { ShortsScreen() }
+        composable(Screen.Shorts.route) {
+            ShortsScreen(
+                onVideoClick = { vid -> nav.navigate(Screen.Video.route(vid)) },
+                onChannelClick = { bid -> nav.navigate(Screen.Channel.route(bid)) }
+            )
+        }
         composable(Screen.Subscriptions.route) { SubscriptionsScreen() }
         composable(Screen.Library.route) { LibraryScreen() }
     }
