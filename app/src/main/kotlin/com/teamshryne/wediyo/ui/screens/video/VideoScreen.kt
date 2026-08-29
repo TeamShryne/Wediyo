@@ -94,7 +94,7 @@ fun VideoScreen(
                 Box(Modifier.fillMaxSize().padding(pad).padding(24.dp), contentAlignment = Alignment.Center) {
                     Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                         Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(40.dp))
+                            Icon(Icons.Filled.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(40.dp))
                             Text("Couldn't load video", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
                             Text(state.error!!, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Button(onClick = { vm.retry() }, shape = RoundedCornerShape(24.dp)) { Text("Retry") }
@@ -137,7 +137,7 @@ fun VideoScreen(
                                 ) {
                                     Column(Modifier.fillMaxWidth().clickable { vm.toggleDesc() }.padding(16.dp).animateContentSize()) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Filled.Description, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                            Icon(Icons.Filled.Info, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                                             Spacer(Modifier.width(8.dp))
                                             Text("Description", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
                                             Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primaryContainer) {
@@ -161,16 +161,16 @@ fun VideoScreen(
                             }
 
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                PolishedStatChip("Views", d.viewCountText.ifBlank { if (d.viewCount > 0) formatCompact(d.viewCount) else "—" }, Icons.Filled.Visibility, Modifier.weight(1f))
+                                PolishedStatChip("Views", d.viewCountText.ifBlank { if (d.viewCount > 0) formatCompact(d.viewCount) else "—" }, Icons.Filled.Star, Modifier.weight(1f))
                                 PolishedStatChip("Likes", d.likeCountText.ifBlank { d.likeCount.takeIf { it > 0 }?.let { formatCompact(it) } ?: "—" }, Icons.Filled.Favorite, Modifier.weight(1f))
-                                PolishedStatChip("Duration", d.durationText.ifBlank { formatDuration(d.lengthSeconds) }, Icons.Filled.Schedule, Modifier.weight(1f))
+                                PolishedStatChip("Duration", d.durationText.ifBlank { formatDuration(d.lengthSeconds) }, Icons.Filled.DateRange, Modifier.weight(1f))
                             }
 
                             if (d.captionTracks.isNotEmpty()) {
                                 Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                                     Column(Modifier.padding(16.dp)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Filled.Subtitles, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                            Icon(Icons.Filled.Info, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                                             Spacer(Modifier.width(8.dp))
                                             Text("Captions • ${d.captionTracks.size}", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
                                         }
@@ -197,7 +197,7 @@ fun VideoScreen(
                                 Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                                     Column(Modifier.padding(16.dp)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Filled.HighQuality, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                            Icon(Icons.Filled.Info, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                                             Spacer(Modifier.width(8.dp))
                                             Text("Streams", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
                                         }
@@ -304,7 +304,7 @@ fun VideoScreen(
                                     color = Color.Black.copy(alpha = 0.78f)
                                 ) {
                                     Row(Modifier.padding(horizontal = 9.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Icon(Icons.Filled.Schedule, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                                        Icon(Icons.Filled.DateRange, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
                                         Text(d.durationText, color = Color.White, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold))
                                     }
                                 }
@@ -330,7 +330,7 @@ fun VideoScreen(
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                                     Row(Modifier.padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Icon(Icons.Filled.Visibility, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Icon(Icons.Filled.Star, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                         Text(
                                             (if (d.viewCountText.isNotBlank()) d.viewCountText else if (d.viewCount > 0) formatCompact(d.viewCount) else "—") + " • " + (d.publishDate.take(12).ifBlank { d.uploadDate.take(12) }.ifBlank { "recent" }),
                                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
@@ -339,7 +339,7 @@ fun VideoScreen(
                                     }
                                 }
                                 Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
-                                    Icon(Icons.Filled.ExpandMore, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(22.dp).padding(2.dp))
+                                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(22.dp).padding(2.dp))
                                 }
                             }
                             if (d.keywords.isNotEmpty()) {
@@ -384,9 +384,10 @@ fun VideoScreen(
                                 Column(Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                         Text(d.channelTitle.ifBlank { d.author }, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        if (d.channelHandle.isNotBlank()) Icon(Icons.Filled.Verified, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                        if (d.channelHandle.isNotBlank()) Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                                     }
-                                    val subMeta = listOfNotNull(d.subscriberCountText.takeIf { it.isNotBlank() }, d.channelHandle.takeIf { it.isNotBlank() }).joinToString(" • ")
+                                    val handle = displayHandle(d.channelHandle)
+                                    val subMeta = listOfNotNull(d.subscriberCountText.takeIf { it.isNotBlank() }, handle.takeIf { it.isNotBlank() }).joinToString(" • ")
                                     if (subMeta.isNotBlank()) Text(subMeta, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 FilledTonalButton(onClick = { if (d.channelId.isNotBlank()) onChannelClick(d.channelId) }, shape = RoundedCornerShape(20.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp), colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)) {
@@ -409,16 +410,16 @@ fun VideoScreen(
                                     Text(if (d.likeCountText.isNotBlank()) d.likeCountText else if (d.likeCount > 0) formatCompact(d.likeCount) else "Like", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold))
                                     if (d.likeCountText.isNotBlank() || d.likeCount > 0) {
                                         Box(Modifier.width(1.dp).height(14.dp).background(MaterialTheme.colorScheme.outlineVariant))
-                                        Icon(Icons.Filled.ThumbDown, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Icon(Icons.Filled.ThumbUp, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                             }
                             ActionPill(icon = Icons.Filled.Share, label = "Share")
-                            ActionPill(icon = Icons.Filled.BookmarkAdd, label = "Save")
-                            ActionPill(icon = Icons.Filled.Download, label = "Download")
+                            ActionPill(icon = Icons.Filled.Bookmark, label = "Save")
+                            ActionPill(icon = Icons.Filled.GetApp, label = "Download")
                             Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.clickable { vm.setDetailsSheet(true) }) {
                                 Box(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Filled.MoreHoriz, contentDescription = "Details", modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Filled.MoreVert, contentDescription = "Details", modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
@@ -436,7 +437,7 @@ fun VideoScreen(
                             Column(Modifier.padding(14.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primary) {
-                                        Icon(Icons.Filled.ChatBubble, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp).padding(4.dp))
+                                        Icon(Icons.Filled.Email, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp).padding(4.dp))
                                     }
                                     Spacer(Modifier.width(10.dp))
                                     Column(Modifier.weight(1f)) {
@@ -444,7 +445,7 @@ fun VideoScreen(
                                         Text(countLabel + (state.commentsSortFilters.find { it.selected }?.let { " • ${it.title}" } ?: ""), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                     Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
-                                        Icon(Icons.Filled.ExpandMore, contentDescription = null, modifier = Modifier.size(20.dp).padding(3.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(20.dp).padding(3.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
                                     }
                                 }
                                 Spacer(Modifier.height(12.dp))
@@ -487,7 +488,7 @@ fun VideoScreen(
                                     }
                                 } else {
                                     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Icon(Icons.Filled.ChatBubbleOutline, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+                                        Icon(Icons.Filled.Email, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
                                         Text(if (d.commentsContinuation.isBlank()) "Comments are off" else "Be the first to comment", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         if (d.commentsContinuation.isNotBlank()) Text("Tap to open", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                                     }
@@ -506,7 +507,7 @@ fun VideoScreen(
                             Spacer(Modifier.weight(1f))
                             Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.clickable {}) {
                                 Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Icon(Icons.Filled.Star, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                                     Text("For you", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold))
                                 }
                             }
@@ -523,7 +524,7 @@ fun VideoScreen(
                             item {
                                 Box(Modifier.fillMaxWidth().padding(14.dp), contentAlignment = Alignment.Center) {
                                     OutlinedButton(onClick = { vm.loadMoreRelated() }, shape = RoundedCornerShape(24.dp)) {
-                                        Icon(Icons.Filled.ExpandMore, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(18.dp))
                                         Spacer(Modifier.width(6.dp))
                                         Text("Load more")
                                     }
@@ -535,7 +536,7 @@ fun VideoScreen(
                             Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 8.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                                 Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Icon(Icons.Filled.VideoLibrary, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(28.dp))
+                                        Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(28.dp))
                                         Text("No related videos yet", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
@@ -567,7 +568,7 @@ private fun CommentsSheet(
                 if (countText.isNotBlank()) Text(countText, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-                Icon(Icons.Filled.ExpandMore, contentDescription = null, modifier = Modifier.size(24.dp).padding(4.dp))
+                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(24.dp).padding(4.dp))
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -594,7 +595,7 @@ private fun CommentsSheet(
                 item {
                     Card(Modifier.fillMaxWidth().padding(top = 12.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                         Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Filled.ChatBubbleOutline, contentDescription = null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(Icons.Filled.Email, contentDescription = null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("No comments yet", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
                             Text("Be the first to share what you think", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -612,7 +613,7 @@ private fun CommentsSheet(
                     item {
                         Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
                             Button(onClick = onLoadMore, shape = RoundedCornerShape(24.dp)) {
-                                Icon(Icons.Filled.ExpandMore, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp))
                                 Text("Load more")
                             }
@@ -639,7 +640,7 @@ private fun PolishedCommentCard(comment: com.teamshryne.wediyo.data.model.UiComm
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(comment.author.name, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                if (comment.author.isVerified) Icon(Icons.Filled.Verified, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                if (comment.author.isVerified) Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                 if (comment.author.isCreator) Surface(shape = RoundedCornerShape(4.dp), color = Color(0xFF3EA6FF)) { Text("Creator", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Color.White, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)) }
                 Text("• ${comment.publishedTime}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
@@ -739,4 +740,21 @@ private fun formatCompact(n: Long): String {
         n >= 1_000 -> String.format("%.1fK", n / 1_000.0).replace(".0K", "K")
         else -> n.toString()
     }
+}
+
+private fun displayHandle(raw: String): String {
+    if (raw.isBlank()) return ""
+    val trimmed = raw.trim()
+    // Already handle like "@Foo"
+    if (trimmed.startsWith("@")) return trimmed
+    // URL like "http://www.youtube.com/@ThePrimeTimeagen" -> extract after "/@"
+    val atIdx = trimmed.lastIndexOf("/@")
+    if (atIdx != -1) return "@" + trimmed.substring(atIdx + 2).substringBefore("?").substringBefore("/")
+    // fallback: handle without @ may be in path segment containing dot -> avoid showing full URL
+    if (trimmed.contains("youtube.com") || trimmed.contains("http")) {
+        val last = trimmed.substringAfterLast("/").substringBefore("?").substringBefore("#")
+        if (last.isNotBlank() && !last.contains(".")) return if (last.startsWith("@")) last else "@$last"
+        return ""
+    }
+    return trimmed
 }
