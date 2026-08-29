@@ -94,7 +94,7 @@ fun VideoScreen(
                 Box(Modifier.fillMaxSize().padding(pad).padding(24.dp), contentAlignment = Alignment.Center) {
                     Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                         Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Icon(Icons.Filled.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(40.dp))
+                            Icon(Icons.Filled.Info, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(40.dp))
                             Text("Couldn't load video", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
                             Text(state.error!!, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Button(onClick = { vm.retry() }, shape = RoundedCornerShape(24.dp)) { Text("Retry") }
@@ -415,8 +415,8 @@ fun VideoScreen(
                                 }
                             }
                             ActionPill(icon = Icons.Filled.Share, label = "Share")
-                            ActionPill(icon = Icons.Filled.Bookmark, label = "Save")
-                            ActionPill(icon = Icons.Filled.GetApp, label = "Download")
+                            ActionPill(icon = Icons.Filled.Favorite, label = "Save")
+                            ActionPill(icon = Icons.Filled.ArrowDropDown, label = "Download")
                             Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.clickable { vm.setDetailsSheet(true) }) {
                                 Box(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), contentAlignment = Alignment.Center) {
                                     Icon(Icons.Filled.MoreVert, contentDescription = "Details", modifier = Modifier.size(18.dp))
