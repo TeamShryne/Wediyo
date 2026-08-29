@@ -116,6 +116,42 @@ fun VideoScreen(
 
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
+                            // Description also inside sheet (requested) — full text with expand
+                            run {
+                                val desc = d.description.ifBlank { d.shortDescription }
+                                if (desc.isNotBlank()) {
+                                    Card(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .clickable { vm.toggleDesc() },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                    ) {
+                                        Column(Modifier.padding(14.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("Description", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
+                                                Text(if (state.expandedDesc) "Show less" else "Show more", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                            }
+                                            Spacer(Modifier.height(6.dp))
+                                            Text(
+                                                desc,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = if (state.expandedDesc) Int.MAX_VALUE else 5,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            if (!state.expandedDesc && desc.length > 220) {
+                                                Text("...more", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
+                                            }
+                                            if (state.expandedDesc) {
+                                                Spacer(Modifier.height(8.dp))
+                                                if (d.canonicalUrl.isNotBlank()) Text(d.canonicalUrl, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             // Stats grid moved inside sheet
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 StatChip("Views", d.viewCountText.ifBlank { if (d.viewCount > 0) d.viewCount.toString() else "—" }, Modifier.weight(1f))
@@ -337,7 +373,7 @@ fun VideoScreen(
                         }
                     }
 
-                    // Description expandable (stays in main list)
+                    // Description now lives inside title sheet (tap title for full views/likes/duration/description/details) — keep a compact preview in main list that opens sheet
                     item {
                         val desc = d.description.ifBlank { d.shortDescription }
                         if (desc.isNotBlank()) {
@@ -345,21 +381,21 @@ fun VideoScreen(
                                 Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 16.dp)
-                                    .clickable { vm.toggleDesc() },
+                                    .clickable { vm.setDetailsSheet(true) },
                                 shape = RoundedCornerShape(12.dp),
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                             ) {
                                 Column(Modifier.padding(14.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text("Description", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
-                                        Text(if (state.expandedDesc) "Show less" else "Show more", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                        Text("Tap title for sheet", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                                     }
                                     Spacer(Modifier.height(6.dp))
                                     Text(
                                         desc,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = if (state.expandedDesc) Int.MAX_VALUE else 3,
+                                        maxLines = 2,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
