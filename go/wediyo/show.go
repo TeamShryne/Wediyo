@@ -442,7 +442,9 @@ func parseShowEpisodes(j map[string]interface{}) ([]ShowEpisode, string) {
 				}
 			} else {
 				if tok := extractContinuationToken(sm); tok != "" {
-					continuation = tok
+					if continuation == "" {
+						continuation = tok
+					}
 				}
 			}
 		}
