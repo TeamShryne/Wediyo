@@ -1,42 +1,57 @@
 package com.teamshryne.wediyo.ui.screens.video
 
+import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.widget.Toast
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import android.content.Intent
-import kotlin.OptIn
-import androidx.media3.common.util.UnstableApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.teamshryne.wediyo.data.model.UiComment
+import com.teamshryne.wediyo.data.model.UiVideoDetail
 import com.teamshryne.wediyo.data.prefs.SettingsManager
 import com.teamshryne.wediyo.ui.components.ChannelVideoListCard
 import com.teamshryne.wediyo.ui.components.WediyoPlayer
 import com.teamshryne.wediyo.util.bestThumbUrl
 import kotlinx.coroutines.flow.collectLatest
 
-@OptIn(ExperimentalMaterial3Api::class, UnstableApi::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.media3.common.util.UnstableApi::class)
 @Composable
 fun VideoScreen(
     videoId: String,
@@ -50,10 +65,29 @@ fun VideoScreen(
     val settings = remember { SettingsManager(ctx) }
     var thumbQ by remember { mutableStateOf("high") }
     var avatarQ by remember { mutableStateOf("high") }
+    var isFullscreen by remember { mutableStateOf(false) }
+    val config = LocalConfiguration.current
 
     LaunchedEffect(Unit) { settings.thumbQuality.collectLatest { thumbQ = it } }
     LaunchedEffect(Unit) { settings.avatarQuality.collectLatest { avatarQ = it } }
     LaunchedEffect(videoId) { vm.load(videoId) }
+
+    // Apply fullscreen orientation / insets
+    LaunchedEffect(isFullscreen) {
+        val activity = ctx as? Activity ?: return@LaunchedEffect
+        val window = activity.window
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        if (isFullscreen) {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        } else {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            controller.show(WindowInsetsCompat.Type.systemBars())
+        }
+    }
 
     val listState = rememberLazyListState()
     LaunchedEffect(listState.firstVisibleItemIndex, state.relatedContinuation) {
@@ -64,14 +98,28 @@ fun VideoScreen(
         }
     }
 
+    // Fullscreen: only player
+    if (isFullscreen && state.detail != null) {
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            WediyoPlayer(
+                detail = state.detail!!,
+                isShorts = false,
+                modifier = Modifier.fillMaxSize(),
+                isFullscreen = true,
+                onBack = { isFullscreen = false },
+                onFullscreenToggle = { isFullscreen = false }
+            )
+        }
+        return
+    }
+
     Scaffold(
         topBar = {
+            // Flow hides topBar when fullscreen; here subtle CenterAlignedTopAppBar like before but more minimal
             CenterAlignedTopAppBar(
                 title = { Text("Now watching", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
                 },
                 actions = {
                     IconButton(onClick = {
@@ -82,14 +130,12 @@ fun VideoScreen(
                                 putExtra(Intent.EXTRA_TEXT, "${det.title}\n$url")
                                 putExtra(Intent.EXTRA_SUBJECT, det.title)
                             }
-                            try { ctx.startActivity(Intent.createChooser(send, "Share video")) } catch (_: Exception) {}
+                            try { ctx.startActivity(Intent.createChooser(send, "Share")) } catch (_: Exception) {}
                         }
-                    }) { Icon(Icons.Filled.Share, contentDescription = "Share") }
-                    IconButton(onClick = { state.detail?.let { vm.setDetailsSheet(true) } }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
+                    }) { Icon(Icons.Outlined.Share, contentDescription = "Share") }
+                    IconButton(onClick = { state.detail?.let { vm.setDetailsSheet(true) } }) { Icon(Icons.Rounded.MoreVert, contentDescription = "More") }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
-                )
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f))
             )
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -99,18 +145,24 @@ fun VideoScreen(
                 Box(Modifier.fillMaxSize().padding(pad), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         CircularProgressIndicator(strokeWidth = 3.dp)
-                        Text("Loading masterpiece…", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Loading…", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
             state.error != null -> {
                 Box(Modifier.fillMaxSize().padding(pad).padding(24.dp), contentAlignment = Alignment.Center) {
-                    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.18f))) {
                         Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Icon(Icons.Filled.Info, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(40.dp))
+                            Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(40.dp))
                             Text("Couldn't load video", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
                             Text(state.error!!, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Button(onClick = { vm.retry() }, shape = RoundedCornerShape(24.dp)) { Text("Retry") }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = { vm.retry() }, shape = RoundedCornerShape(12.dp)) { Icon(Icons.Rounded.Refresh, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Retry") }
+                                OutlinedButton(onClick = {
+                                    val url = "https://www.youtube.com/watch?v=$videoId"
+                                    ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                                }, shape = RoundedCornerShape(12.dp)) { Icon(Icons.Rounded.OpenInBrowser, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Open in YouTube") }
+                            }
                         }
                     }
                 }
@@ -118,148 +170,18 @@ fun VideoScreen(
             state.detail != null -> {
                 val d = state.detail!!
 
-                // --- Details sheet (title -> description + stats) ---
+                // Sheets
                 if (state.showDetailsSheet) {
-                    ModalBottomSheet(
-                        onDismissRequest = { vm.setDetailsSheet(false) },
-                        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                        dragHandle = { BottomSheetDefaults.DragHandle(width = 36.dp) }
-                    ) {
-                        Column(
-                            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp),
-                            verticalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            // handle bar is automatic
-                            Text(d.title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, lineHeight = MaterialTheme.typography.titleMedium.lineHeight))
-                            val meta = buildList {
-                                if (d.viewCountText.isNotBlank()) add(d.viewCountText) else if (d.viewCount > 0) add("${d.viewCount} views")
-                                if (d.publishDate.isNotBlank()) add(d.publishDate) else if (d.uploadDate.isNotBlank()) add(d.uploadDate)
-                                if (d.category.isNotBlank()) add(d.category)
-                                if (d.isLiveContent) add("Live")
-                            }.joinToString(" • ")
-                            if (meta.isNotBlank()) Text(meta, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-                            // Description inside sheet — full, expandable, polished
-                            val desc = d.description.ifBlank { d.shortDescription }
-                            if (desc.isNotBlank()) {
-                                ElevatedCard(
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-                                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
-                                ) {
-                                    Column(Modifier.fillMaxWidth().clickable { vm.toggleDesc() }.padding(16.dp).animateContentSize()) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Filled.Info, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-                                            Spacer(Modifier.width(8.dp))
-                                            Text("Description", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
-                                            Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                                                Text(if (state.expandedDesc) "Show less" else "Show more", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp))
-                                            }
-                                        }
-                                        Spacer(Modifier.height(10.dp))
-                                        Text(desc, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = if (state.expandedDesc) Int.MAX_VALUE else 6, overflow = TextOverflow.Ellipsis)
-                                        if (!state.expandedDesc && desc.length > 220) {
-                                            Spacer(Modifier.height(6.dp))
-                                            Text("Tap to expand", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                                        }
-                                        if (state.expandedDesc && d.canonicalUrl.isNotBlank()) {
-                                            Spacer(Modifier.height(12.dp))
-                                            Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
-                                                Text(d.canonicalUrl, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSecondaryContainer, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp))
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                PolishedStatChip("Views", d.viewCountText.ifBlank { if (d.viewCount > 0) formatCompact(d.viewCount) else "—" }, Icons.Filled.Star, Modifier.weight(1f))
-                                PolishedStatChip("Likes", d.likeCountText.ifBlank { d.likeCount.takeIf { it > 0 }?.let { formatCompact(it) } ?: "—" }, Icons.Filled.Favorite, Modifier.weight(1f))
-                                PolishedStatChip("Duration", d.durationText.ifBlank { formatDuration(d.lengthSeconds) }, Icons.Filled.DateRange, Modifier.weight(1f))
-                            }
-
-                            if (d.captionTracks.isNotEmpty()) {
-                                Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                                    Column(Modifier.padding(16.dp)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Filled.Info, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-                                            Spacer(Modifier.width(8.dp))
-                                            Text("Captions • ${d.captionTracks.size}", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
-                                        }
-                                        Spacer(Modifier.height(10.dp))
-                                        d.captionTracks.take(5).forEach { ct ->
-                                            Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                                                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(28.dp)) {
-                                                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(ct.languageCode.take(2).uppercase(), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)) }
-                                                }
-                                                Spacer(Modifier.width(10.dp))
-                                                Text(ct.name.ifBlank { ct.languageCode }, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                                                Text(ct.kind.ifBlank { "standard" }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            }
-                                        }
-                                        if (d.translationLanguages.isNotEmpty()) {
-                                            Spacer(Modifier.height(8.dp))
-                                            Text("${d.translationLanguages.size} translation languages", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        }
-                                    }
-                                }
-                            }
-
-                            if (d.formats.isNotEmpty() || d.adaptiveFormats.isNotEmpty()) {
-                                Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                                    Column(Modifier.padding(16.dp)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Filled.Info, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-                                            Spacer(Modifier.width(8.dp))
-                                            Text("Streams", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
-                                        }
-                                        Spacer(Modifier.height(6.dp))
-                                        Text("${d.formats.size} progressive • ${d.adaptiveFormats.size} adaptive • expires in ${d.expiresInSeconds}s", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        val top = d.adaptiveFormats.filter { !it.isAudio }.sortedByDescending { it.bitrate }.take(3)
-                                        if (top.isNotEmpty()) {
-                                            Spacer(Modifier.height(10.dp))
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                top.forEach { f ->
-                                                    AssistChip(onClick = {}, label = { Text(f.qualityLabel.ifBlank { "${f.height}p" }, style = MaterialTheme.typography.labelSmall) }, shape = RoundedCornerShape(20.dp))
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                                Column(Modifier.padding(16.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Filled.Info, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-                                        Spacer(Modifier.width(8.dp))
-                                        Text("Details", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
-                                    }
-                                    Spacer(Modifier.height(10.dp))
-                                    DetailRow("Video", d.videoId)
-                                    DetailRow("Channel", d.channelTitle.ifBlank { d.author })
-                                    DetailRow("Category", d.category)
-                                    DetailRow("Published", d.publishDate.ifBlank { d.uploadDate })
-                                    DetailRow("Safety", if (d.isFamilySafe) "Family safe" else "—")
-                                    DetailRow("Embed", if (d.playableInEmbed) "Allowed" else "Restricted")
-                                    if (d.keywords.isNotEmpty()) DetailRow("Tags", d.keywords.take(8).joinToString(", "))
-                                    if (d.paidPromotionText.isNotBlank()) DetailRow("Promotion", d.paidPromotionText)
-                                }
-                            }
-                        }
-                    }
+                    FlowDescriptionSheet(d = d, expandedDesc = state.expandedDesc, onToggleDesc = { vm.toggleDesc() }, onDismiss = { vm.setDetailsSheet(false) })
                 }
-
-                // --- Comments sheet (new) ---
                 if (state.showCommentsSheet) {
                     ModalBottomSheet(
                         onDismissRequest = { vm.setCommentsSheet(false) },
-                        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
                         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                        dragHandle = { BottomSheetDefaults.DragHandle(width = 36.dp) }
+                        dragHandle = { BottomSheetDefaults.DragHandle() }
                     ) {
-                        CommentsSheet(
+                        FlowCommentsSheet(
                             countText = state.commentsCount ?: d.commentsCountText,
                             sortFilters = state.commentsSortFilters,
                             comments = state.comments,
@@ -273,249 +195,45 @@ fun VideoScreen(
                     }
                 }
 
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize().padding(pad),
-                    contentPadding = PaddingValues(bottom = 28.dp),
-                    verticalArrangement = Arrangement.spacedBy(0.dp)
-                ) {
-                    // Hero — now real playback (Flow-fast: VISIONOS direct URLs + cache + preload, all qualities)
-                    item {
-                        Box(
-                            Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 10.dp).clip(RoundedCornerShape(20.dp)).background(Color.Black).aspectRatio(16f / 9f)
-                        ) {
-                            // Fast playback: Go VISIONOS gives 98 formats direct urls; ExoPlayer cache + 5Mbps BW + 20s/45s buffers
-                            WediyoPlayer(detail = d, isShorts = false, modifier = Modifier.fillMaxSize())
-                            // Live badge overlay on top of player
-                            if (d.isLive) {
-                                Surface(modifier = Modifier.align(Alignment.TopStart).padding(10.dp), shape = RoundedCornerShape(20.dp), color = Color(0xFFFF1A1A)) {
-                                    Row(Modifier.padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Box(Modifier.size(7.dp).clip(CircleShape).background(Color.White))
-                                        Text("LIVE", color = Color.White, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold))
-                                    }
-                                }
-                            }
+                val isWide = config.screenWidthDp >= 840
+                if (isWide) {
+                    // Tablet / foldable two-pane like Flow's WIDE mode
+                    Row(Modifier.fillMaxSize().padding(pad)) {
+                        LazyColumn(state = listState, modifier = Modifier.weight(0.60f).fillMaxHeight(), contentPadding = PaddingValues(bottom = 24.dp)) {
+                            item { FlowPlayerHero(d = d, isFullscreen = isFullscreen, onFullscreen = { isFullscreen = true }) }
+                            item { FlowVideoInfoSection(videoDetail = d, ctx = ctx, avatarQ = avatarQ, likeCount = d.likeCount, viewCount = d.viewCount, onChannelClick = { onChannelClick(d.channelId) }, onShare = { shareVideo(ctx, d) }, onDownload = { vm.setDetailsSheet(true) }, onSave = { vm.setDetailsSheet(true) }, onDescriptionClick = { vm.setDetailsSheet(true) }) }
+                            item { FlowVideoActionRowFlow(d = d, ctx = ctx, onLike = {}, onDislike = {}, onShare = { shareVideo(ctx, d) }, onSave = {}, onDownload = { vm.setDetailsSheet(true) }, onCopyLink = { copyLink(ctx, d, withTimestamp = false) }, onCopyLinkAtTime = { copyLink(ctx, d, withTimestamp = true) }) }
+                            item { FlowCommentsPreview(comments = state.comments, countText = state.commentsCount ?: d.commentsCountText, avatarQ = avatarQ, onClick = { vm.setCommentsSheet(true) }) }
+                        }
+                        LazyColumn(modifier = Modifier.weight(0.40f).fillMaxHeight(), contentPadding = PaddingValues(bottom = 24.dp)) {
+                            item { Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { Text("Up next", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold)); if (state.related.isNotEmpty()) Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.secondaryContainer) { Text("${state.related.size}", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)) } } }
+                            items(state.related.size) { idx -> val v = state.related[idx]; Box(Modifier.padding(horizontal = 8.dp)) { ChannelVideoListCard(video = v, thumbQuality = thumbQ, onClick = { onVideoClick(v.id) }) } }
+                            if (state.relatedLoading) item { Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(22.dp)) } }
                         }
                     }
-
-                    // Title block — tappable opens polished sheet
-                    item {
-                        Column(
-                            Modifier.fillMaxWidth().clickable { vm.setDetailsSheet(true) }.padding(horizontal = 16.dp).padding(top = 16.dp)
-                        ) {
-                            Text(d.title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold, lineHeight = MaterialTheme.typography.titleMedium.lineHeight * 1.1), maxLines = 3, overflow = TextOverflow.Ellipsis)
-                            Spacer(Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-                                    Row(Modifier.padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Icon(Icons.Filled.Star, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        Text(
-                                            (if (d.viewCountText.isNotBlank()) d.viewCountText else if (d.viewCount > 0) formatCompact(d.viewCount) else "—") + " • " + (d.publishDate.take(12).ifBlank { d.uploadDate.take(12) }.ifBlank { "recent" }),
-                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1
-                                        )
-                                    }
-                                }
-                                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
-                                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(22.dp).padding(2.dp))
-                                }
-                            }
-                            // tags removed from title — kept in description sheet Details > Tags
-                        }
-                    }
-
-                    // Channel row — polished, elevated
-                    item {
-                        ElevatedCard(
-                            Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 14.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
-                        ) {
-                            Row(
-                                Modifier.fillMaxWidth().clickable(enabled = d.channelId.isNotBlank()) { onChannelClick(d.channelId) }.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    AsyncImage(
-                                        model = bestThumbUrl(d.channelAvatarsJson, d.channelAvatarUrl, avatarQ),
-                                        contentDescription = d.channelTitle,
-                                        modifier = Modifier.size(44.dp).clip(CircleShape).background(Color(0xFF222222)),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                    if (d.subscriberCountText.isNotBlank()) {
-                                        Box(Modifier.align(Alignment.BottomEnd).size(10.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary).padding(1.dp)) {
-                                            Box(Modifier.fillMaxSize().clip(CircleShape).background(MaterialTheme.colorScheme.surface))
-                                        }
-                                    }
-                                }
-                                Spacer(Modifier.width(12.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Text(d.channelTitle.ifBlank { d.author }, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        if (d.channelHandle.isNotBlank()) Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                                    }
-                                    val handle = displayHandle(d.channelHandle)
-                                    val subMeta = listOfNotNull(d.subscriberCountText.takeIf { it.isNotBlank() }, handle.takeIf { it.isNotBlank() }).joinToString(" • ")
-                                    if (subMeta.isNotBlank()) Text(subMeta, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                }
-                                FilledTonalButton(onClick = { if (d.channelId.isNotBlank()) onChannelClick(d.channelId) }, shape = RoundedCornerShape(20.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp), colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)) {
-                                    Text("Visit", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
-                                }
-                            }
-                        }
-                    }
-
-                    // Actions — pill bar, horizontal scroll, polished
-                    item {
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 12.dp).horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Like pill
-                            Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.clickable {}) {
-                                Row(Modifier.padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                                    Icon(Icons.Filled.ThumbUp, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Text(if (d.likeCountText.isNotBlank()) d.likeCountText else if (d.likeCount > 0) formatCompact(d.likeCount) else "Like", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold))
-                                    if (d.likeCountText.isNotBlank() || d.likeCount > 0) {
-                                        Box(Modifier.width(1.dp).height(14.dp).background(MaterialTheme.colorScheme.outlineVariant))
-                                        Icon(Icons.Filled.ThumbUp, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                }
-                            }
-                            ActionPill(icon = Icons.Filled.Share, label = "Share", onClick = {
-                                val url = d.canonicalUrl.ifBlank { "https://www.youtube.com/watch?v=${d.videoId}" }
-                                val send = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, "${d.title}\n$url")
-                                    putExtra(Intent.EXTRA_SUBJECT, d.title)
-                                }
-                                try { ctx.startActivity(Intent.createChooser(send, "Share video")) } catch (_: Exception) {}
-                            })
-                            ActionPill(icon = Icons.Filled.Favorite, label = "Save")
-                            ActionPill(icon = Icons.Filled.ArrowDropDown, label = "Download")
-                            Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.clickable { vm.setDetailsSheet(true) }) {
-                                Box(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Filled.MoreVert, contentDescription = "Details", modifier = Modifier.size(18.dp))
-                                }
-                            }
-                        }
-                    }
-
-                    // Comments preview card — replaces description card, opens sheet
-                    item {
-                        val countLabel = state.commentsCount ?: d.commentsCountText.ifBlank { if (state.comments.isNotEmpty()) "${state.comments.size} comments" else "Comments" }
-                        ElevatedCard(
-                            Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 16.dp).clickable { vm.setCommentsSheet(true) },
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-                            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
-                        ) {
-                            Column(Modifier.padding(14.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primary) {
-                                        Icon(Icons.Filled.Email, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp).padding(4.dp))
-                                    }
-                                    Spacer(Modifier.width(10.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text("Comments", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
-                                        Text(countLabel + (state.commentsSortFilters.find { it.selected }?.let { " • ${it.title}" } ?: ""), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
-                                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(20.dp).padding(3.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
-                                    }
-                                }
-                                Spacer(Modifier.height(12.dp))
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                                Spacer(Modifier.height(12.dp))
-                                if (state.comments.isNotEmpty()) {
-                                    // show up to 2 preview comments inside card
-                                    state.comments.take(2).forEach { c ->
-                                        Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(bottom = 10.dp)) {
-                                            AsyncImage(
-                                                model = bestThumbUrl("", c.author.avatar, avatarQ),
-                                                contentDescription = c.author.name,
-                                                modifier = Modifier.size(28.dp).clip(CircleShape).background(Color(0xFF222222)),
-                                                contentScale = ContentScale.Crop
-                                            )
-                                            Spacer(Modifier.width(10.dp))
-                                            Column(Modifier.weight(1f)) {
-                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                    Text(c.author.name, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                                                    if (c.author.isCreator) Surface(shape = RoundedCornerShape(4.dp), color = Color(0xFF3EA6FF)) { Text("Creator", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Color.White, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)) }
-                                                    Text("• ${c.publishedTime}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                                                }
-                                                Spacer(Modifier.height(2.dp))
-                                                Text(c.content, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurface)
-                                                Spacer(Modifier.height(4.dp))
-                                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) { Icon(Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant); if (c.likeCount.isNotBlank()) Text(c.likeCount, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                                                    if (c.replyCount.isNotBlank()) Text(c.replyCount, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                                                }
-                                            }
-                                        }
-                                    }
-                                    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                                        Text("View all comments", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp))
-                                    }
-                                } else if (state.commentsLoading) {
-                                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                                        Text("Loading comments…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                } else {
-                                    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Icon(Icons.Filled.Email, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-                                        Text(if (d.commentsContinuation.isBlank()) "Comments are off" else "Be the first to comment", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        if (d.commentsContinuation.isNotBlank()) Text("Tap to open", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Up next — header polished
-                    item {
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 20.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("Up next", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold))
-                            if (state.related.isNotEmpty()) Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
-                                Text("${state.related.size}", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
-                            }
-                            Spacer(Modifier.weight(1f))
-                            Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.clickable {}) {
-                                Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Icon(Icons.Filled.Star, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                                    Text("For you", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold))
-                                }
-                            }
-                        }
-                    }
-                    if (state.related.isNotEmpty()) {
-                        items(state.related.size) { idx ->
-                            val v = state.related[idx]
-                            Box(Modifier.padding(horizontal = 8.dp)) { ChannelVideoListCard(video = v, thumbQuality = thumbQ, onClick = { onVideoClick(v.id) }) }
-                        }
-                        if (state.relatedLoading) {
-                            item { Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp) } }
-                        } else if (state.relatedContinuation != null) {
-                            item {
-                                Box(Modifier.fillMaxWidth().padding(14.dp), contentAlignment = Alignment.Center) {
-                                    OutlinedButton(onClick = { vm.loadMoreRelated() }, shape = RoundedCornerShape(24.dp)) {
-                                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("Load more")
-                                    }
-                                }
-                            }
-                        }
-                    } else {
+                } else {
+                    LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(bottom = 28.dp)) {
+                        item { FlowPlayerHero(d = d, isFullscreen = isFullscreen, onFullscreen = { isFullscreen = true }) }
+                        item { FlowVideoInfoSection(videoDetail = d, ctx = ctx, avatarQ = avatarQ, likeCount = d.likeCount, viewCount = d.viewCount, onChannelClick = { onChannelClick(d.channelId) }, onShare = { shareVideo(ctx, d) }, onDownload = { vm.setDetailsSheet(true) }, onSave = { vm.setDetailsSheet(true) }, onDescriptionClick = { vm.setDetailsSheet(true) }) }
+                        item { FlowVideoActionRowFlow(d = d, ctx = ctx, onLike = {}, onDislike = {}, onShare = { shareVideo(ctx, d) }, onSave = {}, onDownload = { vm.setDetailsSheet(true) }, onCopyLink = { copyLink(ctx, d, withTimestamp = false) }, onCopyLinkAtTime = { copyLink(ctx, d, withTimestamp = true) }) }
+                        item { FlowCommentsPreview(comments = state.comments, countText = state.commentsCount ?: d.commentsCountText, avatarQ = avatarQ, onClick = { vm.setCommentsSheet(true) }) }
+                        // Up next header
                         item {
-                            Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 8.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-                                Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(28.dp))
-                                        Text("No related videos yet", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
+                            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 18.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Up next", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold))
+                                if (state.related.isNotEmpty()) Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.secondaryContainer) { Text("${state.related.size}", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)) }
+                                Spacer(Modifier.weight(1f))
+                                Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)) { Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) { Icon(Icons.Rounded.AutoAwesome, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary); Text("For you", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold)) } }
+                            }
+                        }
+                        if (state.related.isNotEmpty()) {
+                            items(state.related.size) { idx -> val v = state.related[idx]; Box(Modifier.padding(horizontal = 0.dp)) { ChannelVideoListCard(video = v, thumbQuality = thumbQ, onClick = { onVideoClick(v.id) }) } }
+                            if (state.relatedLoading) item { Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(22.dp)) } }
+                            else if (state.relatedContinuation != null) item { Box(Modifier.fillMaxWidth().padding(14.dp), contentAlignment = Alignment.Center) { OutlinedButton(onClick = { vm.loadMoreRelated() }, shape = RoundedCornerShape(24.dp)) { Icon(Icons.Rounded.ExpandMore, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Load more") } } }
+                        } else {
+                            item {
+                                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 8.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
+                                    Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) { Icon(Icons.Rounded.PlayCircle, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(28.dp)); Text("No related videos yet", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
                                 }
                             }
                         }
@@ -527,16 +245,267 @@ fun VideoScreen(
 }
 
 @Composable
-private fun CommentsSheet(
+private fun FlowPlayerHero(d: UiVideoDetail, isFullscreen: Boolean, onFullscreen: () -> Unit) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = if (isFullscreen) 0.dp else 0.dp)
+            .background(Color.Black)
+            .aspectRatio(16f / 9f)
+    ) {
+        WediyoPlayer(detail = d, isShorts = false, modifier = Modifier.fillMaxSize(), isFullscreen = isFullscreen, onFullscreenToggle = onFullscreen)
+        if (d.isLive) {
+            Surface(modifier = Modifier.align(Alignment.TopStart).padding(10.dp).statusBarsPadding(), shape = RoundedCornerShape(4.dp), color = Color(0xFFFF0000)) {
+                Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(Modifier.size(6.dp).clip(CircleShape).background(Color.White))
+                    Text("LIVE", color = Color.White, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold, fontSize = 11.sp))
+                }
+            }
+        }
+    }
+}
+
+// ── Flow VideoInfoSection clone ────────────────────────────────────────────
+@Composable
+private fun FlowVideoInfoSection(
+    videoDetail: UiVideoDetail,
+    ctx: Context,
+    avatarQ: String,
+    viewCount: Long,
+    likeCount: Long,
+    onChannelClick: () -> Unit,
+    onShare: () -> Unit,
+    onDownload: () -> Unit,
+    onSave: () -> Unit,
+    onDescriptionClick: () -> Unit
+) {
+    Column(Modifier.fillMaxWidth().padding(12.dp)) {
+        // Title – Flow uses titleLarge 20sp bold, maxLines from prefs, long-press copy
+        Text(
+            text = videoDetail.title,
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 20.sp, lineHeight = 26.sp),
+            color = MaterialTheme.colorScheme.onBackground,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.combinedClickable(
+                onClick = {},
+                onLongClick = {
+                    val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    cm.setPrimaryClip(ClipData.newPlainText("title", videoDetail.title))
+                    Toast.makeText(ctx, "Title copied", Toast.LENGTH_SHORT).show()
+                }
+            )
+        )
+        // views • date + ...more
+        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            val views = videoDetail.viewCountText.ifBlank { if (viewCount > 0) formatCompact(viewCount) + " views" else "" }
+            val date = videoDetail.publishDate.ifBlank { videoDetail.uploadDate }
+            val text = buildString {
+                if (views.isNotBlank()) append(views)
+                if (date.isNotBlank()) {
+                    if (isNotEmpty()) append(" • ")
+                    append(date.take(20))
+                }
+            }
+            if (text.isNotBlank()) Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text("  …more", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.clickable { onDescriptionClick() })
+        }
+        Spacer(Modifier.height(10.dp))
+        // Channel row – Flow's ChannelAvatarStack + SubscribeButton
+        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(Modifier.weight(1f).clickable { onChannelClick() }, verticalAlignment = Alignment.CenterVertically) {
+                AsyncImage(
+                    model = bestThumbUrl(videoDetail.channelAvatarsJson, videoDetail.channelAvatarUrl, avatarQ),
+                    contentDescription = videoDetail.channelTitle,
+                    modifier = Modifier.size(44.dp).clip(CircleShape).background(Color(0xFF222222)),
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(videoDetail.channelTitle.ifBlank { videoDetail.author }, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold, fontSize = 16.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (videoDetail.channelHandle.isNotBlank()) Icon(Icons.Rounded.Verified, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                    }
+                    val subText = videoDetail.subscriberCountText
+                    if (subText.isNotBlank()) Text(subText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            FlowSubscribeButton(isSubscribed = false, onSubscribe = onChannelClick)
+        }
+    }
+}
+
+@Composable
+private fun FlowSubscribeButton(isSubscribed: Boolean, onSubscribe: () -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val bg = if (isSubscribed) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f) else MaterialTheme.colorScheme.onBackground
+    val fg = if (isSubscribed) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surface
+    Box {
+        Surface(onClick = { if (isSubscribed) expanded = true else onSubscribe() }, shape = RoundedCornerShape(18.dp), color = bg, modifier = Modifier.height(36.dp)) {
+            Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                if (isSubscribed) {
+                    Icon(Icons.Rounded.Notifications, null, modifier = Modifier.size(18.dp), tint = fg)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Subscribed", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium), color = fg)
+                    Spacer(Modifier.width(4.dp))
+                    Icon(Icons.Rounded.KeyboardArrowDown, null, modifier = Modifier.size(16.dp), tint = fg)
+                } else Text("Subscribe", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium), color = fg)
+            }
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(text = { Text("Unsubscribe") }, leadingIcon = { Icon(Icons.Rounded.PersonRemove, null) }, onClick = { expanded = false; onSubscribe() })
+        }
+    }
+}
+
+@Composable
+private fun FlowVideoActionRowFlow(
+    d: UiVideoDetail,
+    ctx: Context,
+    onLike: () -> Unit,
+    onDislike: () -> Unit,
+    onShare: () -> Unit,
+    onSave: () -> Unit,
+    onDownload: () -> Unit,
+    onCopyLink: () -> Unit,
+    onCopyLinkAtTime: () -> Unit
+) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+        item {
+            // Segmented like/dislike – Flow's pill with divider
+            Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f), modifier = Modifier.height(36.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.clickable { onLike() }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(if (d.likeCountText.isNotBlank() || d.likeCount > 0) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurface)
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (d.likeCountText.isNotBlank()) d.likeCountText else if (d.likeCount > 0) formatCompact(d.likeCount) else "Like", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Box(Modifier.width(1.dp).height(24.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)))
+                    Row(Modifier.clickable { onDislike() }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.ThumbDown, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+            }
+        }
+        item { FlowActionChip(icon = Icons.Outlined.BookmarkBorder, label = "Save", onClick = onSave) }
+        item { FlowActionChip(icon = Icons.Outlined.Download, label = "Download", onClick = onDownload) }
+        item { FlowActionChip(icon = Icons.Outlined.Headphones, label = "Background", onClick = {}) }
+        item { FlowActionChip(icon = Icons.Outlined.Share, label = "Share", onClick = onShare) }
+        item { FlowActionChip(icon = Icons.Outlined.Link, label = "Copy link", onClick = onCopyLink) }
+        item { FlowActionChip(icon = Icons.Outlined.Timer, label = "Copy at time", onClick = onCopyLinkAtTime) }
+    }
+}
+
+@Composable
+private fun FlowActionChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
+    Surface(onClick = onClick, shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f), modifier = Modifier.height(36.dp)) {
+        Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurface)
+            Spacer(Modifier.width(6.dp))
+            Text(label, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSurface)
+        }
+    }
+}
+
+@Composable
+private fun FlowCommentsPreview(comments: List<UiComment>, countText: String, avatarQ: String, onClick: () -> Unit) {
+    Surface(onClick = onClick, shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+        Column(Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Comments", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                if (countText.isNotBlank()) Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.secondaryContainer) { Text(countText, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)) }
+            }
+            if (comments.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AsyncImage(model = bestThumbUrl("", comments.first().author.avatar, avatarQ), contentDescription = null, modifier = Modifier.size(24.dp).clip(CircleShape).background(Color.Gray), contentScale = ContentScale.Crop)
+                    Spacer(Modifier.width(10.dp))
+                    Text(comments.first().content, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                }
+            } else {
+                Spacer(Modifier.height(6.dp))
+                Text("Add a comment…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FlowDescriptionSheet(d: UiVideoDetail, expandedDesc: Boolean, onToggleDesc: () -> Unit, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp), containerColor = MaterialTheme.colorScheme.surfaceContainerLow, dragHandle = { BottomSheetDefaults.DragHandle(width = 36.dp) }) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp).animateContentSize(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text(d.title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+            val meta = buildList {
+                if (d.viewCountText.isNotBlank()) add(d.viewCountText) else if (d.viewCount > 0) add("${formatCompact(d.viewCount)} views")
+                if (d.publishDate.isNotBlank()) add(d.publishDate) else if (d.uploadDate.isNotBlank()) add(d.uploadDate)
+                if (d.category.isNotBlank()) add(d.category)
+                if (d.isLiveContent) add("Live")
+            }.joinToString(" • ")
+            if (meta.isNotBlank()) Text(meta, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val desc = d.description.ifBlank { d.shortDescription }
+            if (desc.isNotBlank()) {
+                ElevatedCard(shape = RoundedCornerShape(16.dp), colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh), elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)) {
+                    Column(Modifier.fillMaxWidth().clickable { onToggleDesc() }.padding(16.dp).animateContentSize()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.Description, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Description", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
+                            Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primaryContainer) { Text(if (expandedDesc) "Show less" else "Show more", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)) }
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Text(desc, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = if (expandedDesc) Int.MAX_VALUE else 6, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                FlowStatChip("Views", d.viewCountText.ifBlank { if (d.viewCount > 0) formatCompact(d.viewCount) else "—" }, Icons.Rounded.Visibility, Modifier.weight(1f))
+                FlowStatChip("Likes", d.likeCountText.ifBlank { d.likeCount.takeIf { it > 0 }?.let { formatCompact(it) } ?: "—" }, Icons.Rounded.ThumbUp, Modifier.weight(1f))
+                FlowStatChip("Duration", d.durationText.ifBlank { formatDuration(d.lengthSeconds) }, Icons.Rounded.Schedule, Modifier.weight(1f))
+            }
+            if (d.captionTracks.isNotEmpty()) {
+                Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                    Column(Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Rounded.ClosedCaption, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text("Captions • ${d.captionTracks.size}", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)) }
+                        Spacer(Modifier.height(10.dp))
+                        d.captionTracks.take(5).forEach { ct ->
+                            Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(28.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(ct.languageCode.take(2).uppercase(), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)) } }
+                                Spacer(Modifier.width(10.dp))
+                                Text(ct.name.ifBlank { ct.languageCode }, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                                Text(ct.kind.ifBlank { "standard" }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FlowStatChip(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
+    Card(modifier = modifier, shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(icon, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun FlowCommentsSheet(
     countText: String,
     sortFilters: List<com.teamshryne.wediyo.data.model.UiCommentSortFilter>,
-    comments: List<com.teamshryne.wediyo.data.model.UiComment>,
+    comments: List<UiComment>,
     loading: Boolean,
     continuation: String?,
     avatarQ: String,
     onSort: (String) -> Unit,
     onLoadMore: () -> Unit,
-    onReply: (String, (List<com.teamshryne.wediyo.data.model.UiComment>) -> Unit) -> Unit
+    onReply: (String, (List<UiComment>) -> Unit) -> Unit
 ) {
     Column(Modifier.fillMaxWidth().fillMaxHeight(0.88f).padding(horizontal = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -544,35 +513,28 @@ private fun CommentsSheet(
                 Text("Comments", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold))
                 if (countText.isNotBlank()) Text(countText, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(24.dp).padding(4.dp))
-            }
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)) { Icon(Icons.Rounded.Close, null, modifier = Modifier.size(24.dp).padding(4.dp)) }
         }
         Spacer(Modifier.height(12.dp))
         if (sortFilters.isNotEmpty()) {
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                sortFilters.take(4).forEach { sf ->
-                    FilterChip(
-                        selected = sf.selected,
-                        onClick = { if (!sf.selected) onSort(sf.continuationToken) },
-                        label = { Text(sf.title, style = MaterialTheme.typography.labelMedium.copy(fontWeight = if (sf.selected) FontWeight.Bold else FontWeight.Medium)) },
-                        shape = RoundedCornerShape(20.dp),
-                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer, selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer)
-                    )
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(sortFilters.take(4).size) { idx ->
+                    val sf = sortFilters[idx]
+                    FilterChip(selected = sf.selected, onClick = { if (!sf.selected) onSort(sf.continuationToken) }, label = { Text(sf.title, style = MaterialTheme.typography.labelMedium.copy(fontWeight = if (sf.selected) FontWeight.Bold else FontWeight.Medium)) }, shape = RoundedCornerShape(20.dp))
                 }
             }
             Spacer(Modifier.height(12.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         }
         Spacer(Modifier.height(8.dp))
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             if (comments.isEmpty() && loading) {
                 item { Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
             } else if (comments.isEmpty()) {
                 item {
-                    Card(Modifier.fillMaxWidth().padding(top = 12.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))) {
                         Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Filled.Email, contentDescription = null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(Icons.Rounded.ChatBubbleOutline, null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("No comments yet", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
                             Text("Be the first to share what you think", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -581,43 +543,27 @@ private fun CommentsSheet(
             } else {
                 items(comments.size) { idx ->
                     val c = comments[idx]
-                    PolishedCommentCard(comment = c, avatarQ = avatarQ, onReply = onReply)
-                    if (idx < comments.lastIndex) HorizontalDivider(Modifier.padding(start = 54.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                    FlowCommentCard(comment = c, avatarQ = avatarQ, onReply = onReply)
+                    if (idx < comments.lastIndex) HorizontalDivider(Modifier.padding(start = 48.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
                 }
-                if (loading) {
-                    item { Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp) } }
-                } else if (continuation != null) {
-                    item {
-                        Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
-                            Button(onClick = onLoadMore, shape = RoundedCornerShape(24.dp)) {
-                                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("Load more")
-                            }
-                        }
-                    }
-                }
+                if (loading) item { Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(22.dp)) } }
+                else if (continuation != null) item { Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { Button(onClick = onLoadMore, shape = RoundedCornerShape(24.dp)) { Icon(Icons.Rounded.ExpandMore, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Load more") } } }
             }
         }
     }
 }
 
 @Composable
-private fun PolishedCommentCard(comment: com.teamshryne.wediyo.data.model.UiComment, avatarQ: String, onReply: (String, (List<com.teamshryne.wediyo.data.model.UiComment>) -> Unit) -> Unit) {
-    var expandedReplies by remember { mutableStateOf<List<com.teamshryne.wediyo.data.model.UiComment>?>(null) }
+private fun FlowCommentCard(comment: UiComment, avatarQ: String, onReply: (String, (List<UiComment>) -> Unit) -> Unit) {
+    var expandedReplies by remember { mutableStateOf<List<UiComment>?>(null) }
     var repliesLoading by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.Top) {
-        AsyncImage(
-            model = bestThumbUrl("", comment.author.avatar, avatarQ),
-            contentDescription = comment.author.name,
-            modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF222222)),
-            contentScale = ContentScale.Crop
-        )
+    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.Top) {
+        AsyncImage(model = bestThumbUrl("", comment.author.avatar, avatarQ), contentDescription = comment.author.name, modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF222222)), contentScale = ContentScale.Crop)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(comment.author.name, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                if (comment.author.isVerified) Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                if (comment.author.isVerified) Icon(Icons.Rounded.Verified, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                 if (comment.author.isCreator) Surface(shape = RoundedCornerShape(4.dp), color = Color(0xFF3EA6FF)) { Text("Creator", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Color.White, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)) }
                 Text("• ${comment.publishedTime}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
@@ -625,31 +571,26 @@ private fun PolishedCommentCard(comment: com.teamshryne.wediyo.data.model.UiComm
             Text(comment.content, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(horizontal = 9.dp, vertical = 5.dp)) {
-                    Icon(Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f)).padding(horizontal = 9.dp, vertical = 5.dp)) {
+                    Icon(Icons.Rounded.ThumbUp, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (comment.likeCount.isNotBlank()) Text(comment.likeCount, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (comment.replyCount.isNotBlank() && comment.repliesContinuation.isNotBlank()) {
                     Text(
-                        comment.replyCount,
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.primary,
+                        comment.replyCount, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.clip(RoundedCornerShape(20.dp)).clickable {
                             if (expandedReplies == null && !repliesLoading) {
                                 repliesLoading = true
-                                onReply(comment.repliesContinuation) { replies ->
-                                    expandedReplies = replies
-                                    repliesLoading = false
-                                }
+                                onReply(comment.repliesContinuation) { replies -> expandedReplies = replies; repliesLoading = false }
                             } else if (expandedReplies != null) expandedReplies = null
-                        }.background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)).padding(horizontal = 10.dp, vertical = 5.dp)
+                        }.background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)).padding(horizontal = 10.dp, vertical = 5.dp)
                     )
                 }
-                if (repliesLoading) { CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp) }
+                if (repliesLoading) CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
             }
             if (expandedReplies != null) {
                 Spacer(Modifier.height(10.dp))
-                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 0.dp) {
+                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
                     Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         expandedReplies!!.forEach { r ->
                             Row(verticalAlignment = Alignment.Top) {
@@ -672,34 +613,19 @@ private fun PolishedCommentCard(comment: com.teamshryne.wediyo.data.model.UiComm
     }
 }
 
-@Composable
-private fun PolishedStatChip(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
-    Card(modifier = modifier, shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
+// ── helpers ─────────────────────────────────────────────────────────────────
+private fun shareVideo(ctx: Context, d: UiVideoDetail) {
+    val url = d.canonicalUrl.ifBlank { "https://www.youtube.com/watch?v=${d.videoId}" }
+    val send = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, "${d.title}\n$url"); putExtra(Intent.EXTRA_SUBJECT, d.title) }
+    try { ctx.startActivity(Intent.createChooser(send, "Share video")) } catch (_: Exception) {}
 }
 
-@Composable
-private fun ActionPill(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: (() -> Unit)? = null) {
-    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.clickable(enabled = onClick != null) { onClick?.invoke() }) {
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
-            Text(label, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold))
-        }
-    }
-}
-
-@Composable
-private fun DetailRow(label: String, value: String) {
-    if (value.isBlank()) return
-    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.Top) {
-        Text(label, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(110.dp))
-        Text(value, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-    }
+private fun copyLink(ctx: Context, d: UiVideoDetail, withTimestamp: Boolean) {
+    val base = d.canonicalUrl.ifBlank { "https://www.youtube.com/watch?v=${d.videoId}" }
+    val url = if (withTimestamp) "$base&t=0s" else base
+    val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    cm.setPrimaryClip(ClipData.newPlainText("link", url))
+    Toast.makeText(ctx, if (withTimestamp) "Link with timestamp copied" else "Link copied", Toast.LENGTH_SHORT).show()
 }
 
 private fun formatDuration(secs: Long): String {
@@ -717,21 +643,4 @@ private fun formatCompact(n: Long): String {
         n >= 1_000 -> String.format("%.1fK", n / 1_000.0).replace(".0K", "K")
         else -> n.toString()
     }
-}
-
-private fun displayHandle(raw: String): String {
-    if (raw.isBlank()) return ""
-    val trimmed = raw.trim()
-    // Already handle like "@Foo"
-    if (trimmed.startsWith("@")) return trimmed
-    // URL like "http://www.youtube.com/@ThePrimeTimeagen" -> extract after "/@"
-    val atIdx = trimmed.lastIndexOf("/@")
-    if (atIdx != -1) return "@" + trimmed.substring(atIdx + 2).substringBefore("?").substringBefore("/")
-    // fallback: handle without @ may be in path segment containing dot -> avoid showing full URL
-    if (trimmed.contains("youtube.com") || trimmed.contains("http")) {
-        val last = trimmed.substringAfterLast("/").substringBefore("?").substringBefore("#")
-        if (last.isNotBlank() && !last.contains(".")) return if (last.startsWith("@")) last else "@$last"
-        return ""
-    }
-    return trimmed
 }
