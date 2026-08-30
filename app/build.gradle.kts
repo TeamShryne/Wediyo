@@ -82,6 +82,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material:material-icons-extended")
     implementation(libs.coil.compose)
     // media3 — fast playback like Flow (VISIONOS direct URLs + cache + preload)
     implementation(libs.androidx.media3.exoplayer)

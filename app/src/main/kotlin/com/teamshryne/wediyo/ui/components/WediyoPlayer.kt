@@ -217,7 +217,7 @@ fun WediyoPlayer(
             )
             AnimatedVisibility(visible = showControls, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.Center)) {
                 Surface(shape = CircleShape, color = PlayerScrimAffordance, modifier = Modifier.clickable { isLocked = false }) {
-                    Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.LockOpen, contentDescription = "Unlock", tint = PlayerScrimContent, modifier = Modifier.size(28.dp)) }
+                    Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Lock, contentDescription = "Unlock", tint = PlayerScrimContent, modifier = Modifier.size(28.dp)) }
                 }
             }
             if (showControls) {
@@ -225,7 +225,7 @@ fun WediyoPlayer(
                     shape = RoundedCornerShape(20.dp),
                     color = PlayerScrimAffordance,
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp).clickable { isLocked = false }
-                ) { Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { Icon(Icons.Rounded.Lock, null, tint = PlayerScrimContent, modifier = Modifier.size(18.dp)); Text("Tap to unlock", color = PlayerScrimContent, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)) } }
+                ) { Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { Icon(Icons.Filled.Lock, null, tint = PlayerScrimContent, modifier = Modifier.size(18.dp)); Text("Tap to unlock", color = PlayerScrimContent, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)) } }
             }
             // thin seekbar still visible when locked
             FlowThinSeekbar(progress = if (duration > 0) currentPos.toFloat() / duration else 0f, buffered = bufferedPct, modifier = Modifier.align(Alignment.BottomCenter))
@@ -282,8 +282,8 @@ fun WediyoPlayer(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Surface(shape = CircleShape, color = Color.White.copy(alpha = 0.08f), modifier = Modifier.size(44.dp).clickable { PlayerManager.get().seekTo((currentPos - 10_000).coerceAtLeast(0)) }) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Replay10, null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.size(22.dp)) } }
-                    Surface(shape = CircleShape, color = Color.White.copy(alpha = 0.08f), modifier = Modifier.size(44.dp).clickable { PlayerManager.get().seekTo((currentPos + 10_000).coerceAtMost(duration)) }) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Forward10, null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.size(22.dp)) } }
+                    Surface(shape = CircleShape, color = Color.White.copy(alpha = 0.08f), modifier = Modifier.size(44.dp).clickable { PlayerManager.get().seekTo((currentPos - 10_000).coerceAtLeast(0)) }) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Replay, null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.size(22.dp)) } }
+                    Surface(shape = CircleShape, color = Color.White.copy(alpha = 0.08f), modifier = Modifier.size(44.dp).clickable { PlayerManager.get().seekTo((currentPos + 10_000).coerceAtMost(duration)) }) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Forward, null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.size(22.dp)) } }
                 }
             }
 
@@ -314,20 +314,20 @@ fun WediyoPlayer(
                     // Bottom bar: left controls, right fullscreen/more
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            IconButton(onClick = { showQualitySheet = true }, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Settings, contentDescription = "Quality", tint = PlayerScrimContent, modifier = Modifier.size(20.dp)) }
-                            IconButton(onClick = { showSpeedSheet = true }, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.SlowMotionVideo, contentDescription = "Speed", tint = PlayerScrimContent, modifier = Modifier.size(20.dp)) }
-                            IconButton(onClick = { isLocked = true }, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Lock, contentDescription = "Lock", tint = PlayerScrimContent, modifier = Modifier.size(18.dp)) }
+                            IconButton(onClick = { showQualitySheet = true }, modifier = Modifier.size(36.dp)) { Icon(Icons.Filled.Settings, contentDescription = "Quality", tint = PlayerScrimContent, modifier = Modifier.size(20.dp)) }
+                            IconButton(onClick = { showSpeedSheet = true }, modifier = Modifier.size(36.dp)) { Icon(Icons.Filled.Speed, contentDescription = "Speed", tint = PlayerScrimContent, modifier = Modifier.size(20.dp)) }
+                            IconButton(onClick = { isLocked = true }, modifier = Modifier.size(36.dp)) { Icon(Icons.Filled.Lock, contentDescription = "Lock", tint = PlayerScrimContent, modifier = Modifier.size(18.dp)) }
                         }
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             if (detail.captionTracks.isNotEmpty()) {
-                                IconButton(onClick = {}, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.ClosedCaption, null, tint = PlayerScrimContent, modifier = Modifier.size(20.dp)) }
+                                IconButton(onClick = {}, modifier = Modifier.size(36.dp)) { Icon(Icons.Filled.Subtitles, null, tint = PlayerScrimContent, modifier = Modifier.size(20.dp)) }
                             }
                             IconButton(
                                 onClick = {
                                     if (onFullscreenToggle != null) onFullscreenToggle() else setFullscreen(!isFullscreen)
                                 },
                                 modifier = Modifier.size(36.dp)
-                            ) { Icon(if (isFullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, contentDescription = "Fullscreen", tint = PlayerScrimContent, modifier = Modifier.size(20.dp)) }
+                            ) { Icon(if (isFullscreen) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen, contentDescription = "Fullscreen", tint = PlayerScrimContent, modifier = Modifier.size(20.dp)) }
                         }
                     }
                 }
@@ -360,9 +360,9 @@ fun WediyoPlayer(
                             }
                         ) {
                             Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(36.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.HighQuality, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer) } }
+                                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(36.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Hd, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer) } }
                                 Column(Modifier.weight(1f)) { Text(label, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)); Text(sub, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                                Icon(Icons.Rounded.Check, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
@@ -386,10 +386,10 @@ fun WediyoPlayer(
                             }
                         ) {
                             Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Icon(if (selected) Icons.Rounded.CheckCircle else Icons.Rounded.PlayCircle, null, modifier = Modifier.size(20.dp), tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+                                Icon(if (selected) Icons.Filled.CheckCircle else Icons.Filled.PlayCircle, null, modifier = Modifier.size(20.dp), tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text(label, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium), color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
                                 Spacer(Modifier.weight(1f))
-                                if (selected) Icon(Icons.Rounded.Check, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                                if (selected) Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
                             }
                         }
                     }
@@ -402,10 +402,10 @@ fun WediyoPlayer(
             ModalBottomSheet(onDismissRequest = { showMoreSheet = false }, containerColor = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) {
                 Column(Modifier.padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("More options", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
-                    FlowMoreOption(icon = Icons.Rounded.ContentCopy, title = "Copy link", subtitle = detail.canonicalUrl.ifBlank { "https://www.youtube.com/watch?v=${detail.videoId}" }, onClick = { showMoreSheet = false })
-                    FlowMoreOption(icon = Icons.Rounded.Download, title = "Download", subtitle = "${detail.formats.size} progressive • ${detail.adaptiveFormats.size} adaptive", onClick = { showMoreSheet = false })
-                    FlowMoreOption(icon = Icons.Rounded.ClosedCaption, title = "Captions", subtitle = if (detail.captionTracks.isEmpty()) "No captions" else "${detail.captionTracks.size} languages", onClick = { showMoreSheet = false })
-                    FlowMoreOption(icon = Icons.Rounded.Info, title = "Stats for nerds", subtitle = "View: ${detail.viewCountText} • ${detail.durationText}", onClick = { showMoreSheet = false })
+                    FlowMoreOption(icon = Icons.Filled.ContentCopy, title = "Copy link", subtitle = detail.canonicalUrl.ifBlank { "https://www.youtube.com/watch?v=${detail.videoId}" }, onClick = { showMoreSheet = false })
+                    FlowMoreOption(icon = Icons.Filled.Download, title = "Download", subtitle = "${detail.formats.size} progressive • ${detail.adaptiveFormats.size} adaptive", onClick = { showMoreSheet = false })
+                    FlowMoreOption(icon = Icons.Filled.Subtitles, title = "Captions", subtitle = if (detail.captionTracks.isEmpty()) "No captions" else "${detail.captionTracks.size} languages", onClick = { showMoreSheet = false })
+                    FlowMoreOption(icon = Icons.Filled.Info, title = "Stats for nerds", subtitle = "View: ${detail.viewCountText} • ${detail.durationText}", onClick = { showMoreSheet = false })
                     Spacer(Modifier.height(12.dp))
                 }
             }
@@ -434,9 +434,9 @@ private fun FlowPlayerTopBar(
     ) {
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             if (onBack != null) {
-                Box(Modifier.size(40.dp).clip(CircleShape).clickable { onBack() }, contentAlignment = Alignment.Center) { Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Minimize", tint = PlayerScrimContent, modifier = Modifier.size(24.dp)) }
+                Box(Modifier.size(40.dp).clip(CircleShape).clickable { onBack() }, contentAlignment = Alignment.Center) { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Minimize", tint = PlayerScrimContent, modifier = Modifier.size(24.dp)) }
             } else {
-                Box(Modifier.size(40.dp).clip(CircleShape), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.PlayCircle, null, tint = PlayerScrimContent.copy(alpha = 0.0f), modifier = Modifier.size(24.dp)) }
+                Box(Modifier.size(40.dp).clip(CircleShape), contentAlignment = Alignment.Center) { Icon(Icons.Filled.PlayCircle, null, tint = PlayerScrimContent.copy(alpha = 0.0f), modifier = Modifier.size(24.dp)) }
             }
             if (isFullscreen && title.isNotBlank()) {
                 Text(title, color = PlayerScrimContent, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 8.dp))
@@ -446,10 +446,10 @@ private fun FlowPlayerTopBar(
             Surface(color = PlayerScrimAffordance, shape = RoundedCornerShape(14.dp), modifier = Modifier.height(28.dp).clip(RoundedCornerShape(14.dp)).clickable { onSpeedClick() }) {
                 Box(Modifier.padding(horizontal = 10.dp), contentAlignment = Alignment.Center) { Text(speedLabel, color = PlayerScrimContent, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)) }
             }
-            TopBarIconButton(icon = Icons.Rounded.Settings, desc = "Settings", onClick = onQualityClick)
-            TopBarIconButton(icon = Icons.Rounded.MoreVert, desc = "More", onClick = onMoreClick)
-            TopBarIconButton(icon = Icons.Rounded.Lock, desc = "Lock", onClick = onLockClick)
-            TopBarIconButton(icon = if (isFullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, desc = "Fullscreen", onClick = onFullscreenClick)
+            TopBarIconButton(icon = Icons.Filled.Settings, desc = "Settings", onClick = onQualityClick)
+            TopBarIconButton(icon = Icons.Filled.MoreVert, desc = "More", onClick = onMoreClick)
+            TopBarIconButton(icon = Icons.Filled.Lock, desc = "Lock", onClick = onLockClick)
+            TopBarIconButton(icon = if (isFullscreen) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen, desc = "Fullscreen", onClick = onFullscreenClick)
         }
     }
 }
@@ -473,7 +473,7 @@ private fun FlowTransportControls(
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(36.dp)) {
         Box(Modifier.size(48.dp).clip(CircleShape).background(PlayerScrimAffordance).clickable { onPrev10() }, contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.Replay10, contentDescription = "Back 10s", tint = PlayerScrimContent, modifier = Modifier.size(26.dp))
+            Icon(Icons.Filled.Replay, contentDescription = "Back 10s", tint = PlayerScrimContent, modifier = Modifier.size(26.dp))
         }
         Box(
             Modifier.size(64.dp).clip(CircleShape).background(PlayerScrimAffordance).clickable {
@@ -483,13 +483,13 @@ private fun FlowTransportControls(
         ) {
             if (isBuffering) CircularProgressIndicator(color = PlayerScrimContent, strokeWidth = 2.5.dp, modifier = Modifier.size(32.dp))
             else Icon(
-                when { hasEnded -> Icons.Rounded.Replay; isPlaying -> Icons.Rounded.Pause; else -> Icons.Rounded.PlayArrow },
+                when { hasEnded -> Icons.Filled.Replay; isPlaying -> Icons.Filled.Pause; else -> Icons.Filled.PlayArrow },
                 contentDescription = if (isPlaying) "Pause" else "Play",
                 tint = PlayerScrimContent, modifier = Modifier.size(42.dp)
             )
         }
         Box(Modifier.size(48.dp).clip(CircleShape).background(PlayerScrimAffordance).clickable { onNext10() }, contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.Forward10, contentDescription = "Forward 10s", tint = PlayerScrimContent, modifier = Modifier.size(26.dp))
+            Icon(Icons.Filled.Forward, contentDescription = "Forward 10s", tint = PlayerScrimContent, modifier = Modifier.size(26.dp))
         }
     }
 }
@@ -539,7 +539,7 @@ private fun FlowMoreOption(icon: androidx.compose.ui.graphics.vector.ImageVector
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(36.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(icon, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer) } }
             Column(Modifier.weight(1f)) { Text(title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)); Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            Icon(Icons.Rounded.ChevronRight, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Icons.Filled.ChevronRight, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

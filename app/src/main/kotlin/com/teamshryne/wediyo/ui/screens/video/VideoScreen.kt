@@ -133,7 +133,7 @@ fun VideoScreen(
                             try { ctx.startActivity(Intent.createChooser(send, "Share")) } catch (_: Exception) {}
                         }
                     }) { Icon(Icons.Outlined.Share, contentDescription = "Share") }
-                    IconButton(onClick = { state.detail?.let { vm.setDetailsSheet(true) } }) { Icon(Icons.Rounded.MoreVert, contentDescription = "More") }
+                    IconButton(onClick = { state.detail?.let { vm.setDetailsSheet(true) } }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f))
             )
@@ -153,15 +153,15 @@ fun VideoScreen(
                 Box(Modifier.fillMaxSize().padding(pad).padding(24.dp), contentAlignment = Alignment.Center) {
                     Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.18f))) {
                         Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(40.dp))
+                            Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(40.dp))
                             Text("Couldn't load video", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
                             Text(state.error!!, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = { vm.retry() }, shape = RoundedCornerShape(12.dp)) { Icon(Icons.Rounded.Refresh, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Retry") }
+                                Button(onClick = { vm.retry() }, shape = RoundedCornerShape(12.dp)) { Icon(Icons.Filled.Refresh, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Retry") }
                                 OutlinedButton(onClick = {
                                     val url = "https://www.youtube.com/watch?v=$videoId"
                                     ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
-                                }, shape = RoundedCornerShape(12.dp)) { Icon(Icons.Rounded.OpenInBrowser, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Open in YouTube") }
+                                }, shape = RoundedCornerShape(12.dp)) { Icon(Icons.Filled.OpenInBrowser, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Open in YouTube") }
                             }
                         }
                     }
@@ -223,17 +223,17 @@ fun VideoScreen(
                                 Text("Up next", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold))
                                 if (state.related.isNotEmpty()) Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.secondaryContainer) { Text("${state.related.size}", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)) }
                                 Spacer(Modifier.weight(1f))
-                                Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)) { Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) { Icon(Icons.Rounded.AutoAwesome, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary); Text("For you", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold)) } }
+                                Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)) { Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) { Icon(Icons.Filled.AutoAwesome, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary); Text("For you", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold)) } }
                             }
                         }
                         if (state.related.isNotEmpty()) {
                             items(state.related.size) { idx -> val v = state.related[idx]; Box(Modifier.padding(horizontal = 0.dp)) { ChannelVideoListCard(video = v, thumbQuality = thumbQ, onClick = { onVideoClick(v.id) }) } }
                             if (state.relatedLoading) item { Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(22.dp)) } }
-                            else if (state.relatedContinuation != null) item { Box(Modifier.fillMaxWidth().padding(14.dp), contentAlignment = Alignment.Center) { OutlinedButton(onClick = { vm.loadMoreRelated() }, shape = RoundedCornerShape(24.dp)) { Icon(Icons.Rounded.ExpandMore, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Load more") } } }
+                            else if (state.relatedContinuation != null) item { Box(Modifier.fillMaxWidth().padding(14.dp), contentAlignment = Alignment.Center) { OutlinedButton(onClick = { vm.loadMoreRelated() }, shape = RoundedCornerShape(24.dp)) { Icon(Icons.Filled.ExpandMore, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Load more") } } }
                         } else {
                             item {
                                 Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 8.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
-                                    Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) { Icon(Icons.Rounded.PlayCircle, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(28.dp)); Text("No related videos yet", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+                                    Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) { Icon(Icons.Filled.PlayCircle, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(28.dp)); Text("No related videos yet", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
                                 }
                             }
                         }
@@ -324,7 +324,7 @@ private fun FlowVideoInfoSection(
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(videoDetail.channelTitle.ifBlank { videoDetail.author }, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold, fontSize = 16.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (videoDetail.channelHandle.isNotBlank()) Icon(Icons.Rounded.Verified, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                        if (videoDetail.channelHandle.isNotBlank()) Icon(Icons.Filled.Verified, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                     }
                     val subText = videoDetail.subscriberCountText
                     if (subText.isNotBlank()) Text(subText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
@@ -345,16 +345,16 @@ private fun FlowSubscribeButton(isSubscribed: Boolean, onSubscribe: () -> Unit) 
         Surface(onClick = { if (isSubscribed) expanded = true else onSubscribe() }, shape = RoundedCornerShape(18.dp), color = bg, modifier = Modifier.height(36.dp)) {
             Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                 if (isSubscribed) {
-                    Icon(Icons.Rounded.Notifications, null, modifier = Modifier.size(18.dp), tint = fg)
+                    Icon(Icons.Filled.Notifications, null, modifier = Modifier.size(18.dp), tint = fg)
                     Spacer(Modifier.width(6.dp))
                     Text("Subscribed", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium), color = fg)
                     Spacer(Modifier.width(4.dp))
-                    Icon(Icons.Rounded.KeyboardArrowDown, null, modifier = Modifier.size(16.dp), tint = fg)
+                    Icon(Icons.Filled.KeyboardArrowDown, null, modifier = Modifier.size(16.dp), tint = fg)
                 } else Text("Subscribe", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium), color = fg)
             }
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(text = { Text("Unsubscribe") }, leadingIcon = { Icon(Icons.Rounded.PersonRemove, null) }, onClick = { expanded = false; onSubscribe() })
+            DropdownMenuItem(text = { Text("Unsubscribe") }, leadingIcon = { Icon(Icons.Filled.PersonRemove, null) }, onClick = { expanded = false; onSubscribe() })
         }
     }
 }
@@ -449,7 +449,7 @@ private fun FlowDescriptionSheet(d: UiVideoDetail, expandedDesc: Boolean, onTogg
                 ElevatedCard(shape = RoundedCornerShape(16.dp), colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh), elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)) {
                     Column(Modifier.fillMaxWidth().clickable { onToggleDesc() }.padding(16.dp).animateContentSize()) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Rounded.Description, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Filled.Description, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(8.dp))
                             Text("Description", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
                             Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primaryContainer) { Text(if (expandedDesc) "Show less" else "Show more", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)) }
@@ -460,14 +460,14 @@ private fun FlowDescriptionSheet(d: UiVideoDetail, expandedDesc: Boolean, onTogg
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                FlowStatChip("Views", d.viewCountText.ifBlank { if (d.viewCount > 0) formatCompact(d.viewCount) else "—" }, Icons.Rounded.Visibility, Modifier.weight(1f))
-                FlowStatChip("Likes", d.likeCountText.ifBlank { d.likeCount.takeIf { it > 0 }?.let { formatCompact(it) } ?: "—" }, Icons.Rounded.ThumbUp, Modifier.weight(1f))
-                FlowStatChip("Duration", d.durationText.ifBlank { formatDuration(d.lengthSeconds) }, Icons.Rounded.Schedule, Modifier.weight(1f))
+                FlowStatChip("Views", d.viewCountText.ifBlank { if (d.viewCount > 0) formatCompact(d.viewCount) else "—" }, Icons.Filled.Visibility, Modifier.weight(1f))
+                FlowStatChip("Likes", d.likeCountText.ifBlank { d.likeCount.takeIf { it > 0 }?.let { formatCompact(it) } ?: "—" }, Icons.Filled.ThumbUp, Modifier.weight(1f))
+                FlowStatChip("Duration", d.durationText.ifBlank { formatDuration(d.lengthSeconds) }, Icons.Filled.Schedule, Modifier.weight(1f))
             }
             if (d.captionTracks.isNotEmpty()) {
                 Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                     Column(Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Rounded.ClosedCaption, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text("Captions • ${d.captionTracks.size}", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)) }
+                        Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Subtitles, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text("Captions • ${d.captionTracks.size}", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)) }
                         Spacer(Modifier.height(10.dp))
                         d.captionTracks.take(5).forEach { ct ->
                             Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -513,7 +513,7 @@ private fun FlowCommentsSheet(
                 Text("Comments", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold))
                 if (countText.isNotBlank()) Text(countText, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)) { Icon(Icons.Rounded.Close, null, modifier = Modifier.size(24.dp).padding(4.dp)) }
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)) { Icon(Icons.Filled.Close, null, modifier = Modifier.size(24.dp).padding(4.dp)) }
         }
         Spacer(Modifier.height(12.dp))
         if (sortFilters.isNotEmpty()) {
@@ -534,7 +534,7 @@ private fun FlowCommentsSheet(
                 item {
                     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))) {
                         Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Rounded.ChatBubbleOutline, null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(Icons.Filled.ChatBubbleOutline, null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("No comments yet", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
                             Text("Be the first to share what you think", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -547,7 +547,7 @@ private fun FlowCommentsSheet(
                     if (idx < comments.lastIndex) HorizontalDivider(Modifier.padding(start = 48.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
                 }
                 if (loading) item { Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(22.dp)) } }
-                else if (continuation != null) item { Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { Button(onClick = onLoadMore, shape = RoundedCornerShape(24.dp)) { Icon(Icons.Rounded.ExpandMore, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Load more") } } }
+                else if (continuation != null) item { Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { Button(onClick = onLoadMore, shape = RoundedCornerShape(24.dp)) { Icon(Icons.Filled.ExpandMore, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Load more") } } }
             }
         }
     }
@@ -563,7 +563,7 @@ private fun FlowCommentCard(comment: UiComment, avatarQ: String, onReply: (Strin
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(comment.author.name, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                if (comment.author.isVerified) Icon(Icons.Rounded.Verified, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                if (comment.author.isVerified) Icon(Icons.Filled.Verified, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                 if (comment.author.isCreator) Surface(shape = RoundedCornerShape(4.dp), color = Color(0xFF3EA6FF)) { Text("Creator", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Color.White, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)) }
                 Text("• ${comment.publishedTime}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
@@ -572,7 +572,7 @@ private fun FlowCommentCard(comment: UiComment, avatarQ: String, onReply: (Strin
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f)).padding(horizontal = 9.dp, vertical = 5.dp)) {
-                    Icon(Icons.Rounded.ThumbUp, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.Filled.ThumbUp, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (comment.likeCount.isNotBlank()) Text(comment.likeCount, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (comment.replyCount.isNotBlank() && comment.repliesContinuation.isNotBlank()) {
