@@ -111,7 +111,7 @@ fun ShortsScreen(
             state.error != null && state.shorts.isEmpty() -> {
                 Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Icon(Icons.Rounded.ErrorOutline, null, tint = Color.White, modifier = Modifier.size(40.dp))
+                        Icon(Icons.Filled.ErrorOutline, null, tint = Color.White, modifier = Modifier.size(40.dp))
                         Text(state.error ?: "Failed to load", color = Color.White, style = MaterialTheme.typography.bodyLarge)
                         FilledTonalButton(onClick = { vm.retry() }) { Text("Retry") }
                     }
@@ -215,12 +215,12 @@ fun ShortsScreen(
                 // Flow shows "Shorts" title unless source != Feed then back button
                 if (initialVideoId != null) {
                     Surface(shape = CircleShape, color = Color.White.copy(alpha = 0.14f), modifier = Modifier.clickable { /* back via nav */ }) {
-                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(36.dp).padding(8.dp))
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(36.dp).padding(8.dp))
                     }
                 } else {
                     Surface(shape = RoundedCornerShape(20.dp), color = Color.White.copy(alpha = 0.14f)) {
                         Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Icon(Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Filled.PlayArrow, null, tint = Color.White, modifier = Modifier.size(18.dp))
                             Text("Shorts", color = Color.White, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold, fontSize = 15.sp))
                             Text("• ${pagerState.currentPage + 1} / ${state.shorts.size}", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
                             if (state.isPaginating) {
@@ -231,7 +231,7 @@ fun ShortsScreen(
                     }
                     Spacer(Modifier.weight(1f))
                     Surface(shape = CircleShape, color = Color.White.copy(alpha = 0.14f)) {
-                        Icon(Icons.Rounded.Search, contentDescription = "Search", tint = Color.White, modifier = Modifier.size(36.dp).padding(8.dp))
+                        Icon(Icons.Filled.Search, contentDescription = "Search", tint = Color.White, modifier = Modifier.size(36.dp).padding(8.dp))
                     }
                 }
             }
@@ -427,7 +427,7 @@ private fun ShortPageFlow(
         AnimatedVisibility(visible = isFastForwarding, enter = slideInVertically { -it / 2 } + fadeIn(), exit = slideOutVertically { -it / 2 } + fadeOut(), modifier = Modifier.align(Alignment.TopCenter).padding(top = 88.dp)) {
             Surface(shape = RoundedCornerShape(20.dp), color = Color.Black.copy(alpha = 0.72f)) {
                 Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Rounded.FastForward, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.FastForward, null, tint = Color.White, modifier = Modifier.size(18.dp))
                     Text("2× speed", color = Color.White, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
                 }
             }
@@ -441,7 +441,7 @@ private fun ShortPageFlow(
             modifier = Modifier.align(Alignment.Center)
         ) {
             Box(Modifier.size(72.dp).background(Color.Black.copy(alpha = 0.45f), CircleShape), contentAlignment = Alignment.Center) {
-                Icon(if (isPlayingOverlay) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(40.dp))
+                Icon(if (isPlayingOverlay) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(40.dp))
             }
         }
 
@@ -470,16 +470,16 @@ private fun ShortPageFlow(
                     contentScale = ContentScale.Crop
                 )
                 Surface(shape = CircleShape, color = Color(0xFFFF2D55), modifier = Modifier.align(Alignment.BottomCenter).offset(y = 8.dp).size(18.dp)) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp)) }
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp)) }
                 }
             }
-            ShortActionButtonFlow(icon = Icons.Rounded.Favorite, label = likeText.ifBlank { "Like" }, onClick = onLikeClick, isLiked = false)
+            ShortActionButtonFlow(icon = Icons.Filled.Favorite, label = likeText.ifBlank { "Like" }, onClick = onLikeClick, isLiked = false)
             Spacer(Modifier.height(14.dp))
-            ShortActionButtonFlow(icon = Icons.Rounded.ChatBubble, label = commentCount.ifBlank { "Comment" }, onClick = onCommentClick)
+            ShortActionButtonFlow(icon = Icons.Filled.ChatBubble, label = commentCount.ifBlank { "Comment" }, onClick = onCommentClick)
             Spacer(Modifier.height(14.dp))
-            ShortActionButtonFlow(icon = Icons.Rounded.Share, label = "Share", onClick = onShareClick)
+            ShortActionButtonFlow(icon = Icons.Filled.Share, label = "Share", onClick = onShareClick)
             Spacer(Modifier.height(14.dp))
-            ShortActionButtonFlow(icon = Icons.Rounded.MoreVert, label = "")
+            ShortActionButtonFlow(icon = Icons.Filled.MoreVert, label = "")
             Spacer(Modifier.height(10.dp))
             if (duration.isNotBlank()) {
                 Surface(shape = RoundedCornerShape(6.dp), color = Color.Black.copy(alpha = 0.56f)) { Text(duration, color = Color.White, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)) }
@@ -494,7 +494,7 @@ private fun ShortPageFlow(
             if (authorName.isNotBlank()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.clickable(enabled = detail?.channelId?.isNotBlank() == true) { detail?.channelId?.let { onChannelClick(it) } }) {
                     Text("@${authorName}", color = Color.White, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold, shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.8f), blurRadius = 8f)), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    Icon(Icons.Rounded.Verified, null, tint = Color(0xFF3EA6FF), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Filled.Verified, null, tint = Color(0xFF3EA6FF), modifier = Modifier.size(14.dp))
                     Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.clickable { detail?.channelId?.let { onChannelClick(it) } }) {
                         Text("Subscribe", color = Color.Black, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
                     }
@@ -525,13 +525,13 @@ private fun ShortPageFlow(
             if (meta.isNotBlank()) {
                 Surface(shape = RoundedCornerShape(20.dp), color = Color.White.copy(alpha = 0.14f)) {
                     Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(Icons.Rounded.Visibility, null, tint = Color.White, modifier = Modifier.size(12.dp))
+                        Icon(Icons.Filled.Visibility, null, tint = Color.White, modifier = Modifier.size(12.dp))
                         Text(meta, color = Color.White, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Rounded.MusicNote, null, tint = Color.White, modifier = Modifier.size(12.dp))
+                Icon(Icons.Filled.MusicNote, null, tint = Color.White, modifier = Modifier.size(12.dp))
                 Text("Original sound • ${authorName.ifBlank { "Wediyo" }}", color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.labelSmall.copy(shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.7f), blurRadius = 4f)), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             }
             // progress handle when not current? show thin bar
@@ -542,7 +542,7 @@ private fun ShortPageFlow(
 
         if (!isCurrent || detail == null) {
             Surface(modifier = Modifier.align(Alignment.Center).size(64.dp), shape = CircleShape, color = Color.White.copy(alpha = 0.10f)) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.size(32.dp)) }
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.PlayArrow, null, tint = Color.White, modifier = Modifier.size(32.dp)) }
             }
         }
     }
@@ -579,7 +579,7 @@ private fun FlowShortCommentsSheet(
                 Text(page?.count ?: detail?.commentsCountText ?: "${page?.comments?.size ?: 0} comments", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f), modifier = Modifier.clickable { onDismiss() }) {
-                Icon(Icons.Rounded.Close, contentDescription = "Close", modifier = Modifier.size(28.dp).padding(6.dp))
+                Icon(Icons.Filled.Close, contentDescription = "Close", modifier = Modifier.size(28.dp).padding(6.dp))
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -591,7 +591,7 @@ private fun FlowShortCommentsSheet(
                     Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                         if (detail?.commentsContinuation.isNullOrBlank() && detail != null) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Icon(Icons.Rounded.ChatBubbleOutline, null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Icon(Icons.Filled.ChatBubbleOutline, null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text("Comments are off", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         } else CircularProgressIndicator(modifier = Modifier.size(24.dp))
@@ -601,7 +601,7 @@ private fun FlowShortCommentsSheet(
                 item {
                     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))) {
                         Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Rounded.ChatBubbleOutline, null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(Icons.Filled.ChatBubbleOutline, null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("No comments yet", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
                         }
                     }
@@ -615,7 +615,7 @@ private fun FlowShortCommentsSheet(
                         Column(Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(c.author.name, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                                if (c.author.isVerified) Icon(Icons.Rounded.Verified, null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.primary)
+                                if (c.author.isVerified) Icon(Icons.Filled.Verified, null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.primary)
                                 Text("• ${c.publishedTime}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Spacer(Modifier.height(3.dp))
@@ -623,7 +623,7 @@ private fun FlowShortCommentsSheet(
                             Spacer(Modifier.height(6.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Icon(Icons.Rounded.FavoriteBorder, null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Icon(Icons.Filled.FavoriteBorder, null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                     if (c.likeCount.isNotBlank()) Text(c.likeCount, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 if (c.replyCount.isNotBlank()) Text(c.replyCount, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
@@ -656,7 +656,7 @@ private fun FlowShortDescriptionSheet(
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text("Description", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold), modifier = Modifier.weight(1f))
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f), modifier = Modifier.clickable { onDismiss() }) {
-                Icon(Icons.Rounded.Close, null, modifier = Modifier.size(28.dp).padding(6.dp))
+                Icon(Icons.Filled.Close, null, modifier = Modifier.size(28.dp).padding(6.dp))
             }
         }
         Spacer(Modifier.height(12.dp))
