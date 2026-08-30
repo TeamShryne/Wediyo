@@ -83,6 +83,17 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation("androidx.compose.foundation:foundation")
     implementation(libs.coil.compose)
+    // media3 — fast playback like Flow (VISIONOS direct URLs + cache + preload)
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.ui)
+    implementation(libs.androidx.media3.common)
+    implementation(libs.androidx.media3.session)
+    implementation(libs.androidx.media3.dash)
+    implementation(libs.androidx.media3.hls)
+    implementation(libs.androidx.media3.datasource)
+    implementation(libs.androidx.media3.datasource.okhttp)
+    implementation(libs.okhttp)
+    implementation(libs.newpipe.extractor)
 
     // Go gomobile AAR — committed by go.yml to app/libs/wediyo.aar
     implementation(files("libs/wediyo.aar"))
