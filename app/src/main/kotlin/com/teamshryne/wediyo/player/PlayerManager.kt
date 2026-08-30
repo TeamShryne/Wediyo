@@ -56,13 +56,18 @@ class PlayerManager private constructor() {
         return p
     }
 
-    fun playDetail(context: Context, detail: UiVideoDetail, startMs: Long = 0, isShorts: Boolean = false) {
+    fun playDetail(context: Context, detail: UiVideoDetail, startMs: Long = 0, isShorts: Boolean = false, preferredHeight: Int? = null) {
         val p = ensure(context, isShorts)
-        val source = buildSource(context, detail)
+        val source = buildSource(context, detail, preferredHeight)
         if (source == null) return
         p.setMediaSource(source, startMs)
         p.prepare()
         p.playWhenReady = true
+    }
+
+    fun playDetailWithQuality(context: Context, detail: UiVideoDetail, quality: String, startMs: Long = 0) {
+        val h = quality.toIntOrNull() // "auto" -> null
+        playDetail(context, detail, startMs, isShorts = true, preferredHeight = h)
     }
 
     fun playUrl(context: Context, url: String, isShorts: Boolean = false) {
@@ -85,7 +90,7 @@ class PlayerManager private constructor() {
     fun seekTo(ms: Long) { player?.seekTo(ms) }
 
     // Build MediaSource: priority dash/hls → Merging video+audio adaptive → single progressive
-    private fun buildSource(context: Context, d: UiVideoDetail): androidx.media3.exoplayer.source.MediaSource? {
+    private fun buildSource(context: Context, d: UiVideoDetail, preferredHeight: Int? = null): androidx.media3.exoplayer.source.MediaSource? {
         // Prefer dash/hls if available (YouTube pre-generated)
         if (d.dashManifestUrl.isNotBlank()) {
             val ds = YouTubeDataSource.factory(context)
@@ -101,11 +106,15 @@ class PlayerManager private constructor() {
         val audioFormats = d.adaptiveFormats.filter { it.isAudio && it.url.isNotBlank() }
             .sortedByDescending { it.bitrate }
 
-        // If we have adaptive video+audio, merge best video + best audio, but also expose all qualities via track selection:
-        // Simplest fast path: use MergingMediaSource of best video + best audio; ExoPlayer will adapt via DASH not needed because we give single.
-        // For quality switch we will rebuild source with chosen height.
+        // If we have adaptive video+audio, merge preferred/best video + best audio
         if (videoFormats.isNotEmpty() && audioFormats.isNotEmpty()) {
-            val bestVideo = videoFormats.first()
+            val bestVideo = if (preferredHeight != null && preferredHeight > 0) {
+                videoFormats.filter { it.height == preferredHeight }.maxByOrNull { it.bitrate }
+                    ?: videoFormats.minByOrNull { kotlin.math.abs(it.height - preferredHeight) }
+                    ?: videoFormats.first()
+            } else {
+                videoFormats.first()
+            }
             val bestAudio = audioFormats.first()
             return merging(context, bestVideo.url, bestAudio.url, pickMime(bestVideo.mimeType), pickMime(bestAudio.mimeType))
         }
