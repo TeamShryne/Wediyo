@@ -14,19 +14,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -34,13 +31,11 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.teamshryne.wediyo.data.prefs.SettingsManager
-import com.teamshryne.wediyo.ui.components.WediyoPlayer
+import com.teamshryne.wediyo.player.PlayerManager
 import com.teamshryne.wediyo.util.bestThumbUrl
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -58,17 +53,18 @@ fun ShortsScreen(
     val settings = remember { SettingsManager(ctx) }
     var thumbQ by remember { mutableStateOf("high") }
     var avatarQ by remember { mutableStateOf("high") }
+    var shortsQuality by remember { mutableStateOf("auto") }
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) { settings.thumbQuality.collectLatest { thumbQ = it } }
     LaunchedEffect(Unit) { settings.avatarQuality.collectLatest { avatarQ = it } }
+    LaunchedEffect(Unit) { settings.shortsQuality.collectLatest { shortsQuality = it } }
     LaunchedEffect(initialVideoId) { vm.loadInitial(initialVideoId) }
 
     val pagerState = rememberPagerState(initialPage = 0) { state.shorts.size }
 
-    // Prefetch & pagination – Flow-style: prefetch next 2, paginate near end
     LaunchedEffect(pagerState.currentPage, state.shorts.size, state.continuation) {
         val idx = pagerState.currentPage
         if (state.shorts.isNotEmpty() && idx in state.shorts.indices) {
@@ -81,15 +77,11 @@ fun ShortsScreen(
         }
     }
 
-    // Sheet state – Flow uses Follow-inset shrinking
     var showCommentsSheet by remember { mutableStateOf(false) }
     var showDescriptionSheet by remember { mutableStateOf(false) }
-    var sheetProgress by remember { mutableStateOf(0f) } // 0 closed, 1 open
+    var sheetProgress by remember { mutableStateOf(0f) }
     val expandedFor = state.expandedCommentsFor
-    // derived sheet open for per-page shrink
     val anySheetOpen = showCommentsSheet || showDescriptionSheet || expandedFor != null
-
-    // Track settled page for auto-advance defer while sheet open
     var deferredAdvance by remember { mutableStateOf(false) }
 
     BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
@@ -98,7 +90,6 @@ fun ShortsScreen(
         val density = LocalDensity.current
         val sheetExpandedPx = with(density) { (sheetExpandedHeight ?: 0.dp).toPx() }
 
-        // ── Main pager ───────────────────────────────────────────────────
         when {
             state.isLoading && state.shorts.isEmpty() -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -121,16 +112,12 @@ fun ShortsScreen(
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No Shorts found", color = Color.White.copy(alpha = 0.7f)) }
             }
             else -> {
-                // page index tracking
                 LaunchedEffect(pagerState.currentPage) {
-                    // Flow's updateCurrentIndex
-                    // also handle deferred auto-advance
                     if (anySheetOpen) deferredAdvance = true
                 }
                 LaunchedEffect(anySheetOpen) {
                     if (!anySheetOpen && deferredAdvance) {
                         deferredAdvance = false
-                        // optional auto-next could be triggered here
                     }
                 }
 
@@ -143,7 +130,6 @@ fun ShortsScreen(
                     val short = state.shorts[page]
                     val detail = state.details[short.videoId]
                     val isCurrent = page == pagerState.currentPage
-                    // shrink when sheet open and this is current page (Flow's shortsSheetInset)
                     val shrinkFraction = if (canShrinkReel && isCurrent && anySheetOpen) sheetProgress else 0f
                     val scale = 1f - shrinkFraction * 0.08f
                     val translateY = -sheetExpandedPx * shrinkFraction * 0.45f
@@ -159,14 +145,12 @@ fun ShortsScreen(
                             detail = detail,
                             thumbQ = thumbQ,
                             avatarQ = avatarQ,
+                            shortsQuality = shortsQuality,
                             isCurrent = isCurrent,
-                            pageIndex = page,
-                            sheetOpen = anySheetOpen,
                             onChannelClick = onChannelClick,
                             onCommentClick = {
                                 vm.setCommentsSheet(short.videoId)
                                 showCommentsSheet = false
-                                // also trigger legacy expandedFor
                             },
                             onDescriptionClick = {
                                 scope.launch { vm.fetchDetail(short.videoId) }
@@ -187,6 +171,14 @@ fun ShortsScreen(
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 scope.launch { snackbarHostState.showSnackbar("Added to liked shorts") }
                             },
+                            onQualitySelected = { height ->
+                                val qStr = if (height == 0) "auto" else height.toString()
+                                scope.launch { settings.setShortsQuality(qStr) }
+                                detail?.let {
+                                    // switch current player quality immediately
+                                    PlayerManager.get().switchQuality(ctx, it, height)
+                                }
+                            },
                             onVideoEnded = {
                                 scope.launch {
                                     if (page < pagerState.pageCount - 1) pagerState.animateScrollToPage(page + 1)
@@ -195,65 +187,22 @@ fun ShortsScreen(
                         )
                     }
                 }
-
-                if (state.isPaginating) {
-                    LinearProgressIndicator(
-                        modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
             }
         }
 
-        // ── Top bar – Flow's ShortsTopBar (overlay) ─────────────────────
-        if (state.shorts.isNotEmpty()) {
+        // ── Minimal top bar – only back when deep-linked ─────────────────
+        if (state.shorts.isNotEmpty() && initialVideoId != null) {
             Row(
                 modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Flow shows "Shorts" title unless source != Feed then back button
-                if (initialVideoId != null) {
-                    Surface(shape = CircleShape, color = Color.White.copy(alpha = 0.14f), modifier = Modifier.clickable { /* back via nav */ }) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(36.dp).padding(8.dp))
-                    }
-                } else {
-                    Surface(shape = RoundedCornerShape(20.dp), color = Color.White.copy(alpha = 0.14f)) {
-                        Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Icon(Icons.Filled.PlayArrow, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                            Text("Shorts", color = Color.White, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold, fontSize = 15.sp))
-                            Text("• ${pagerState.currentPage + 1} / ${state.shorts.size}", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
-                            if (state.isPaginating) {
-                                Spacer(Modifier.width(6.dp))
-                                CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 2.dp, color = Color.White)
-                            }
-                        }
-                    }
-                    Spacer(Modifier.weight(1f))
-                    Surface(shape = CircleShape, color = Color.White.copy(alpha = 0.14f)) {
-                        Icon(Icons.Filled.Search, contentDescription = "Search", tint = Color.White, modifier = Modifier.size(36.dp).padding(8.dp))
-                    }
+                Surface(shape = CircleShape, color = Color.Black.copy(alpha = 0.32f), modifier = Modifier.clickable { /* back handled by nav */ }) {
+                    Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White, modifier = Modifier.size(36.dp).padding(8.dp))
                 }
             }
         }
 
-        // ── Side dots indicator (like TikTok) – subtle ───────────────────
-        if (state.shorts.size > 8) {
-            Column(
-                Modifier.align(Alignment.CenterEnd).padding(end = 4.dp).padding(bottom = 120.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                repeat(minOf(5, state.shorts.size)) { idx ->
-                    val active = idx == (pagerState.currentPage % 5)
-                    Box(
-                        Modifier.width(if (active) 3.dp else 2.dp).height(if (active) 14.dp else 6.dp).clip(RoundedCornerShape(20.dp)).background(if (active) Color.White else Color.White.copy(alpha = 0.35f))
-                    )
-                }
-            }
-        }
-
-        // ── Comments sheet – FlowCommentsBottomSheet clone ───────────────
         val expandedDetail = expandedFor?.let { state.details[it] }
         val expandedPage = expandedFor?.let { state.comments[it] }
         if (expandedFor != null) {
@@ -331,21 +280,22 @@ fun ShortsScreen(
     }
 }
 
+@OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 private fun ShortPageFlow(
     short: com.teamshryne.wediyo.data.model.UiShort,
     detail: com.teamshryne.wediyo.data.model.UiVideoDetail?,
     thumbQ: String,
     avatarQ: String,
+    shortsQuality: String,
     isCurrent: Boolean,
-    pageIndex: Int,
-    sheetOpen: Boolean,
     onChannelClick: (String) -> Unit,
     onCommentClick: () -> Unit,
     onDescriptionClick: () -> Unit,
     onCommentsClickFlow: () -> Unit,
     onShareClick: () -> Unit,
     onLikeClick: () -> Unit,
+    onQualitySelected: (Int) -> Unit,
     onVideoEnded: () -> Unit
 ) {
     val title = detail?.title?.ifBlank { short.title } ?: short.title
@@ -353,115 +303,68 @@ private fun ShortPageFlow(
     val authorName = detail?.channelTitle?.ifBlank { detail?.author ?: "" } ?: ""
     val authorAvatar = detail?.channelAvatarUrl ?: ""
     val avatarsJson = detail?.channelAvatarsJson ?: "[]"
-    val desc = detail?.shortDescription?.ifBlank { detail?.description ?: "" } ?: ""
     val likeText = detail?.likeCountText ?: ""
     val commentCount = detail?.commentsCountText ?: ""
-    val duration = detail?.durationText ?: ""
+    val haptic = LocalHapticFeedback.current
+    val ctx = LocalContext.current
 
-    var showPauseIndicator by remember { mutableStateOf(false) }
-    var isPlayingOverlay by remember { mutableStateOf(true) }
+    var showQualitySheet by remember { mutableStateOf(false) }
     var showLikeAnim by remember { mutableStateOf(false) }
     var isFastForwarding by remember { mutableStateOf(false) }
-    var hasStarted by remember { mutableStateOf(false) }
-    val haptic = LocalHapticFeedback.current
+    var showPauseIcon by remember { mutableStateOf(false) }
+    var isPlayingState by remember { mutableStateOf(true) }
 
-    LaunchedEffect(isCurrent) { if (!isCurrent) { showPauseIndicator = false; isFastForwarding = false } }
-    LaunchedEffect(showPauseIndicator) { if (showPauseIndicator) { delay(600); showPauseIndicator = false } }
-    LaunchedEffect(showLikeAnim) { if (showLikeAnim) { delay(800); showLikeAnim = false } }
+    LaunchedEffect(isCurrent) { if (!isCurrent) { isFastForwarding = false; showPauseIcon = false } }
+    LaunchedEffect(showLikeAnim) { if (showLikeAnim) { kotlinx.coroutines.delay(800); showLikeAnim = false } }
+    LaunchedEffect(showPauseIcon) { if (showPauseIcon) { kotlinx.coroutines.delay(700); showPauseIcon = false } }
+
+    // Poll isPlaying for pause icon (player is shorts mode singleton)
+    LaunchedEffect(isCurrent) {
+        while (isCurrent) {
+            kotlinx.coroutines.delay(350)
+            PlayerManager.get().playerOrNull()?.let { p ->
+                isPlayingState = p.isPlaying
+            }
+        }
+    }
+    // also listen for immediate changes
+    DisposableEffect(isCurrent) {
+        if (!isCurrent) return@DisposableEffect onDispose {}
+        val p = PlayerManager.get().playerOrNull()
+        val l = object : androidx.media3.common.Player.Listener {
+            override fun onIsPlayingChanged(v: Boolean) { isPlayingState = v }
+        }
+        p?.addListener(l)
+        onDispose { p?.removeListener(l) }
+    }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        // Player or thumbnail
-        if (isCurrent && detail != null && (detail.formats.isNotEmpty() || detail.adaptiveFormats.isNotEmpty())) {
-            key(detail.videoId) {
-                WediyoPlayer(detail = detail, isShorts = true, modifier = Modifier.fillMaxSize())
-            }
-            LaunchedEffect(detail.videoId) { hasStarted = true }
-        } else {
-            AsyncImage(
-                model = bestThumbUrl(short.thumbsJson, short.thumbUrl, thumbQ),
-                contentDescription = title,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-                alpha = 0.96f
-            )
-            if (!hasStarted) {
-                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.12f), Color.Transparent))))
-            }
-        }
-
-        // Ambient dim gradients (Flow's VideoAmbientBackground simplified)
-        Box(Modifier.fillMaxWidth().align(Alignment.TopCenter).height(180.dp).background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.62f), Color.Transparent))))
-        Box(Modifier.fillMaxWidth().align(Alignment.BottomCenter).height(380.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.82f)))))
-
-        // Fullscreen tap / gestures layer – Flow handles center tap, double-tap like, long-press 2x
-        Box(
-            Modifier
-                .fillMaxSize()
-                .pointerInput(isCurrent, sheetOpen) {
-                    detectTapGestures(
-                        onTap = { offset ->
-                            val isCenter = offset.x in (size.width * 0.25f)..(size.width * 0.75f) && offset.y in (size.height * 0.30f)..(size.height * 0.70f)
-                            if (isCenter) {
-                                showPauseIndicator = true
-                                isPlayingOverlay = !isPlayingOverlay
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            }
-                        },
-                        onDoubleTap = {
-                            showLikeAnim = true
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onLikeClick()
-                        },
-                        onLongPress = {
-                            isFastForwarding = true
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        },
-                        onPress = {
-                            try { awaitRelease() } finally { if (isFastForwarding) isFastForwarding = false }
-                        }
-                    )
-                }
+        // Minimal player – handles tap anywhere pause/play, loading shimmer, red seek draggable
+        ShortsPlayer(
+            shortThumbJson = short.thumbsJson,
+            shortThumbUrl = short.thumbUrl,
+            shortTitle = title,
+            channelName = authorName,
+            detail = detail,
+            isCurrent = isCurrent,
+            thumbQ = thumbQ,
+            preferredQuality = shortsQuality,
+            onVideoEnded = onVideoEnded,
+            modifier = Modifier.fillMaxSize()
         )
 
-        // 2x indicator
-        AnimatedVisibility(visible = isFastForwarding, enter = slideInVertically { -it / 2 } + fadeIn(), exit = slideOutVertically { -it / 2 } + fadeOut(), modifier = Modifier.align(Alignment.TopCenter).padding(top = 88.dp)) {
-            Surface(shape = RoundedCornerShape(20.dp), color = Color.Black.copy(alpha = 0.72f)) {
-                Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Filled.FastForward, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                    Text("2× speed", color = Color.White, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
-                }
-            }
-        }
+        // Subtle bottom gradient only for text readability (much lighter than before)
+        Box(
+            Modifier.fillMaxWidth().align(Alignment.BottomCenter).height(260.dp)
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.62f))))
+        )
 
-        // Pause overlay (center)
-        AnimatedVisibility(
-            visible = showPauseIndicator && isCurrent,
-            enter = scaleIn(initialScale = 0.6f) + fadeIn(),
-            exit = scaleOut(targetScale = 1.2f) + fadeOut(),
-            modifier = Modifier.align(Alignment.Center)
-        ) {
-            Box(Modifier.size(72.dp).background(Color.Black.copy(alpha = 0.45f), CircleShape), contentAlignment = Alignment.Center) {
-                Icon(if (isPlayingOverlay) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(40.dp))
-            }
-        }
-
-        // Like heart animation (double-tap)
-        AnimatedVisibility(
-            visible = showLikeAnim,
-            enter = scaleIn(initialScale = 0.3f, animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)) + fadeIn(),
-            exit = scaleOut(targetScale = 1.4f, animationSpec = tween(400)) + fadeOut(animationSpec = tween(400)),
-            modifier = Modifier.align(Alignment.Center)
-        ) {
-            Icon(Icons.Filled.Favorite, contentDescription = null, tint = Color.Red, modifier = Modifier.size(110.dp))
-        }
-
-        // ── Right action column – Flow's ShortsOverlay (avatar + like + comment + share + more) ──
+        // ── Right action column ──
         Column(
             Modifier.align(Alignment.CenterEnd).padding(end = 10.dp, bottom = 96.dp).fillMaxHeight(),
             verticalArrangement = Arrangement.Bottom,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Avatar with follow
             Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(bottom = 18.dp)) {
                 AsyncImage(
                     model = bestThumbUrl(avatarsJson, authorAvatar, avatarQ),
@@ -479,70 +382,160 @@ private fun ShortPageFlow(
             Spacer(Modifier.height(14.dp))
             ShortActionButtonFlow(icon = Icons.Filled.Share, label = "Share", onClick = onShareClick)
             Spacer(Modifier.height(14.dp))
-            ShortActionButtonFlow(icon = Icons.Filled.MoreVert, label = "")
+            ShortActionButtonFlow(icon = Icons.Filled.MoreVert, label = "", onClick = { showQualitySheet = true })
             Spacer(Modifier.height(10.dp))
-            if (duration.isNotBlank()) {
-                Surface(shape = RoundedCornerShape(6.dp), color = Color.Black.copy(alpha = 0.56f)) { Text(duration, color = Color.White, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)) }
-            }
         }
 
-        // ── Bottom info – Flow's Shorts overlay text with shadow ──
+        // ── Bottom info – title + channel + views/date + original sound (no description preview) ──
         Column(
-            Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 12.dp, end = 78.dp, bottom = 16.dp).navigationBarsPadding(),
-            verticalArrangement = Arrangement.spacedBy(7.dp)
+            Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 12.dp, end = 78.dp, bottom = 14.dp).navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            if (authorName.isNotBlank()) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.clickable(enabled = detail?.channelId?.isNotBlank() == true) { detail?.channelId?.let { onChannelClick(it) } }) {
-                    Text("@${authorName}", color = Color.White, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold, shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.8f), blurRadius = 8f)), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    Icon(Icons.Filled.Verified, null, tint = Color(0xFF3EA6FF), modifier = Modifier.size(14.dp))
-                    Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.clickable { detail?.channelId?.let { onChannelClick(it) } }) {
-                        Text("Subscribe", color = Color.Black, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
-                    }
-                }
-            }
+            // title – clickable to open description sheet
             Text(
                 title,
                 color = Color.White,
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold, shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.7f), blurRadius = 6f)),
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.clickable { onDescriptionClick() }
             )
-            if (desc.isNotBlank() && desc != title) {
-                Text(
-                    (desc.take(140) + if (desc.length > 140) "…" else ""),
-                    color = Color.White.copy(alpha = 0.92f),
-                    style = MaterialTheme.typography.bodySmall.copy(shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.7f), blurRadius = 6f)),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.clickable { onDescriptionClick() }
-                )
+            if (authorName.isNotBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.clickable(enabled = detail?.channelId?.isNotBlank() == true) { detail?.channelId?.let { onChannelClick(it) } }) {
+                    Text(
+                        "@${authorName}",
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold, shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.8f), blurRadius = 8f)),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    Icon(Icons.Filled.Verified, null, tint = Color(0xFF3EA6FF), modifier = Modifier.size(14.dp))
+                }
             }
             val meta = buildList {
                 if (views.isNotBlank()) add(views) else if (detail != null && detail.viewCount > 0) add("${detail.viewCount} views")
-                detail?.publishDate?.takeIf { it.isNotBlank() }?.let { add(it.take(12)) }
+                detail?.publishDate?.takeIf { it.isNotBlank() }?.let { add(it.take(16)) }
             }.joinToString(" • ")
             if (meta.isNotBlank()) {
-                Surface(shape = RoundedCornerShape(20.dp), color = Color.White.copy(alpha = 0.14f)) {
-                    Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(Icons.Filled.Visibility, null, tint = Color.White, modifier = Modifier.size(12.dp))
-                        Text(meta, color = Color.White, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
+                Text(
+                    meta,
+                    color = Color.White.copy(alpha = 0.92f),
+                    style = MaterialTheme.typography.labelSmall.copy(shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.7f), blurRadius = 4f)),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.clickable { onDescriptionClick() }
+                )
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Icons.Filled.MusicNote, null, tint = Color.White, modifier = Modifier.size(12.dp))
                 Text("Original sound • ${authorName.ifBlank { "Wediyo" }}", color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.labelSmall.copy(shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.7f), blurRadius = 4f)), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             }
-            // progress handle when not current? show thin bar
-            if (!isCurrent) {
-                Box(Modifier.fillMaxWidth().height(2.dp).clip(RoundedCornerShape(1.dp)).background(Color.White.copy(alpha = 0.25f)))
+            Spacer(Modifier.height(12.dp)) // breathing room above seekbar
+        }
+
+        // 2x indicator (top center)
+        AnimatedVisibility(visible = isFastForwarding, enter = slideInVertically { -it / 2 } + fadeIn(), exit = slideOutVertically { -it / 2 } + fadeOut(), modifier = Modifier.align(Alignment.TopCenter).padding(top = 88.dp)) {
+            Surface(shape = RoundedCornerShape(20.dp), color = Color.Black.copy(alpha = 0.72f)) {
+                Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Filled.FastForward, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Text("2× speed", color = Color.White, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                }
             }
         }
 
-        if (!isCurrent || detail == null) {
-            Surface(modifier = Modifier.align(Alignment.Center).size(64.dp), shape = CircleShape, color = Color.White.copy(alpha = 0.10f)) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.PlayArrow, null, tint = Color.White, modifier = Modifier.size(32.dp)) }
+        // Pause icon fade in/out (tap anywhere)
+        AnimatedVisibility(
+            visible = showPauseIcon && isCurrent,
+            enter = fadeIn(animationSpec = tween(180)) + scaleIn(initialScale = 0.85f, animationSpec = tween(180)),
+            exit = fadeOut(animationSpec = tween(320)),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Box(Modifier.size(72.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
+                Icon(if (isPlayingState) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(40.dp))
+            }
+        }
+
+        // Like heart burst (double-tap)
+        AnimatedVisibility(
+            visible = showLikeAnim,
+            enter = scaleIn(initialScale = 0.3f, animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)) + fadeIn(),
+            exit = scaleOut(targetScale = 1.4f, animationSpec = tween(400)) + fadeOut(animationSpec = tween(400)),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Icon(Icons.Filled.Favorite, contentDescription = null, tint = Color.Red, modifier = Modifier.size(110.dp))
+        }
+
+        // Fullscreen gesture overlay – single tap pause/play, double tap like, long press 2x speed (fixed)
+        Box(
+            Modifier.fillMaxSize().pointerInput(isCurrent) {
+                detectTapGestures(
+                    onTap = {
+                        if (!isCurrent) return@detectTapGestures
+                        val p = PlayerManager.get().playerOrNull()
+                        if (p?.isPlaying == true) PlayerManager.get().pause() else PlayerManager.get().resume()
+                        // update local state immediately for icon
+                        isPlayingState = p?.isPlaying?.not() ?: false
+                        showPauseIcon = true
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    },
+                    onDoubleTap = {
+                        if (!isCurrent) return@detectTapGestures
+                        showLikeAnim = true
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onLikeClick()
+                    },
+                    onLongPress = {
+                        if (!isCurrent) return@detectTapGestures
+                        isFastForwarding = true
+                        PlayerManager.get().setSpeed(2f)
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    },
+                    onPress = {
+                        try { awaitRelease() } finally {
+                            if (isFastForwarding) {
+                                isFastForwarding = false
+                                PlayerManager.get().setSpeed(1f)
+                            }
+                        }
+                    }
+                )
+            }
+        )
+
+        // Quality sheet
+        if (showQualitySheet) {
+            val opts = detail?.let { PlayerManager.get().qualityOptions(it) } ?: emptyList()
+            // Persisted selection highlight
+            val selectedH = shortsQuality.toIntOrNull() ?: 0
+            ModalBottomSheet(onDismissRequest = { showQualitySheet = false }, containerColor = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) {
+                Column(Modifier.padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Quality", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                    Text("Selected quality will be used for all Shorts. Auto picks best.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(4.dp))
+                    val all = listOf(0) + opts
+                    all.forEach { h ->
+                        val label = if (h == 0) "Auto (recommended)" else "${h}p"
+                        val sub = if (h == 0) "Adapts to network" else "${h}p • ${if (h >= 1080) "High" else if (h >= 720) "HD" else "SD"}"
+                        val isSelected = h == selectedH
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                onQualitySelected(h)
+                                showQualitySheet = false
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
+                        ) {
+                            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Surface(shape = CircleShape, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(36.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Hd, null, modifier = Modifier.size(18.dp), tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onPrimaryContainer) } }
+                                Column(Modifier.weight(1f)) { Text(label, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface); Text(sub, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                if (isSelected) Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                }
             }
         }
     }
@@ -570,7 +563,6 @@ private fun FlowShortCommentsSheet(
     onLoadMore: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    // Cheap progress tracking: when sheet height animates, approximate
     LaunchedEffect(expandedHeight) { onProgress(0f) }
     Column(Modifier.fillMaxWidth().fillMaxHeight(0.86f).padding(horizontal = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
