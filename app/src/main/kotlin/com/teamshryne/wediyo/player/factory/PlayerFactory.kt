@@ -4,8 +4,6 @@ import android.content.Context
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -64,7 +62,6 @@ object PlayerFactory {
     }
 }
 
-// Simple holder to avoid passing context everywhere for bandwidth meter
 object AppContextHolder {
     lateinit var context: Context
     fun init(c: Context) { context = c.applicationContext }
