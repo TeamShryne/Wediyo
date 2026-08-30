@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.teamshryne.wediyo.data.prefs.SettingsManager
+import com.teamshryne.wediyo.ui.components.WediyoPlayer
 import com.teamshryne.wediyo.util.bestThumbUrl
 import kotlinx.coroutines.flow.collectLatest
 
@@ -181,11 +182,13 @@ fun ShortsScreen(
                 VerticalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
                     val short = state.shorts[page]
                     val detail = state.details[short.videoId]
+                    val isCurrent = page == pagerState.currentPage
                     ShortPage(
                         short = short,
                         detail = detail,
                         thumbQ = thumbQ,
                         avatarQ = avatarQ,
+                        isCurrent = isCurrent,
                         onChannelClick = onChannelClick,
                         onCommentClick = { vm.setCommentsSheet(short.videoId) },
                         onShareClick = {
@@ -258,6 +261,7 @@ private fun ShortPage(
     detail: com.teamshryne.wediyo.data.model.UiVideoDetail?,
     thumbQ: String,
     avatarQ: String,
+    isCurrent: Boolean = false,
     onChannelClick: (String) -> Unit,
     onCommentClick: () -> Unit,
     onShareClick: () -> Unit
@@ -273,14 +277,21 @@ private fun ShortPage(
     val duration = detail?.durationText ?: ""
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        // Blurred background fill for letterbox (thumbs are 9:16 but we fill full)
-        AsyncImage(
-            model = bestThumbUrl(short.thumbsJson, short.thumbUrl, thumbQ),
-            contentDescription = title,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-            alpha = 0.92f
-        )
+        // Fast playback for current page — Flow's gapless shorts buffer 1.5s/8s + VISIONOS direct URLs
+        if (isCurrent && detail != null && (detail.formats.isNotEmpty() || detail.adaptiveFormats.isNotEmpty())) {
+            androidx.compose.runtime.key(detail.videoId) {
+                WediyoPlayer(detail = detail, isShorts = true, modifier = Modifier.fillMaxSize())
+            }
+        } else {
+            // Thumbnail fallback while loading / for offscreen pages
+            AsyncImage(
+                model = bestThumbUrl(short.thumbsJson, short.thumbUrl, thumbQ),
+                contentDescription = title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                alpha = 0.92f
+            )
+        }
         // Vignette gradients top & bottom for legibility
         Box(
             Modifier
@@ -400,14 +411,16 @@ private fun ShortPage(
             }
         }
 
-        // Center play hint (no playback)
-        Surface(
-            modifier = Modifier.align(Alignment.Center).size(72.dp),
-            shape = CircleShape,
-            color = Color.White.copy(alpha = 0.12f)
-        ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
+        // Center play hint for non-current / thumbnail state only
+        if (!isCurrent || detail == null) {
+            Surface(
+                modifier = Modifier.align(Alignment.Center).size(72.dp),
+                shape = CircleShape,
+                color = Color.White.copy(alpha = 0.12f)
+            ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
+                }
             }
         }
     }

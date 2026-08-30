@@ -143,6 +143,72 @@ func postInnertube(session *InnertubeSession, endpoint string, body map[string]i
 	return j, resp.StatusCode, nil
 }
 
+const visionosUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15"
+const visionosVersion = "1.02"
+const visionosClientName = "VISIONOS"
+const visionosClientVersionExtra = "" // keep simple
+
+func postInnertubeWithClient(session *InnertubeSession, endpoint string, body map[string]interface{}, clientName, clientVersion, ua string) (map[string]interface{}, int, error) {
+	client := &http.Client{Timeout: 20 * time.Second}
+	urlStr := fmt.Sprintf("https://www.youtube.com/youtubei/v1/%s?prettyPrint=false&key=%s", endpoint, session.APIKey)
+	// ensure body has context.client with provided clientName/version/ua
+	if _, ok := body["context"]; !ok {
+		// fallback to normal post
+		return postInnertube(session, endpoint, body)
+	}
+	bodyBytes, _ := json.Marshal(body)
+	req, err := http.NewRequest("POST", urlStr, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, 0, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Origin", "https://www.youtube.com")
+	if vid, ok := body["videoId"].(string); ok && vid != "" {
+		req.Header.Set("Referer", "https://www.youtube.com/watch?v="+vid)
+	} else {
+		req.Header.Set("Referer", "https://www.youtube.com/")
+	}
+	req.Header.Set("X-Goog-Visitor-Id", session.VisitorData)
+	// Map clientName to Innertube clientId for header: VISIONOS -> 101, WEB -> 1, MWEB -> 2, etc.
+	clientId := "1"
+	switch clientName {
+	case "VISIONOS":
+		clientId = "101"
+	case "MWEB":
+		clientId = "2"
+	case "ANDROID":
+		clientId = "3"
+	default:
+		clientId = "1"
+	}
+	req.Header.Set("X-Youtube-Client-Name", clientId)
+	req.Header.Set("X-Youtube-Client-Version", clientVersion)
+	req.Header.Set("X-Youtube-Bootstrap-Logged-In", "false")
+	req.Header.Set("Cookie", session.CookieHeader)
+	req.Header.Set("User-Agent", ua)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, 0, fmt.Errorf("%s POST: %w", endpoint, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(resp.Body)
+		s := buf.String()
+		if len(s) > 800 {
+			s = s[:800]
+		}
+		return nil, resp.StatusCode, fmt.Errorf("%s status %d: %s", endpoint, resp.StatusCode, s)
+	}
+	var j map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&j); err != nil {
+		return nil, resp.StatusCode, fmt.Errorf("parse %s json: %w", endpoint, err)
+	}
+	return j, resp.StatusCode, nil
+}
+
 func fetchPlayer(session *InnertubeSession, videoId string) (map[string]interface{}, error) {
 	body := map[string]interface{}{
 		"videoId":        videoId,
@@ -177,6 +243,38 @@ func fetchPlayer(session *InnertubeSession, videoId string) (map[string]interfac
 	}
 	body["context"] = context
 	j, _, err := postInnertube(session, "player", body)
+	return j, err
+}
+
+func fetchPlayerVisionOS(session *InnertubeSession, videoId string) (map[string]interface{}, error) {
+	body := map[string]interface{}{
+		"videoId":        videoId,
+		"contentCheckOk": true,
+		"racyCheckOk":    true,
+	}
+	tz := "UTC"
+	if idx := strings.Index(session.Pref, "tz="); idx != -1 {
+		rest := session.Pref[idx+3:]
+		if amp := strings.Index(rest, "&"); amp != -1 {
+			tz = rest[:amp]
+		} else {
+			tz = rest
+		}
+	}
+	context := map[string]interface{}{
+		"client": map[string]interface{}{
+			"hl": "en", "gl": "US", "visitorData": session.VisitorData, "userAgent": visionosUA + ",gzip(gfe)",
+			"clientName": visionosClientName, "clientVersion": visionosVersion,
+			"osName": "visionOS", "osVersion": "26.5.23O471", "deviceMake": "Apple", "deviceModel": "RealityDevice17,1",
+			"originalUrl": "https://www.youtube.com/watch?v=" + videoId, "platform": "DESKTOP",
+			"configInfo": map[string]interface{}{}, "timeZone": tz, "browserName": "", "browserVersion": "",
+			"screenPixelDensity": 2, "clientFormFactor": "UNKNOWN_FORM_FACTOR",
+		},
+		"user":    map[string]interface{}{"lockedSafetyMode": false},
+		"request": map[string]interface{}{"useSsl": true},
+	}
+	body["context"] = context
+	j, _, err := postInnertubeWithClient(session, "player", body, visionosClientName, visionosVersion, visionosUA)
 	return j, err
 }
 
@@ -1015,6 +1113,36 @@ func parseLockupToVideo(v interface{}) *VideoMetadata {
 	}
 }
 
+func hasDirectUrls(j map[string]interface{}) bool {
+	sd, ok := j["streamingData"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	if arr, ok := sd["adaptiveFormats"].([]interface{}); ok {
+		c := 0
+		for _, e := range arr {
+			if em, ok := e.(map[string]interface{}); ok {
+				if u, ok := em["url"].(string); ok && u != "" {
+					c++
+				}
+			}
+		}
+		if c >= 3 {
+			return true
+		}
+	}
+	if arr, ok := sd["formats"].([]interface{}); ok {
+		for _, e := range arr {
+			if em, ok := e.(map[string]interface{}); ok {
+				if u, ok := em["url"].(string); ok && u != "" {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // FetchVideoDetail merges player + next for exhaustive metadata
 func FetchVideoDetail(session *InnertubeSession, videoId string) (*VideoDetailResult, error) {
 	if strings.TrimSpace(videoId) == "" {
@@ -1022,11 +1150,37 @@ func FetchVideoDetail(session *InnertubeSession, videoId string) (*VideoDetailRe
 	}
 	res := &VideoDetailResult{VideoID: videoId}
 
-	// Fetch player first (critical for streams, microformat)
-	playerJSON, err := fetchPlayer(session, videoId)
+	// Fast path: VISIONOS client gives direct URLs without cipher/n, 98 formats (Flow technique)
+	playerJSON, err := fetchPlayerVisionOS(session, videoId)
 	playerErr := err
-	if err == nil {
+	useVisionOS := false
+	if err == nil && hasDirectUrls(playerJSON) {
 		parsePlayerDetail(playerJSON, res)
+		useVisionOS = true
+	} else {
+		// fallback to WEB (ciphered but still usable for progressive)
+		playerJSON2, err2 := fetchPlayer(session, videoId)
+		if err2 == nil {
+			// if VISIONOS failed but WEB succeeded, parse WEB; if VISIONOS had partial but no direct urls, re-parse WEB over same res (WEB may have cipher but progressive url ok)
+			if !useVisionOS {
+				// clear previous partial if any? keep VISIONOS metadata but merge WEB streaming if better
+				parsePlayerDetail(playerJSON2, res)
+			} else {
+				// VISIONOS already parsed, but ensure WEB streaming fallback merged if missing
+				tmp := &VideoDetailResult{}
+				parsePlayerDetail(playerJSON2, tmp)
+				if len(res.Formats) == 0 && len(tmp.Formats) > 0 {
+					res.Formats = tmp.Formats
+				}
+				if len(res.AdaptiveFormats) == 0 && len(tmp.AdaptiveFormats) > 0 {
+					// keep ciphered adaptives as fallback (will be handled via NewPipe fallback in Kotlin)
+					res.AdaptiveFormats = tmp.AdaptiveFormats
+				}
+			}
+			playerErr = nil
+		} else if !useVisionOS {
+			playerErr = err2
+		}
 	}
 
 	// Fetch next for channel header, description, related

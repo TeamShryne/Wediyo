@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import android.content.Intent
+import androidx.annotation.OptIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -27,9 +28,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.media3.common.util.UnstableApi
 import coil.compose.AsyncImage
 import com.teamshryne.wediyo.data.prefs.SettingsManager
 import com.teamshryne.wediyo.ui.components.ChannelVideoListCard
+import com.teamshryne.wediyo.ui.components.WediyoPlayer
 import com.teamshryne.wediyo.util.bestThumbUrl
 import kotlinx.coroutines.flow.collectLatest
 
@@ -276,49 +279,15 @@ fun VideoScreen(
                     contentPadding = PaddingValues(bottom = 28.dp),
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
-                    // Hero — polished, rounded, glass play, gradient scrim
+                    // Hero — now real playback (Flow-fast: VISIONOS direct URLs + cache + preload, all qualities)
                     item {
+                        @OptIn(UnstableApi::class)
                         Box(
                             Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 10.dp).clip(RoundedCornerShape(20.dp)).background(Color.Black).aspectRatio(16f / 9f)
                         ) {
-                            AsyncImage(
-                                model = bestThumbUrl(d.thumbnailsJson, d.thumbnailUrl, thumbQ),
-                                contentDescription = d.title,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                            // bottom gradient for legibility
-                            Box(
-                                Modifier.fillMaxWidth().align(Alignment.BottomCenter).height(72.dp)
-                                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.72f))))
-                            )
-                            // glass play button
-                            Surface(
-                                modifier = Modifier.align(Alignment.Center).size(64.dp),
-                                shape = CircleShape,
-                                color = Color.White.copy(alpha = 0.16f),
-                                tonalElevation = 0.dp,
-                                shadowElevation = 0.dp
-                            ) {
-                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Box(Modifier.size(48.dp).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Filled.PlayArrow, contentDescription = "Play", tint = Color.Black, modifier = Modifier.size(28.dp).offset(x = 1.dp))
-                                    }
-                                }
-                            }
-                            // duration pill
-                            if (d.durationText.isNotBlank()) {
-                                Surface(
-                                    modifier = Modifier.align(Alignment.BottomEnd).padding(10.dp),
-                                    shape = RoundedCornerShape(20.dp),
-                                    color = Color.Black.copy(alpha = 0.78f)
-                                ) {
-                                    Row(Modifier.padding(horizontal = 9.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Icon(Icons.Filled.DateRange, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
-                                        Text(d.durationText, color = Color.White, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold))
-                                    }
-                                }
-                            }
+                            // Fast playback: Go VISIONOS gives 98 formats direct urls; ExoPlayer cache + 5Mbps BW + 20s/45s buffers
+                            WediyoPlayer(detail = d, isShorts = false, modifier = Modifier.fillMaxSize())
+                            // Live badge overlay on top of player
                             if (d.isLive) {
                                 Surface(modifier = Modifier.align(Alignment.TopStart).padding(10.dp), shape = RoundedCornerShape(20.dp), color = Color(0xFFFF1A1A)) {
                                     Row(Modifier.padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
