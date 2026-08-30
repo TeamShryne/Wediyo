@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -21,7 +22,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.rounded.*
@@ -73,7 +73,7 @@ fun VideoScreen(
     LaunchedEffect(Unit) { settings.avatarQuality.collectLatest { avatarQ = it } }
     LaunchedEffect(videoId) { vm.load(videoId) }
 
-    // Apply fullscreen orientation / insets
+    // Apply fullscreen orientation / insets - no recreate due to configChanges
     LaunchedEffect(isFullscreen) {
         val activity = ctx as? Activity ?: return@LaunchedEffect
         val window = activity.window
@@ -90,6 +90,8 @@ fun VideoScreen(
         }
     }
 
+    BackHandler(enabled = isFullscreen) { isFullscreen = false }
+
     val listState = rememberLazyListState()
     LaunchedEffect(listState.firstVisibleItemIndex, state.relatedContinuation) {
         val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
@@ -99,7 +101,7 @@ fun VideoScreen(
         }
     }
 
-    // Fullscreen: only player
+    // Fullscreen overlay - reuses same PlayerManager instance, no restart
     if (isFullscreen && state.detail != null) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             WediyoPlayer(
@@ -114,36 +116,11 @@ fun VideoScreen(
         return
     }
 
-    Scaffold(
-        topBar = {
-            // Flow hides topBar when fullscreen; here subtle CenterAlignedTopAppBar like before but more minimal
-            CenterAlignedTopAppBar(
-                title = { Text("Now watching", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
-                },
-                actions = {
-                    IconButton(onClick = {
-                        state.detail?.let { det ->
-                            val url = det.canonicalUrl.ifBlank { "https://www.youtube.com/watch?v=${det.videoId}" }
-                            val send = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, "${det.title}\n$url")
-                                putExtra(Intent.EXTRA_SUBJECT, det.title)
-                            }
-                            try { ctx.startActivity(Intent.createChooser(send, "Share")) } catch (_: Exception) {}
-                        }
-                    }) { Icon(Icons.Outlined.Share, contentDescription = "Share") }
-                    IconButton(onClick = { state.detail?.let { vm.setDetailsSheet(true) } }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f))
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { pad ->
+    // Normal - sticky player pinned at top, scroll content below
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         when {
             state.isLoading -> {
-                Box(Modifier.fillMaxSize().padding(pad), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         CircularProgressIndicator(strokeWidth = 3.dp)
                         Text("Loading…", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -151,7 +128,7 @@ fun VideoScreen(
                 }
             }
             state.error != null -> {
-                Box(Modifier.fillMaxSize().padding(pad).padding(24.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                     Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.18f))) {
                         Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(40.dp))
@@ -171,7 +148,6 @@ fun VideoScreen(
             state.detail != null -> {
                 val d = state.detail!!
 
-                // Sheets
                 if (state.showDetailsSheet) {
                     FlowDescriptionSheet(d = d, expandedDesc = state.expandedDesc, onToggleDesc = { vm.toggleDesc() }, onDismiss = { vm.setDetailsSheet(false) })
                 }
@@ -198,13 +174,23 @@ fun VideoScreen(
 
                 val isWide = config.screenWidthDp >= 840
                 if (isWide) {
-                    // Tablet / foldable two-pane like Flow's WIDE mode
-                    Row(Modifier.fillMaxSize().padding(pad)) {
-                        LazyColumn(state = listState, modifier = Modifier.weight(0.60f).fillMaxHeight(), contentPadding = PaddingValues(bottom = 24.dp)) {
-                            item { FlowPlayerHero(d = d, isFullscreen = isFullscreen, onFullscreen = { isFullscreen = true }) }
-                            item { FlowVideoInfoSection(videoDetail = d, ctx = ctx, avatarQ = avatarQ, likeCount = d.likeCount, viewCount = d.viewCount, onChannelClick = { onChannelClick(d.channelId) }, onShare = { shareVideo(ctx, d) }, onDownload = { vm.setDetailsSheet(true) }, onSave = { vm.setDetailsSheet(true) }, onDescriptionClick = { vm.setDetailsSheet(true) }) }
-                            item { FlowVideoActionRowFlow(d = d, ctx = ctx, onLike = {}, onDislike = {}, onShare = { shareVideo(ctx, d) }, onSave = {}, onDownload = { vm.setDetailsSheet(true) }, onCopyLink = { copyLink(ctx, d, withTimestamp = false) }, onCopyLinkAtTime = { copyLink(ctx, d, withTimestamp = true) }) }
-                            item { FlowCommentsPreview(comments = state.comments, countText = state.commentsCount ?: d.commentsCountText, avatarQ = avatarQ, onClick = { vm.setCommentsSheet(true) }) }
+                    Row(Modifier.fillMaxSize()) {
+                        Column(Modifier.weight(0.60f).fillMaxHeight()) {
+                            // Sticky player - pinned
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .statusBarsPadding()
+                                    .background(Color.Black)
+                                    .aspectRatio(16f / 9f)
+                            ) {
+                                WediyoPlayer(detail = d, isShorts = false, modifier = Modifier.fillMaxSize(), isFullscreen = false, onFullscreenToggle = { isFullscreen = true })
+                            }
+                            LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(bottom = 24.dp)) {
+                                item { FlowVideoInfoSection(videoDetail = d, ctx = ctx, avatarQ = avatarQ, likeCount = d.likeCount, viewCount = d.viewCount, onChannelClick = { onChannelClick(d.channelId) }, onShare = { shareVideo(ctx, d) }, onDownload = { vm.setDetailsSheet(true) }, onSave = { vm.setDetailsSheet(true) }, onDescriptionClick = { vm.setDetailsSheet(true) }) }
+                                item { FlowVideoActionRowFlow(d = d, ctx = ctx, onLike = {}, onDislike = {}, onShare = { shareVideo(ctx, d) }, onSave = {}, onDownload = { vm.setDetailsSheet(true) }, onCopyLink = { copyLink(ctx, d, withTimestamp = false) }, onCopyLinkAtTime = { copyLink(ctx, d, withTimestamp = true) }) }
+                                item { FlowCommentsPreview(comments = state.comments, countText = state.commentsCount ?: d.commentsCountText, avatarQ = avatarQ, onClick = { vm.setCommentsSheet(true) }) }
+                            }
                         }
                         LazyColumn(modifier = Modifier.weight(0.40f).fillMaxHeight(), contentPadding = PaddingValues(bottom = 24.dp)) {
                             item { Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { Text("Up next", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold)); if (state.related.isNotEmpty()) Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.secondaryContainer) { Text("${state.related.size}", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)) } } }
@@ -213,28 +199,48 @@ fun VideoScreen(
                         }
                     }
                 } else {
-                    LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(bottom = 28.dp)) {
-                        item { FlowPlayerHero(d = d, isFullscreen = isFullscreen, onFullscreen = { isFullscreen = true }) }
-                        item { FlowVideoInfoSection(videoDetail = d, ctx = ctx, avatarQ = avatarQ, likeCount = d.likeCount, viewCount = d.viewCount, onChannelClick = { onChannelClick(d.channelId) }, onShare = { shareVideo(ctx, d) }, onDownload = { vm.setDetailsSheet(true) }, onSave = { vm.setDetailsSheet(true) }, onDescriptionClick = { vm.setDetailsSheet(true) }) }
-                        item { FlowVideoActionRowFlow(d = d, ctx = ctx, onLike = {}, onDislike = {}, onShare = { shareVideo(ctx, d) }, onSave = {}, onDownload = { vm.setDetailsSheet(true) }, onCopyLink = { copyLink(ctx, d, withTimestamp = false) }, onCopyLinkAtTime = { copyLink(ctx, d, withTimestamp = true) }) }
-                        item { FlowCommentsPreview(comments = state.comments, countText = state.commentsCount ?: d.commentsCountText, avatarQ = avatarQ, onClick = { vm.setCommentsSheet(true) }) }
-                        // Up next header
-                        item {
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 18.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("Up next", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold))
-                                if (state.related.isNotEmpty()) Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.secondaryContainer) { Text("${state.related.size}", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)) }
-                                Spacer(Modifier.weight(1f))
-                                Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)) { Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) { Icon(Icons.Filled.AutoAwesome, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary); Text("For you", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold)) } }
+                    Column(Modifier.fillMaxSize()) {
+                        // Sticky player - pinned, starts right after status bar
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .statusBarsPadding()
+                                .background(Color.Black)
+                                .aspectRatio(16f / 9f)
+                        ) {
+                            WediyoPlayer(detail = d, isShorts = false, modifier = Modifier.fillMaxSize(), isFullscreen = false, onFullscreenToggle = { isFullscreen = true })
+                            if (d.isLive) {
+                                androidx.compose.foundation.layout.Box(modifier = Modifier.align(Alignment.TopStart).padding(10.dp)) {
+                                    Surface(shape = RoundedCornerShape(4.dp), color = Color(0xFFFF0000)) {
+                                        Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Box(Modifier.size(6.dp).clip(CircleShape).background(Color.White))
+                                            Text("LIVE", color = Color.White, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold, fontSize = 11.sp))
+                                        }
+                                    }
+                                }
                             }
                         }
-                        if (state.related.isNotEmpty()) {
-                            items(state.related.size) { idx -> val v = state.related[idx]; Box(Modifier.padding(horizontal = 0.dp)) { ChannelVideoListCard(video = v, thumbQuality = thumbQ, onClick = { onVideoClick(v.id) }) } }
-                            if (state.relatedLoading) item { Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(22.dp)) } }
-                            else if (state.relatedContinuation != null) item { Box(Modifier.fillMaxWidth().padding(14.dp), contentAlignment = Alignment.Center) { OutlinedButton(onClick = { vm.loadMoreRelated() }, shape = RoundedCornerShape(24.dp)) { Icon(Icons.Filled.ExpandMore, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Load more") } } }
-                        } else {
+                        LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 28.dp)) {
+                            item { FlowVideoInfoSection(videoDetail = d, ctx = ctx, avatarQ = avatarQ, likeCount = d.likeCount, viewCount = d.viewCount, onChannelClick = { onChannelClick(d.channelId) }, onShare = { shareVideo(ctx, d) }, onDownload = { vm.setDetailsSheet(true) }, onSave = { vm.setDetailsSheet(true) }, onDescriptionClick = { vm.setDetailsSheet(true) }) }
+                            item { FlowVideoActionRowFlow(d = d, ctx = ctx, onLike = {}, onDislike = {}, onShare = { shareVideo(ctx, d) }, onSave = {}, onDownload = { vm.setDetailsSheet(true) }, onCopyLink = { copyLink(ctx, d, withTimestamp = false) }, onCopyLinkAtTime = { copyLink(ctx, d, withTimestamp = true) }) }
+                            item { FlowCommentsPreview(comments = state.comments, countText = state.commentsCount ?: d.commentsCountText, avatarQ = avatarQ, onClick = { vm.setCommentsSheet(true) }) }
                             item {
-                                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 8.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
-                                    Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) { Icon(Icons.Filled.PlayCircle, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(28.dp)); Text("No related videos yet", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+                                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 18.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("Up next", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold))
+                                    if (state.related.isNotEmpty()) Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.secondaryContainer) { Text("${state.related.size}", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)) }
+                                    Spacer(Modifier.weight(1f))
+                                    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)) { Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) { Icon(Icons.Filled.AutoAwesome, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary); Text("For you", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold)) } }
+                                }
+                            }
+                            if (state.related.isNotEmpty()) {
+                                items(state.related.size) { idx -> val v = state.related[idx]; Box(Modifier.padding(horizontal = 0.dp)) { ChannelVideoListCard(video = v, thumbQuality = thumbQ, onClick = { onVideoClick(v.id) }) } }
+                                if (state.relatedLoading) item { Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(22.dp)) } }
+                                else if (state.relatedContinuation != null) item { Box(Modifier.fillMaxWidth().padding(14.dp), contentAlignment = Alignment.Center) { OutlinedButton(onClick = { vm.loadMoreRelated() }, shape = RoundedCornerShape(24.dp)) { Icon(Icons.Filled.ExpandMore, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Load more") } } }
+                            } else {
+                                item {
+                                    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 8.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
+                                        Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) { Icon(Icons.Filled.PlayCircle, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(28.dp)); Text("No related videos yet", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+                                    }
                                 }
                             }
                         }
@@ -250,7 +256,6 @@ private fun FlowPlayerHero(d: UiVideoDetail, isFullscreen: Boolean, onFullscreen
     Box(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = if (isFullscreen) 0.dp else 0.dp)
             .background(Color.Black)
             .aspectRatio(16f / 9f)
     ) {
@@ -282,7 +287,6 @@ private fun FlowVideoInfoSection(
     onDescriptionClick: () -> Unit
 ) {
     Column(Modifier.fillMaxWidth().padding(12.dp)) {
-        // Title – Flow uses titleLarge 20sp bold, maxLines from prefs, long-press copy
         Text(
             text = videoDetail.title,
             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 20.sp, lineHeight = 26.sp),
@@ -298,7 +302,6 @@ private fun FlowVideoInfoSection(
                 }
             )
         )
-        // views • date + ...more
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             val views = videoDetail.viewCountText.ifBlank { if (viewCount > 0) formatCompact(viewCount) + " views" else "" }
             val date = videoDetail.publishDate.ifBlank { videoDetail.uploadDate }
@@ -313,7 +316,6 @@ private fun FlowVideoInfoSection(
             Text("  …more", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.clickable { onDescriptionClick() })
         }
         Spacer(Modifier.height(10.dp))
-        // Channel row – Flow's ChannelAvatarStack + SubscribeButton
         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Row(Modifier.weight(1f).clickable { onChannelClick() }, verticalAlignment = Alignment.CenterVertically) {
                 AsyncImage(
@@ -375,7 +377,6 @@ private fun FlowVideoActionRowFlow(
 ) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
         item {
-            // Segmented like/dislike – Flow's pill with divider
             Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f), modifier = Modifier.height(36.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Row(Modifier.clickable { onLike() }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {

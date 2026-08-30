@@ -33,6 +33,8 @@ class PlayerManager private constructor() {
     private var player: ExoPlayer? = null
     private var context: Context? = null
     private var isShortsMode: Boolean = false
+    var lastVideoId: String? = null
+        private set
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying
@@ -58,6 +60,7 @@ class PlayerManager private constructor() {
 
     fun playDetail(context: Context, detail: UiVideoDetail, startMs: Long = 0, isShorts: Boolean = false, preferredHeight: Int? = null) {
         val p = ensure(context, isShorts)
+        lastVideoId = detail.videoId
         val source = buildSource(context, detail, preferredHeight)
         if (source == null) return
         p.setMediaSource(source, startMs)
