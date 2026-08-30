@@ -1,7 +1,7 @@
 package com.teamshryne.wediyo.ui.components
 
 import android.view.ViewGroup
-import androidx.annotation.OptIn
+import kotlin.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
