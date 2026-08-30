@@ -280,7 +280,7 @@ fun ShortsScreen(
     }
 }
 
-@OptIn(androidx.media3.common.util.UnstableApi::class)
+@OptIn(androidx.media3.common.util.UnstableApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun ShortPageFlow(
     short: com.teamshryne.wediyo.data.model.UiShort,
