@@ -93,7 +93,6 @@ dependencies {
     implementation(libs.androidx.media3.datasource)
     implementation(libs.androidx.media3.datasource.okhttp)
     implementation(libs.okhttp)
-    implementation(libs.newpipe.extractor)
 
     // Go gomobile AAR — committed by go.yml to app/libs/wediyo.aar
     implementation(files("libs/wediyo.aar"))
