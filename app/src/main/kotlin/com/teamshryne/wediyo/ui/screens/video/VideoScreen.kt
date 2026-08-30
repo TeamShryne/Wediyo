@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import android.content.Intent
 import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -36,7 +37,7 @@ import com.teamshryne.wediyo.ui.components.WediyoPlayer
 import com.teamshryne.wediyo.util.bestThumbUrl
 import kotlinx.coroutines.flow.collectLatest
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, UnstableApi::class)
 @Composable
 fun VideoScreen(
     videoId: String,
@@ -281,7 +282,6 @@ fun VideoScreen(
                 ) {
                     // Hero — now real playback (Flow-fast: VISIONOS direct URLs + cache + preload, all qualities)
                     item {
-                        @OptIn(UnstableApi::class)
                         Box(
                             Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 10.dp).clip(RoundedCornerShape(20.dp)).background(Color.Black).aspectRatio(16f / 9f)
                         ) {

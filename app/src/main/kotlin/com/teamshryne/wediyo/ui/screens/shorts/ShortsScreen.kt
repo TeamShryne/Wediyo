@@ -26,11 +26,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.teamshryne.wediyo.data.prefs.SettingsManager
+import androidx.media3.common.util.UnstableApi
 import com.teamshryne.wediyo.ui.components.WediyoPlayer
 import com.teamshryne.wediyo.util.bestThumbUrl
 import kotlinx.coroutines.flow.collectLatest
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, UnstableApi::class)
 @Composable
 fun ShortsScreen(
     initialVideoId: String? = null,
