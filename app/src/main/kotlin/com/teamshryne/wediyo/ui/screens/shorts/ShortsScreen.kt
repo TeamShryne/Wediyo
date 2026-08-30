@@ -338,8 +338,24 @@ private fun ShortPageFlow(
         onDispose { p?.removeListener(l) }
     }
 
+    // Seek state for red bar – lifted out of ShortsPlayer so it stays tappable
+    var currentPos by remember { mutableStateOf(0L) }
+    var duration by remember { mutableStateOf(0L) }
+    var bufferedPct by remember { mutableStateOf(0f) }
+    LaunchedEffect(isCurrent) {
+        while (isCurrent) {
+            kotlinx.coroutines.delay(220)
+            PlayerManager.get().playerOrNull()?.let { p ->
+                currentPos = p.currentPosition
+                val d = p.duration.coerceAtLeast(0L)
+                if (d > 0) duration = d
+                if (d > 0) bufferedPct = (p.bufferedPosition.toFloat() / d).coerceIn(0f, 1f)
+            }
+        }
+    }
+
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        // Minimal player – handles tap anywhere pause/play, loading shimmer, red seek draggable
+        // Minimal player – only video + loading shimmer (no seek, no gesture)
         ShortsPlayer(
             shortThumbJson = short.thumbsJson,
             shortThumbUrl = short.thumbUrl,
@@ -353,11 +369,62 @@ private fun ShortPageFlow(
             modifier = Modifier.fillMaxSize()
         )
 
+        // Fullscreen gesture overlay – placed BEHIND UI so buttons/text receive clicks first
+        Box(
+            Modifier.fillMaxSize().pointerInput(isCurrent) {
+                detectTapGestures(
+                    onTap = {
+                        if (!isCurrent) return@detectTapGestures
+                        val p = PlayerManager.get().playerOrNull()
+                        if (p?.isPlaying == true) PlayerManager.get().pause() else PlayerManager.get().resume()
+                        isPlayingState = p?.isPlaying?.not() ?: false
+                        showPauseIcon = true
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    },
+                    onDoubleTap = {
+                        if (!isCurrent) return@detectTapGestures
+                        showLikeAnim = true
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onLikeClick()
+                    },
+                    onLongPress = {
+                        if (!isCurrent) return@detectTapGestures
+                        isFastForwarding = true
+                        PlayerManager.get().setSpeed(2f)
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    },
+                    onPress = {
+                        try { awaitRelease() } finally {
+                            if (isFastForwarding) {
+                                isFastForwarding = false
+                                PlayerManager.get().setSpeed(1f)
+                            }
+                        }
+                    }
+                )
+            }
+        )
+
         // Subtle bottom gradient only for text readability (much lighter than before)
         Box(
             Modifier.fillMaxWidth().align(Alignment.BottomCenter).height(260.dp)
                 .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.62f))))
         )
+
+        // Red seekbar – draggable, always visible, sits ABOVE gesture so it remains interactive
+        if (isCurrent && duration > 0) {
+            ShortsSeekBar(
+                position = currentPos,
+                duration = duration,
+                bufferedPct = bufferedPct,
+                onSeek = { pct ->
+                    val ms = (pct * duration).toLong().coerceIn(0L, duration)
+                    PlayerManager.get().seekTo(ms)
+                    currentPos = ms
+                },
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(bottom = 2.dp)
+            )
+        }
 
         // ── Right action column ──
         Column(
@@ -465,43 +532,6 @@ private fun ShortPageFlow(
         ) {
             Icon(Icons.Filled.Favorite, contentDescription = null, tint = Color.Red, modifier = Modifier.size(110.dp))
         }
-
-        // Fullscreen gesture overlay – single tap pause/play, double tap like, long press 2x speed (fixed)
-        Box(
-            Modifier.fillMaxSize().pointerInput(isCurrent) {
-                detectTapGestures(
-                    onTap = {
-                        if (!isCurrent) return@detectTapGestures
-                        val p = PlayerManager.get().playerOrNull()
-                        if (p?.isPlaying == true) PlayerManager.get().pause() else PlayerManager.get().resume()
-                        // update local state immediately for icon
-                        isPlayingState = p?.isPlaying?.not() ?: false
-                        showPauseIcon = true
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    },
-                    onDoubleTap = {
-                        if (!isCurrent) return@detectTapGestures
-                        showLikeAnim = true
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onLikeClick()
-                    },
-                    onLongPress = {
-                        if (!isCurrent) return@detectTapGestures
-                        isFastForwarding = true
-                        PlayerManager.get().setSpeed(2f)
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    },
-                    onPress = {
-                        try { awaitRelease() } finally {
-                            if (isFastForwarding) {
-                                isFastForwarding = false
-                                PlayerManager.get().setSpeed(1f)
-                            }
-                        }
-                    }
-                )
-            }
-        )
 
         // Quality sheet
         if (showQualitySheet) {

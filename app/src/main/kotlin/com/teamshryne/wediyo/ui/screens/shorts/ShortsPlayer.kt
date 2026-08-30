@@ -56,9 +56,6 @@ fun ShortsPlayer(
     var isPlaying by remember { mutableStateOf(false) }
     var isBuffering by remember { mutableStateOf(false) }
     var isReady by remember { mutableStateOf(false) }
-    var currentPos by remember { mutableStateOf(0L) }
-    var duration by remember { mutableStateOf(0L) }
-    var bufferedPct by remember { mutableStateOf(0f) }
     var hasEverReady by remember { mutableStateOf(false) }
 
     val preferredHeight = remember(preferredQuality) { preferredQuality.toIntOrNull() }
@@ -80,8 +77,6 @@ fun ShortsPlayer(
                 if (state == Player.STATE_READY) {
                     isReady = true
                     hasEverReady = true
-                    duration = p.duration.coerceAtLeast(0L)
-                    bufferedPct = if (p.duration > 0) p.bufferedPosition.toFloat() / p.duration else 0f
                 }
                 if (state == Player.STATE_ENDED) {
                     isPlaying = false
@@ -91,19 +86,12 @@ fun ShortsPlayer(
                     isReady = false
                 }
             }
-            override fun onEvents(player: Player, events: Player.Events) {
-                duration = player.duration.coerceAtLeast(0L)
-                if (player.duration > 0) {
-                    bufferedPct = (player.bufferedPosition.toFloat() / player.duration).coerceIn(0f, 1f)
-                }
-            }
         }
         p.addListener(listener)
         // init snapshot
         isPlaying = p.isPlaying
         isBuffering = p.playbackState == Player.STATE_BUFFERING
         isReady = p.playbackState == Player.STATE_READY
-        duration = p.duration.coerceAtLeast(0L)
         onDispose { p.removeListener(listener) }
     }
 
@@ -119,23 +107,6 @@ fun ShortsPlayer(
         }
         lifecycle.addObserver(obs)
         onDispose { lifecycle.removeObserver(obs) }
-    }
-
-    // poll position
-    LaunchedEffect(player, isCurrent) {
-        while (true) {
-            delay(200)
-            player?.let { p ->
-                if (isCurrent) {
-                    currentPos = p.currentPosition
-                    val d = p.duration.coerceAtLeast(0L)
-                    if (d > 0) duration = d
-                    if (d > 0) bufferedPct = (p.bufferedPosition.toFloat() / d).coerceIn(0f, 1f)
-                    isPlaying = p.isPlaying
-                    isBuffering = p.playbackState == Player.STATE_BUFFERING
-                }
-            }
-        }
     }
 
     val showLoading = isCurrent && (detail == null || !hasEverReady || isBuffering)
@@ -173,21 +144,6 @@ fun ShortsPlayer(
                     GlowingChannelName(name = channelName.ifBlank { shortTitle.take(24) })
                 }
             }
-        }
-
-        // Red seekbar at bottom – draggable, always visible when duration>0 and current
-        if (isCurrent && duration > 0) {
-            ShortsSeekBar(
-                position = currentPos,
-                duration = duration,
-                bufferedPct = bufferedPct,
-                onSeek = { pct ->
-                    val ms = (pct * duration).toLong().coerceIn(0L, duration)
-                    PlayerManager.get().seekTo(ms)
-                    currentPos = ms
-                },
-                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(bottom = 2.dp)
-            )
         }
     }
 }
@@ -240,7 +196,7 @@ private fun GlowingChannelName(name: String) {
 }
 
 @Composable
-private fun ShortsSeekBar(
+fun ShortsSeekBar(
     position: Long,
     duration: Long,
     bufferedPct: Float,
