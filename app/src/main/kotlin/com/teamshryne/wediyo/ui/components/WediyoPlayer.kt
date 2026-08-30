@@ -78,7 +78,7 @@ fun WediyoPlayer(
         val sameId = PlayerManager.get().lastVideoId == detail.videoId
         val pos = if (sameId) p.currentPosition else 0L
         // If same id and already ready/buffering, just attach and resume
-        if (sameId && (p.playbackState == Player.STATE_READY || p.playbackState == Player.STATE_BUFFERING || p.playbackState == Player.STATE_IDLE.not())) {
+        if (sameId && p.playbackState != Player.STATE_IDLE && p.playbackState != Player.STATE_ENDED) {
             // don't re-prepare if same video already loaded and duration known
             if (p.duration > 0 || p.isPlaying) {
                 // just ensure view attached
