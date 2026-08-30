@@ -38,6 +38,7 @@ fun SearchScreen(
     onShowClick: (String) -> Unit = {},
     onPodcastClick: (String) -> Unit = {},
     onVideoClick: (String) -> Unit = {},
+    onShortClick: (String) -> Unit = {},
     vm: SearchViewModel = viewModel()
 ) {
     val state by vm.state.collectAsState()
@@ -231,7 +232,7 @@ fun SearchScreen(
 
                     // Shorts shelf
                     if (r.shorts.isNotEmpty()) {
-                        item { ShortsShelf(r.shorts, thumbQ) { vid -> onVideoClick(vid) } }
+                        item { ShortsShelf(r.shorts, thumbQ) { vid -> onShortClick(vid) } }
                     }
 
                     // Videos

@@ -28,41 +28,61 @@ class ShortsViewModel : ViewModel() {
 
     private val shortsParams by lazy { FilterParamsBuilder.build(type = "Shorts", duration = "", uploadDate = "", features = emptyList(), prioritize = "") }
 
-    fun loadInitial() {
+    private val feedQueries = listOf(
+        "shorts" to shortsParams,
+        "trending shorts" to shortsParams,
+        "funny shorts" to shortsParams,
+        "viral shorts" to shortsParams,
+        "comedy shorts" to shortsParams,
+        "music shorts" to shortsParams,
+        "dance shorts" to shortsParams
+    )
+
+    fun loadInitial(initialVideoId: String? = null) {
         if (_state.value.shorts.isNotEmpty() && !_state.value.isLoading) return
         _state.value = _state.value.copy(isLoading = true, error = null)
         viewModelScope.launch {
             try {
-                // Try Shorts filter first, fallback to plain "shorts" search
-                val queries = listOf("shorts" to shortsParams, "trending shorts" to shortsParams, "shorts" to "")
+                // Randomize query each app open so feed isn't identical
+                val shuffledQueries = feedQueries.shuffled(kotlin.random.Random(System.currentTimeMillis()))
                 var lastErr: Exception? = null
-                for ((q, p) in queries) {
+                var loadedShorts: List<UiShort> = emptyList()
+                var cont: String? = null
+                for ((q, p) in shuffledQueries) {
                     try {
                         val res = WediyoEngine.search(q, "", p)
-                        // repo.search wraps searchWithParams; directly use WediyoEngine via search
-                        // Use distinct call via WediyoEngine.search handles params
-                        val shorts = res.shorts
+                        val shorts = res.shorts.shuffled(kotlin.random.Random(System.nanoTime()))
                         if (shorts.isNotEmpty()) {
-                            _state.value = ShortsUiState(
-                                isLoading = false,
-                                shorts = shorts,
-                                continuation = res.continuation.takeIf { it.isNotBlank() },
-                            )
-                            // prefetch detail for first 3
-                            shorts.take(3).forEach { fetchDetail(it.videoId) }
-                            return@launch
+                            loadedShorts = shorts
+                            cont = res.continuation.takeIf { it.isNotBlank() }
+                            break
                         }
                     } catch (e: Exception) { lastErr = e }
                 }
-                // fallback: fetch via search without params using a generic popular query
-                val fallback = WediyoEngine.search("a", "", "")
-                val shorts = fallback.shorts
-                if (shorts.isNotEmpty()) {
-                    _state.value = ShortsUiState(isLoading = false, shorts = shorts, continuation = fallback.continuation.takeIf { it.isNotBlank() })
-                    shorts.take(3).forEach { fetchDetail(it.videoId) }
-                } else {
-                    _state.value = _state.value.copy(isLoading = false, error = lastErr?.message ?: "No shorts found")
+                if (loadedShorts.isEmpty()) {
+                    // fallback: generic query
+                    val fallback = WediyoEngine.search("a", "", "")
+                    loadedShorts = fallback.shorts.shuffled(kotlin.random.Random(System.nanoTime()))
+                    cont = fallback.continuation.takeIf { it.isNotBlank() }
+                    if (loadedShorts.isEmpty()) {
+                        _state.value = _state.value.copy(isLoading = false, error = lastErr?.message ?: "No shorts found")
+                        return@launch
+                    }
                 }
+                // If initialVideoId provided (deep link from search/channel), ensure it is first and deduped
+                if (!initialVideoId.isNullOrBlank()) {
+                    val initial = UiShort(videoId = initialVideoId, title = "", thumbUrl = "https://i.ytimg.com/vi/$initialVideoId/hqdefault.jpg", thumbsJson = "[]", views = "")
+                    val filtered = loadedShorts.filterNot { it.videoId == initialVideoId }
+                    loadedShorts = listOf(initial) + filtered
+                    // fetch its detail immediately for rich header
+                    fetchDetail(initialVideoId)
+                }
+                _state.value = ShortsUiState(
+                    isLoading = false,
+                    shorts = loadedShorts,
+                    continuation = cont
+                )
+                loadedShorts.take(3).forEach { fetchDetail(it.videoId) }
             } catch (e: Exception) {
                 _state.value = _state.value.copy(isLoading = false, error = e.message ?: "Failed to load shorts")
             }
