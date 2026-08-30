@@ -15,7 +15,7 @@ androidx-test-ext-junit = "1.2.1"
 espresso-core = "3.6.1"
 media3 = "1.7.1"
 okhttp = "4.12.0"
-newpipe = "0.24.1"
+newpipe = "0.26.5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core-ktx" }
