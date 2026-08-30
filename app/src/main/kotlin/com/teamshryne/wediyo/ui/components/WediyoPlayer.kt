@@ -28,7 +28,7 @@ import com.teamshryne.wediyo.data.model.UiVideoDetail
 import com.teamshryne.wediyo.player.PlayerManager
 import kotlinx.coroutines.delay
 
-@OptIn(UnstableApi::class)
+@OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun WediyoPlayer(
     detail: UiVideoDetail,
@@ -121,7 +121,7 @@ fun WediyoPlayer(
             ) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Icon(
-                        if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        if (isPlaying) Icons.Filled.PlayArrow else Icons.Filled.PlayArrow,
                         contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp)
                     )
                 }
@@ -146,7 +146,7 @@ fun WediyoPlayer(
                 )
                 IconButton(onClick = { showQualitySheet = true }) { Icon(Icons.Filled.Info, contentDescription = "Quality", tint = Color.White) }
                 IconButton(onClick = { showSpeedSheet = true }) { Icon(Icons.Filled.PlayArrow, contentDescription = "Speed", tint = Color.White) }
-                if (onFullscreenToggle != null) IconButton(onClick = onFullscreenToggle) { Icon(Icons.Filled.AspectRatio, contentDescription = "Fullscreen", tint = Color.White) }
+                if (onFullscreenToggle != null) IconButton(onClick = onFullscreenToggle) { Icon(Icons.Filled.Info, contentDescription = "Fullscreen", tint = Color.White) }
             }
         }
 
@@ -185,7 +185,7 @@ fun WediyoPlayer(
                         if (isPlaying) PlayerManager.get().pause() else PlayerManager.get().resume()
                     }) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Icon(if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = null, tint = Color.Black, modifier = Modifier.size(28.dp))
+                            Icon(if (isPlaying) Icons.Filled.PlayArrow else Icons.Filled.PlayArrow, contentDescription = null, tint = Color.Black, modifier = Modifier.size(28.dp))
                         }
                     }
                     IconButton(onClick = { PlayerManager.get().seekTo((currentPos + 10000).coerceAtMost(duration)) }) { Icon(Icons.Filled.Refresh, contentDescription = "Fwd 10", tint = Color.White) }
