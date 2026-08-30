@@ -32,7 +32,7 @@ import kotlinx.coroutines.flow.collectLatest
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShortsScreen(
-    onVideoClick: (String) -> Unit = {},
+    initialVideoId: String? = null,
     onChannelClick: (String) -> Unit = {},
     vm: ShortsViewModel = viewModel()
 ) {
@@ -43,7 +43,7 @@ fun ShortsScreen(
     var avatarQ by remember { mutableStateOf("high") }
     LaunchedEffect(Unit) { settings.thumbQuality.collectLatest { thumbQ = it } }
     LaunchedEffect(Unit) { settings.avatarQuality.collectLatest { avatarQ = it } }
-    LaunchedEffect(Unit) { vm.loadInitial() }
+    LaunchedEffect(initialVideoId) { vm.loadInitial(initialVideoId) }
 
     val pagerState = rememberPagerState(initialPage = 0) { state.shorts.size }
 
@@ -187,7 +187,6 @@ fun ShortsScreen(
                         thumbQ = thumbQ,
                         avatarQ = avatarQ,
                         onChannelClick = onChannelClick,
-                        onVideoClick = onVideoClick,
                         onCommentClick = { vm.setCommentsSheet(short.videoId) },
                         onShareClick = {
                             val url = detail?.canonicalUrl?.ifBlank { "https://www.youtube.com/watch?v=${short.videoId}" } ?: "https://www.youtube.com/watch?v=${short.videoId}"
@@ -260,7 +259,6 @@ private fun ShortPage(
     thumbQ: String,
     avatarQ: String,
     onChannelClick: (String) -> Unit,
-    onVideoClick: (String) -> Unit,
     onCommentClick: () -> Unit,
     onShareClick: () -> Unit
 ) {
@@ -274,7 +272,7 @@ private fun ShortPage(
     val commentCount = detail?.commentsCountText ?: ""
     val duration = detail?.durationText ?: ""
 
-    Box(Modifier.fillMaxSize().background(Color.Black).clickable { onVideoClick(short.videoId) }) {
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
         // Blurred background fill for letterbox (thumbs are 9:16 but we fill full)
         AsyncImage(
             model = bestThumbUrl(short.thumbsJson, short.thumbUrl, thumbQ),

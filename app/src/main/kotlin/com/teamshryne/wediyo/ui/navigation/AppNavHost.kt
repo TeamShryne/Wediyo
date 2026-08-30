@@ -42,6 +42,9 @@ sealed class Screen(val route: String) {
     object Video : Screen("video/{videoId}") {
         fun route(videoId: String) = "video/$videoId"
     }
+    object ShortPlayer : Screen("short/{videoId}") {
+        fun route(videoId: String) = "short/$videoId"
+    }
 }
 
 @Composable
@@ -56,7 +59,8 @@ fun AppNavHost(nav: NavHostController, start: String = Screen.Home.route) {
                 onCourseClick = { pid -> nav.navigate(Screen.Course.route(pid)) },
                 onShowClick = { pid -> nav.navigate(Screen.Show.route(pid)) },
                 onPodcastClick = { pid -> nav.navigate(Screen.Podcast.route(pid)) },
-                onVideoClick = { vid -> nav.navigate(Screen.Video.route(vid)) }
+                onVideoClick = { vid -> nav.navigate(Screen.Video.route(vid)) },
+                onShortClick = { vid -> nav.navigate(Screen.ShortPlayer.route(vid)) }
             )
         }
         composable(Screen.Channel.route) { backStackEntry ->
@@ -69,7 +73,7 @@ fun AppNavHost(nav: NavHostController, start: String = Screen.Home.route) {
                 onShowClick = { pid -> nav.navigate(Screen.Show.route(pid)) },
                 onPodcastClick = { pid -> nav.navigate(Screen.Podcast.route(pid)) },
                 onVideoClick = { vid -> nav.navigate(Screen.Video.route(vid)) },
-                onShortClick = { vid -> nav.navigate(Screen.Video.route(vid)) }
+                onShortClick = { vid -> nav.navigate(Screen.ShortPlayer.route(vid)) }
             )
         }
         composable(Screen.Playlist.route) { backStackEntry ->
@@ -100,7 +104,14 @@ fun AppNavHost(nav: NavHostController, start: String = Screen.Home.route) {
         composable(Screen.Settings.route) { SettingsScreen(onBack = { nav.popBackStack() }) }
         composable(Screen.Shorts.route) {
             ShortsScreen(
-                onVideoClick = { vid -> nav.navigate(Screen.Video.route(vid)) },
+                initialVideoId = null,
+                onChannelClick = { bid -> nav.navigate(Screen.Channel.route(bid)) }
+            )
+        }
+        composable(Screen.ShortPlayer.route) { backStackEntry ->
+            val vid = backStackEntry.arguments?.getString("videoId") ?: ""
+            ShortsScreen(
+                initialVideoId = vid,
                 onChannelClick = { bid -> nav.navigate(Screen.Channel.route(bid)) }
             )
         }
