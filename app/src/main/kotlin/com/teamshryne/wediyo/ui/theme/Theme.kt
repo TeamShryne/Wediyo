@@ -11,6 +11,7 @@ private val DarkColorScheme = darkColorScheme(
     primary = Color.White,
     onPrimary = Color.Black,
     primaryContainer = DarkSurfaceVariant,
+    onPrimaryContainer = Color.White,
     secondary = Color(0xFFAAAAAA),
     secondaryContainer = DarkSurfaceVariant,
     tertiary = RedPrimary,
@@ -53,8 +54,8 @@ fun WediyoTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        darkTheme -> DarkColorScheme
+    val colorScheme = when (darkTheme) {
+        true -> DarkColorScheme
         else -> LightColorScheme
     }
 

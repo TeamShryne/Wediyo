@@ -149,14 +149,19 @@ fun ShortsScreen(
                             isCurrent = isCurrent,
                             onChannelClick = onChannelClick,
                             onCommentClick = {
-                                vm.setCommentsSheet(short.videoId)
+                                showDescriptionSheet = false
                                 showCommentsSheet = false
+                                vm.setCommentsSheet(short.videoId)
                             },
                             onDescriptionClick = {
+                                vm.setCommentsSheet(null)
+                                showCommentsSheet = false
                                 scope.launch { vm.fetchDetail(short.videoId) }
                                 showDescriptionSheet = true
                             },
                             onCommentsClickFlow = {
+                                showCommentsSheet = false
+                                showDescriptionSheet = false
                                 vm.setCommentsSheet(short.videoId)
                             },
                             onShareClick = {
@@ -172,10 +177,9 @@ fun ShortsScreen(
                                 scope.launch { snackbarHostState.showSnackbar("Added to liked shorts") }
                             },
                             onQualitySelected = { height ->
-                                val qStr = if (height == 0) "auto" else height.toString()
+                                val qStr = if (height == 0) "auto" else "${height}p"
                                 scope.launch { settings.setShortsQuality(qStr) }
                                 detail?.let {
-                                    // switch current player quality immediately
                                     PlayerManager.get().switchQuality(ctx, it, height)
                                 }
                             },
@@ -537,7 +541,7 @@ private fun ShortPageFlow(
         if (showQualitySheet) {
             val opts = detail?.let { PlayerManager.get().qualityOptions(it) } ?: emptyList()
             // Persisted selection highlight
-            val selectedH = shortsQuality.toIntOrNull() ?: 0
+            val selectedH = shortsQuality.lowercase().removeSuffix("p").trim().toIntOrNull() ?: 0
             ModalBottomSheet(onDismissRequest = { showQualitySheet = false }, containerColor = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) {
                 Column(Modifier.padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Quality", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))

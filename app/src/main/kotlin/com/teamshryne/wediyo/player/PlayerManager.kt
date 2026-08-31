@@ -68,9 +68,10 @@ class PlayerManager private constructor() {
         p.playWhenReady = true
     }
 
-    fun playDetailWithQuality(context: Context, detail: UiVideoDetail, quality: String, startMs: Long = 0) {
-        val h = quality.toIntOrNull() // "auto" -> null
-        playDetail(context, detail, startMs, isShorts = true, preferredHeight = h)
+    fun playDetailWithQuality(context: Context, detail: UiVideoDetail, quality: String, startMs: Long = 0, isShorts: Boolean = false) {
+        val cleaned = quality.lowercase().removeSuffix("p").trim()
+        val h = cleaned.toIntOrNull() // "auto" -> null
+        playDetail(context, detail, startMs, isShorts = isShorts, preferredHeight = h)
     }
 
     fun playUrl(context: Context, url: String, isShorts: Boolean = false) {
@@ -92,16 +93,19 @@ class PlayerManager private constructor() {
     fun resume() { player?.play() }
     fun seekTo(ms: Long) { player?.seekTo(ms) }
 
-    // Build MediaSource: priority dash/hls → Merging video+audio adaptive → single progressive
+    // Build MediaSource: respect preferredHeight for quality selection.
+    // When user explicitly selects a height, force merging path even if DASH/HLS exists, so quality actually changes.
     private fun buildSource(context: Context, d: UiVideoDetail, preferredHeight: Int? = null): androidx.media3.exoplayer.source.MediaSource? {
-        // Prefer dash/hls if available (YouTube pre-generated)
-        if (d.dashManifestUrl.isNotBlank()) {
-            val ds = YouTubeDataSource.factory(context)
-            return DashMediaSource.Factory(ds).createMediaSource(MediaItem.fromUri(d.dashManifestUrl))
-        }
-        if (d.hlsManifestUrl.isNotBlank()) {
-            val ds = YouTubeDataSource.factory(context)
-            return HlsMediaSource.Factory(ds).createMediaSource(MediaItem.fromUri(d.hlsManifestUrl))
+        val hasQualityPreference = preferredHeight != null && preferredHeight > 0
+        if (!hasQualityPreference) {
+            if (d.dashManifestUrl.isNotBlank()) {
+                val ds = YouTubeDataSource.factory(context)
+                return DashMediaSource.Factory(ds).createMediaSource(MediaItem.fromUri(d.dashManifestUrl))
+            }
+            if (d.hlsManifestUrl.isNotBlank()) {
+                val ds = YouTubeDataSource.factory(context)
+                return HlsMediaSource.Factory(ds).createMediaSource(MediaItem.fromUri(d.hlsManifestUrl))
+            }
         }
         // Separate adaptive video+audio (VISIONOS gives direct urls)
         val videoFormats = d.adaptiveFormats.filter { !it.isAudio && it.url.isNotBlank() }
@@ -149,29 +153,49 @@ class PlayerManager private constructor() {
         return raw.substringBefore(";").trim().ifBlank { MimeTypes.VIDEO_MP4 }
     }
 
-    // Quality switch: rebuild source with chosen height, keep position
+    // Quality switch: rebuild source with chosen height, keep position.
+    // Works even when original source was DASH/HLS by falling back to merging adaptive formats.
     fun switchQuality(context: Context, detail: UiVideoDetail, height: Int) {
         val p = player ?: return
         val pos = p.currentPosition
         val wasPlaying = p.isPlaying
         val videoFormats = detail.adaptiveFormats.filter { !it.isAudio && it.url.isNotBlank() }
         val audioFormats = detail.adaptiveFormats.filter { it.isAudio && it.url.isNotBlank() }.sortedByDescending { it.bitrate }
-        val target = if (height == 0) {
-            videoFormats.maxByOrNull { it.height } // auto = best
-        } else {
-            videoFormats.filter { it.height == height }.maxByOrNull { it.bitrate }
-                ?: videoFormats.minByOrNull { kotlin.math.abs(it.height - height) }
-        } ?: return
-        val audio = audioFormats.firstOrNull() ?: return
-        val src = merging(context, target.url, audio.url, pickMime(target.mimeType), pickMime(audio.mimeType))
+
+        // If we have adaptive formats, use merging path (preferred for quality control)
+        if (videoFormats.isNotEmpty() && audioFormats.isNotEmpty()) {
+            val target = if (height == 0) {
+                videoFormats.maxByOrNull { it.height } // auto = best
+            } else {
+                videoFormats.filter { it.height == height }.maxByOrNull { it.bitrate }
+                    ?: videoFormats.minByOrNull { kotlin.math.abs(it.height - height) }
+            } ?: return
+            val audio = audioFormats.firstOrNull() ?: return
+            val src = merging(context, target.url, audio.url, pickMime(target.mimeType), pickMime(audio.mimeType))
+            p.setMediaSource(src, pos)
+            p.prepare()
+            p.playWhenReady = wasPlaying
+            return
+        }
+        // Fallback: if only progressive formats or DASH/HLS with no adaptive list, rebuild via buildSource with preference
+        val fallbackHeight = if (height == 0) null else height
+        val src = buildSource(context, detail, fallbackHeight) ?: return
         p.setMediaSource(src, pos)
         p.prepare()
         p.playWhenReady = wasPlaying
     }
 
     fun qualityOptions(detail: UiVideoDetail): List<Int> {
-        return detail.adaptiveFormats.filter { !it.isAudio && it.url.isNotBlank() }
+        val adaptive = detail.adaptiveFormats.filter { !it.isAudio && it.url.isNotBlank() }
             .map { it.height }.distinct().sortedDescending()
+        if (adaptive.isNotEmpty()) return adaptive
+        // Fallback to progressive formats if adaptive empty (still offer what we have)
+        return detail.formats.filter { it.url.isNotBlank() }.map { it.height }.filter { it > 0 }.distinct().sortedDescending()
+    }
+
+    fun currentQualityHeight(): Int? {
+        val p = player as? ExoPlayer ?: return null
+        return p.videoFormat?.height?.takeIf { it > 0 } ?: p.videoSize.height.takeIf { it > 0 }
     }
 
     fun speedOptions(): List<Float> = listOf(0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)

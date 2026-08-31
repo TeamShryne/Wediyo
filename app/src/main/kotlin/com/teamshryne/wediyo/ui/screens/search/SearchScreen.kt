@@ -162,7 +162,7 @@ fun SearchScreen(
                             ) {
                                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                                     AsyncImage(
-                                        model = bestThumbUrl(r.topicAvatarsJson ?: "[]", r.topicAvatar ?: "", "high"),
+                                        model = bestThumbUrl(r.topicAvatarsJson ?: "[]", r.topicAvatar ?: "", avatarQ),
                                         contentDescription = t,
                                         modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFF222222)),
                                         contentScale = ContentScale.Crop

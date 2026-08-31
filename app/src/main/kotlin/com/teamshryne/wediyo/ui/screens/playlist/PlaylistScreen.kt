@@ -113,7 +113,7 @@ fun PlaylistScreen(playlistId: String, onBack: () -> Unit, vm: PlaylistViewModel
                                             try { ctx.startActivity(Intent(Intent.ACTION_VIEW, "https://www.youtube.com/channel/$cid".toUri())) } catch (_: Exception) {}
                                         }
                                     }) {
-                                        val av = bestThumbUrl(header.channelAvatarsJson ?: "[]", header.channelAvatarUrl ?: "", "high")
+                                        val av = bestThumbUrl(header.channelAvatarsJson ?: "[]", header.channelAvatarUrl ?: "", thumbQ)
                                         if (av.isNotBlank()) {
                                             AsyncImage(model = av, contentDescription = header.channelName, modifier = Modifier.size(24.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
                                             Spacer(Modifier.width(8.dp))

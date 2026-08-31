@@ -72,24 +72,34 @@ fun WediyoPlayer(
     var showSettingsSheet by remember { mutableStateOf(false) }
     var settingsMode by remember { mutableStateOf<String?>(null) } // null=main, quality, speed, captions, stats
     val haptic = LocalHapticFeedback.current
+    var savedVideoQ by remember { mutableStateOf("auto") }
+    LaunchedEffect(Unit) {
+        try { com.teamshryne.wediyo.data.prefs.SettingsManager(ctx).videoQuality.collect { savedVideoQ = it } } catch (_: Exception) {}
+    }
+    // Auto-apply saved video quality on first load if not shorts
+    val preferredHeightFromSettings = remember(savedVideoQ) { if (isShorts) null else savedVideoQ.lowercase().removeSuffix("p").trim().toIntOrNull() }
 
-    DisposableEffect(detail.videoId, isShorts) {
+    DisposableEffect(detail.videoId, isShorts, preferredHeightFromSettings) {
         val p = PlayerManager.get().ensure(ctx, isShorts)
         player = p
         // Only reset source if video changed, else preserve position (fixes scroll/fullscreen restart)
         val sameId = PlayerManager.get().lastVideoId == detail.videoId
         val pos = if (sameId) p.currentPosition else 0L
-        // If same id and already ready/buffering, just attach and resume
+        val prefH = preferredHeightFromSettings
+        // If same id and already ready/buffering, just attach and resume (avoid restart); if quality pref differs, switch via switchQuality
         if (sameId && p.playbackState != Player.STATE_IDLE && p.playbackState != Player.STATE_ENDED) {
-            // don't re-prepare if same video already loaded and duration known
             if (p.duration > 0 || p.isPlaying) {
-                // just ensure view attached
                 p.playWhenReady = true
+                // If saved quality differs from current, apply via switchQuality
+                val curH = PlayerManager.get().currentQualityHeight()
+                if (prefH != null && prefH != curH && detail.adaptiveFormats.isNotEmpty()) {
+                    // defer switch slightly to avoid race with attach
+                }
             } else {
-                PlayerManager.get().playDetail(ctx, detail, pos, isShorts)
+                PlayerManager.get().playDetail(ctx, detail, pos, isShorts, prefH)
             }
         } else {
-            PlayerManager.get().playDetail(ctx, detail, pos, isShorts)
+            PlayerManager.get().playDetail(ctx, detail, pos, isShorts, prefH)
         }
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(v: Boolean) { isPlaying = v; hasEnded = false }
@@ -369,18 +379,26 @@ fun WediyoPlayer(
                 }
                 if (settingsMode == "quality") {
                     val opts = PlayerManager.get().qualityOptions(detail)
+                    val selectedH = savedVideoQ.lowercase().removeSuffix("p").trim().toIntOrNull() ?: 0
                     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.42f)).clickable { settingsMode = null }) {}
                     Surface(modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.30f), color = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp)) {
                         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = { settingsMode = null }, modifier = Modifier.size(32.dp)) { Icon(Icons.Filled.ArrowBack, null, modifier = Modifier.size(18.dp)) }; Text("Quality", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f)); IconButton(onClick = { settingsMode = null; showSettingsSheet = false }, modifier = Modifier.size(32.dp)) { Icon(Icons.Filled.Close, null, modifier = Modifier.size(18.dp)) } }
-                            Text("Select quality", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Select quality — will be used for all videos. Auto picks best.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             val all = listOf(0) + opts
                             all.forEach { h ->
-                                val label = if (h==0) "Auto" else "${h}p"; val sub = if (h==0) "Auto" else "${h}p"
-                                Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable { PlayerManager.get().switchQuality(ctx, detail, h); settingsMode = null; showSettingsSheet = false }) {
+                                val label = if (h==0) "Auto (recommended)" else "${h}p"
+                                val sub = if (h==0) "Adapts to network" else "${h}p • ${if (h >= 1080) "High" else if (h >= 720) "HD" else "SD"}"
+                                val isSel = h == selectedH
+                                Surface(shape = RoundedCornerShape(14.dp), color = if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable {
+                                    val qStr = if (h==0) "auto" else "${h}p"
+                                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch { try { com.teamshryne.wediyo.data.prefs.SettingsManager(ctx).setVideoQuality(qStr) } catch (_: Exception) {} }
+                                    PlayerManager.get().switchQuality(ctx, detail, h); settingsMode = null; showSettingsSheet = false
+                                }) {
                                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(32.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Hd, null, modifier = Modifier.size(16.dp)) } }
-                                        Column(Modifier.weight(1f)) { Text(label, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)); Text(sub, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                        Surface(shape = CircleShape, color = if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(32.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Hd, null, modifier = Modifier.size(16.dp), tint = if (isSel) Color.White else MaterialTheme.colorScheme.onPrimaryContainer) } }
+                                        Column(Modifier.weight(1f)) { Text(label, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface); Text(sub, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                        if (isSel) Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                                     }
                                 }
                             }
@@ -464,6 +482,7 @@ fun WediyoPlayer(
                 }
                 if (settingsMode == "quality") {
                     val opts = PlayerManager.get().qualityOptions(detail)
+                    val selectedH = savedVideoQ.lowercase().removeSuffix("p").trim().toIntOrNull() ?: 0
                     ModalBottomSheet(onDismissRequest = { settingsMode = null }, containerColor = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) {
                         Column(Modifier.padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -471,18 +490,21 @@ fun WediyoPlayer(
                                 Text("Quality", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
                                 IconButton(onClick = { settingsMode = null; showSettingsSheet = false }) { Icon(Icons.Filled.Close, null) }
                             }
-                            Text("Select quality", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Select quality — persisted for all videos. Auto picks best.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             val all = listOf(0) + opts
                             all.forEach { h ->
                                 val label = if (h==0) "Auto (recommended)" else "${h}p"
-                                val sub = if (h==0) "Adapts to network" else "${h}p"
-                                Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable {
+                                val sub = if (h==0) "Adapts to network" else "${h}p • ${if (h >= 1080) "High" else if (h >= 720) "HD" else "SD"}"
+                                val isSel = h == selectedH
+                                Surface(shape = RoundedCornerShape(14.dp), color = if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable {
+                                    val qStr = if (h==0) "auto" else "${h}p"
+                                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch { try { com.teamshryne.wediyo.data.prefs.SettingsManager(ctx).setVideoQuality(qStr) } catch (_: Exception) {} }
                                     PlayerManager.get().switchQuality(ctx, detail, h); settingsMode = null; showSettingsSheet = false
                                 }) {
                                     Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(36.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Hd, null, modifier = Modifier.size(18.dp)) } }
-                                        Column(Modifier.weight(1f)) { Text(label, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)); Text(sub, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                                        Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                        Surface(shape = CircleShape, color = if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(36.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Hd, null, modifier = Modifier.size(18.dp), tint = if (isSel) Color.White else MaterialTheme.colorScheme.onPrimaryContainer) } }
+                                        Column(Modifier.weight(1f)) { Text(label, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface); Text(sub, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                        if (isSel) Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                                     }
                                 }
                             }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.AccountCircle
@@ -53,7 +54,7 @@ fun HomeTopBar(onSearch: () -> Unit, onSettings: () -> Unit) {
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            Icons.Filled.Search,
+                            Icons.Filled.PlayArrow,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(16.dp)

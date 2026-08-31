@@ -103,7 +103,7 @@ fun ChannelScreen(
                         if (h != null) {
                             Column(Modifier.fillMaxWidth()) {
                                 if (h.bannerUrl.isNotBlank() || h.bannersJson != "[]") {
-                                    val bannerUrl = bestThumbUrl(h.bannersJson, h.bannerUrl, "high")
+                                    val bannerUrl = bestThumbUrl(h.bannersJson, h.bannerUrl, thumbQ)
                                     AsyncImage(model = bannerUrl, contentDescription = null, modifier = Modifier.fillMaxWidth().height(140.dp).background(Color(0xFF111111)), contentScale = ContentScale.Crop)
                                 }
                                 Row(Modifier.fillMaxWidth().clickable { vm.selectAboutTab() }.padding(16.dp), verticalAlignment = Alignment.Top) {
@@ -195,7 +195,7 @@ fun ChannelScreen(
                                         row.forEach { s ->
                                             Column(Modifier.weight(1f).clickable { onShortClick(s.videoId) }) {
                                                 Box(Modifier.fillMaxWidth().aspectRatio(9f/16f).clip(RoundedCornerShape(12.dp)).background(Color(0xFF111111))) {
-                                                    AsyncImage(model = bestThumbUrl(s.thumbsJson, s.thumbUrl, "high"), contentDescription = s.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                                    AsyncImage(model = bestThumbUrl(s.thumbsJson, s.thumbUrl, thumbQ), contentDescription = s.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                                 }
                                                 Spacer(Modifier.height(6.dp))
                                                 Text(s.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium), modifier = Modifier.padding(horizontal = 2.dp))
@@ -247,7 +247,7 @@ fun ChannelScreen(
                                     val p = state.podcastsList[idx]
                                     Row(Modifier.fillMaxWidth().clickable { onPodcastClick(p.browseId.ifBlank { p.podcastId }) }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF111111))) {
-                                            AsyncImage(model = bestThumbUrl(p.thumbsJson, p.thumbUrl, "high"), contentDescription = p.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                            AsyncImage(model = bestThumbUrl(p.thumbsJson, p.thumbUrl, thumbQ), contentDescription = p.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                             if (p.episodeCountText.isNotBlank()) Box(Modifier.align(Alignment.BottomEnd).padding(4.dp).background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 2.dp)) { Text(p.episodeCountText, color = Color.White, style = MaterialTheme.typography.labelSmall) }
                                         }
                                         Spacer(Modifier.width(12.dp))
@@ -272,7 +272,7 @@ fun ChannelScreen(
                                     val pl = state.playlistsList[idx]
                                     Row(Modifier.fillMaxWidth().clickable { onPlaylistClick(pl.playlistId) }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF111111))) {
-                                            AsyncImage(model = bestThumbUrl(pl.thumbsJson, pl.thumbUrl, "high"), contentDescription = pl.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                            AsyncImage(model = bestThumbUrl(pl.thumbsJson, pl.thumbUrl, thumbQ), contentDescription = pl.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                             if (pl.videoCountText.isNotBlank()) Box(Modifier.align(Alignment.BottomEnd).padding(4.dp).background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 2.dp)) { Text(pl.videoCountText, color = Color.White, style = MaterialTheme.typography.labelSmall) }
                                         }
                                         Spacer(Modifier.width(12.dp))
@@ -326,7 +326,7 @@ fun ChannelScreen(
                                                     if (post.images.isNotEmpty()) {
                                                         Spacer(Modifier.height(8.dp))
                                                         val img = post.images[0]
-                                                        val url = bestThumbUrl(img.thumbsJson, img.url, "high")
+                                                        val url = bestThumbUrl(img.thumbsJson, img.url, thumbQ)
                                                         AsyncImage(model = url, contentDescription = null, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFF111111)), contentScale = ContentScale.Crop)
                                                     }
                                                 }
@@ -335,7 +335,7 @@ fun ChannelScreen(
                                                         Spacer(Modifier.height(8.dp))
                                                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                                             items(post.images) { img ->
-                                                                val url = bestThumbUrl(img.thumbsJson, img.url, "high")
+                                                                val url = bestThumbUrl(img.thumbsJson, img.url, thumbQ)
                                                                 AsyncImage(model = url, contentDescription = null, modifier = Modifier.size(160.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF111111)), contentScale = ContentScale.Crop)
                                                             }
                                                         }
@@ -366,7 +366,7 @@ fun ChannelScreen(
                                         }
                                     }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF111111))) {
-                                            AsyncImage(model = bestThumbUrl(prod.thumbsJson, prod.thumbUrl, "high"), contentDescription = prod.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                            AsyncImage(model = bestThumbUrl(prod.thumbsJson, prod.thumbUrl, thumbQ), contentDescription = prod.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                         }
                                         Spacer(Modifier.width(12.dp))
                                         Column(Modifier.weight(1f)) {
@@ -390,7 +390,7 @@ fun ChannelScreen(
                                     val c = state.coursesList[idx]
                                     Row(Modifier.fillMaxWidth().clickable { onCourseClick(c.browseId.ifBlank { c.playlistId }) }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF111111))) {
-                                            AsyncImage(model = bestThumbUrl(c.thumbsJson, c.thumbUrl, "high"), contentDescription = c.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                            AsyncImage(model = bestThumbUrl(c.thumbsJson, c.thumbUrl, thumbQ), contentDescription = c.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                             if (c.videoCountText.isNotBlank()) Box(Modifier.align(Alignment.BottomEnd).padding(4.dp).background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 2.dp)) { Text(c.videoCountText, color = Color.White, style = MaterialTheme.typography.labelSmall) }
                                         }
                                         Spacer(Modifier.width(12.dp))
@@ -413,7 +413,7 @@ fun ChannelScreen(
                                     val s = state.showsList[idx]
                                     Row(Modifier.fillMaxWidth().clickable { onShowClick(s.browseId.ifBlank { s.showId }) }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Box(Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF111111))) {
-                                            AsyncImage(model = bestThumbUrl(s.thumbsJson, s.thumbUrl, "high"), contentDescription = s.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                            AsyncImage(model = bestThumbUrl(s.thumbsJson, s.thumbUrl, thumbQ), contentDescription = s.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                             if (s.episodeCountText.isNotBlank()) Box(Modifier.align(Alignment.BottomEnd).padding(4.dp).background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 2.dp)) { Text(s.episodeCountText, color = Color.White, style = MaterialTheme.typography.labelSmall) }
                                         }
                                         Spacer(Modifier.width(12.dp))
@@ -460,7 +460,7 @@ fun ChannelScreen(
                                                         try { ctx.startActivity(Intent(Intent.ACTION_VIEW, finalUrl.toUri())) } catch (_: Exception) {}
                                                     }
                                                 }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                                    val fav = bestThumbUrl(link.faviconsJson, link.faviconUrl, "high")
+                                                    val fav = bestThumbUrl(link.faviconsJson, link.faviconUrl, thumbQ)
                                                     if (fav.isNotBlank()) {
                                                         AsyncImage(model = fav, contentDescription = link.title, modifier = Modifier.size(24.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFEEEEEE)), contentScale = ContentScale.Crop)
                                                     } else {

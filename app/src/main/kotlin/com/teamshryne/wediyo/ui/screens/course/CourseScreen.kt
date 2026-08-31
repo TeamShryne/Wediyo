@@ -125,7 +125,7 @@ fun CourseScreen(playlistId: String, onBack: () -> Unit, vm: CourseViewModel = v
                                         val cid = h.channelId
                                         if (cid.isNotBlank()) try { ctx.startActivity(Intent(Intent.ACTION_VIEW, "https://www.youtube.com/channel/$cid".toUri())) } catch (_: Exception) {}
                                     }) {
-                                        val av = bestThumbUrl(h.channelAvatarsJson ?: "[]", h.channelAvatarUrl ?: "", "high")
+                                        val av = bestThumbUrl(h.channelAvatarsJson ?: "[]", h.channelAvatarUrl ?: "", thumbQ)
                                         if (av.isNotBlank()) {
                                             AsyncImage(model = av, contentDescription = h.channelName, modifier = Modifier.size(28.dp).clip(RoundedCornerShape(14.dp)), contentScale = ContentScale.Crop)
                                             Spacer(Modifier.width(8.dp))

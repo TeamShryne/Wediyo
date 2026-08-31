@@ -50,7 +50,7 @@ sealed class Screen(val route: String) {
 @Composable
 fun AppNavHost(nav: NavHostController, start: String = Screen.Home.route) {
     NavHost(navController = nav, startDestination = start) {
-        composable(Screen.Home.route) { HomeScreen(onSearch = { nav.navigate(Screen.Search.route) }, onSettings = { nav.navigate(Screen.Settings.route) }) }
+        composable(Screen.Home.route) { HomeScreen(onSearch = { nav.navigate(Screen.Search.route) }, onSettings = { nav.navigate(Screen.Settings.route) }, onShorts = { nav.navigate(Screen.Shorts.route) }, onLibrary = { nav.navigate(Screen.Library.route) }) }
         composable(Screen.Search.route) {
             SearchScreen(
                 onBack = { nav.popBackStack() },

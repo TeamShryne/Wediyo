@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.teamshryne.wediyo.ui.components.HomeTopBar
 
 @Composable
-fun HomeScreen(onSearch: () -> Unit, onSettings: () -> Unit) {
+fun HomeScreen(onSearch: () -> Unit, onSettings: () -> Unit, onShorts: () -> Unit = onSearch, onLibrary: () -> Unit = onSearch) {
     Scaffold(
         topBar = { HomeTopBar(onSearch = onSearch, onSettings = onSettings) },
         containerColor = MaterialTheme.colorScheme.background,
@@ -160,14 +160,14 @@ fun HomeScreen(onSearch: () -> Unit, onSettings: () -> Unit) {
                             subtitle = "Quick vertical",
                             icon = Icons.Filled.PlayArrow,
                             modifier = Modifier.weight(1f),
-                            onClick = onSearch
+                            onClick = onShorts
                         )
                         ExploreCard(
                             title = "Playlists",
                             subtitle = "Curated sets",
                             icon = Icons.Filled.Person,
                             modifier = Modifier.weight(1f),
-                            onClick = onSearch
+                            onClick = onLibrary
                         )
                     }
                 }

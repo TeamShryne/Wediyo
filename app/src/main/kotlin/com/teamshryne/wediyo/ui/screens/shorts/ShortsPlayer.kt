@@ -58,18 +58,24 @@ fun ShortsPlayer(
     var isReady by remember { mutableStateOf(false) }
     var hasEverReady by remember { mutableStateOf(false) }
 
-    val preferredHeight = remember(preferredQuality) { preferredQuality.toIntOrNull() }
+    val cleanedQuality = remember(preferredQuality) { preferredQuality.lowercase().removeSuffix("p").trim() }
+    val preferredHeight = remember(cleanedQuality) { cleanedQuality.toIntOrNull() }
 
-    // Attach player and start playback when isCurrent + detail
-    DisposableEffect(detail?.videoId, isCurrent, preferredHeight) {
+    // Attach player and start playback when isCurrent + detail — do NOT recreate on quality change alone (handled via switchQuality)
+    DisposableEffect(detail?.videoId, isCurrent) {
         if (!isCurrent || detail == null || (detail.formats.isEmpty() && detail.adaptiveFormats.isEmpty())) {
             onDispose { }
             return@DisposableEffect onDispose { }
         }
         val p = PlayerManager.get().ensure(ctx, isShorts = true)
         player = p
-        // play with preferred quality
-        PlayerManager.get().playDetail(ctx, detail, 0, isShorts = true, preferredHeight = preferredHeight)
+        // play with preferred quality only on initial load; subsequent quality changes use switchQuality to preserve position
+        val isSameVideo = PlayerManager.get().lastVideoId == detail.videoId && p.playbackState != Player.STATE_IDLE
+        if (isSameVideo) {
+            // Already playing this video, don't restart at 0. If quality changed elsewhere, switchQuality already handled it.
+        } else {
+            PlayerManager.get().playDetail(ctx, detail, 0, isShorts = true, preferredHeight = preferredHeight)
+        }
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(v: Boolean) { isPlaying = v }
             override fun onPlaybackStateChanged(state: Int) {
@@ -107,6 +113,14 @@ fun ShortsPlayer(
         }
         lifecycle.addObserver(obs)
         onDispose { lifecycle.removeObserver(obs) }
+    }
+
+    // When quality changes while this page is current, switch smoothly preserving position
+    LaunchedEffect(preferredHeight) {
+        if (isCurrent && detail != null && hasEverReady) {
+            val h = preferredHeight ?: 0
+            PlayerManager.get().switchQuality(ctx, detail, h)
+        }
     }
 
     val showLoading = isCurrent && (detail == null || !hasEverReady || isBuffering)

@@ -21,8 +21,7 @@ fun LibraryScreen() {
     Box(
         Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .statusBarsPadding(),
+            .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
         Column(

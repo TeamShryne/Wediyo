@@ -24,9 +24,13 @@ fun SettingsScreen(onBack: () -> Unit) {
     var thumbQ by remember { mutableStateOf("high") }
     var avatarQ by remember { mutableStateOf("high") }
     var theme by remember { mutableStateOf("system") }
+    var shortsQ by remember { mutableStateOf("auto") }
+    var videoQ by remember { mutableStateOf("auto") }
     LaunchedEffect(Unit) { mgr.thumbQuality.collect { thumbQ = it } }
     LaunchedEffect(Unit) { mgr.avatarQuality.collect { avatarQ = it } }
     LaunchedEffect(Unit) { mgr.theme.collect { theme = it } }
+    LaunchedEffect(Unit) { mgr.shortsQuality.collect { shortsQ = it } }
+    LaunchedEffect(Unit) { mgr.videoQuality.collect { videoQ = it } }
 
     Scaffold(
         topBar = {
@@ -66,12 +70,15 @@ fun SettingsScreen(onBack: () -> Unit) {
                     )
                     SettingDropdown("Thumbnail quality", listOf("high", "720p", "360p", "low"), thumbQ) { v -> scope.launch { mgr.setThumbQuality(v) } }
                     SettingDropdown("Channel avatar quality", listOf("high", "720p", "360p", "low"), avatarQ) { v -> scope.launch { mgr.setAvatarQuality(v) } }
+                    SettingDropdown("Video quality", listOf("auto", "1080p", "720p", "480p", "360p"), videoQ) { v -> scope.launch { mgr.setVideoQuality(v) } }
+                    SettingDropdown("Shorts quality", listOf("auto", "1080p", "720p", "480p", "360p"), shortsQ) { v -> scope.launch { mgr.setShortsQuality(v) } }
                 }
             }
 
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                elevation = CardDefaults.cardElevation(0.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -113,10 +120,26 @@ private fun SettingDropdown(label: String, options: List<String>, selected: Stri
                 onClick = { expanded = true },
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) { Text(selected, style = MaterialTheme.typography.bodyMedium) }
+            ) { Text(selected.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.bodyMedium) }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 options.forEach { opt ->
-                    DropdownMenuItem(text = { Text(opt) }, onClick = { onSelect(opt); expanded = false })
+                    val isSel = opt == selected
+                    DropdownMenuItem(
+                        text = {
+                            androidx.compose.foundation.layout.Row(
+                                androidx.compose.ui.Alignment.CenterVertically,
+                                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(opt.replaceFirstChar { it.uppercase() })
+                                if (isSel) {
+                                    androidx.compose.material.icons.Icons.Filled.Check.let { icon ->
+                                        androidx.compose.material3.Icon(icon, contentDescription = null, modifier = androidx.compose.ui.Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                            }
+                        },
+                        onClick = { onSelect(opt); expanded = false }
+                    )
                 }
             }
         }
