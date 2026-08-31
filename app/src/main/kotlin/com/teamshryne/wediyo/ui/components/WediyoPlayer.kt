@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -269,46 +271,20 @@ fun WediyoPlayer(
             }
         }
 
-        // Bottom: seek + time + fullscreen - red bar is main bar with circle when controls visible
-        Box(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.82f))))
-                .navigationBarsPadding()
+        // Time + fullscreen controls - only when tapped
+        AnimatedVisibility(
+            visible = showControls,
+            enter = fadeIn() + slideInVertically { it / 2 },
+            exit = fadeOut() + slideOutVertically { it / 2 },
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
         ) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp)) {
-                // Seekbar - always the red bar; circle thumb only when controls visible
-                Box(Modifier.fillMaxWidth().height(28.dp), contentAlignment = Alignment.Center) {
-                    // track
-                    Box(Modifier.fillMaxWidth().height(if (showControls) 4.dp else 3.dp).clip(RoundedCornerShape(2.dp)).background(Color.White.copy(alpha = 0.28f))) {
-                        Box(Modifier.fillMaxWidth(bufferedPct.coerceIn(0f,1f)).fillMaxHeight().background(Color.White.copy(alpha = 0.55f)))
-                        val prog = if (duration > 0) (currentPos.toFloat()/duration).coerceIn(0f,1f) else 0f
-                        Box(Modifier.fillMaxWidth(prog).fillMaxHeight().background(Color.Red))
-                    }
-                    // slider with thumb circle when controls visible
-                    val prog = if (duration > 0) (currentPos.toFloat()/duration).coerceIn(0f,1f) else 0f
-                    var dragPos by remember(prog) { mutableStateOf(prog) }
-                    var dragging by remember { mutableStateOf(false) }
-                    val disp = if (dragging) dragPos else prog
-                    Slider(
-                        value = disp,
-                        onValueChange = { dragPos = it; dragging = true },
-                        onValueChangeFinished = {
-                            val ms = (dragPos * duration).toLong()
-                            PlayerManager.get().seekTo(ms); currentPos = ms; dragging = false
-                        },
-                        colors = SliderDefaults.colors(
-                            thumbColor = if (showControls) Color.White else Color.Transparent,
-                            activeTrackColor = Color.Transparent,
-                            inactiveTrackColor = Color.Transparent
-                        ),
-                        thumb = {
-                            if (showControls) {
-                                Box(Modifier.size(12.dp).clip(CircleShape).background(Color.White).padding(2.dp))
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+            Box(
+                Modifier.fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.82f))))
+                    .navigationBarsPadding()
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                    .padding(bottom = 4.dp)
+            ) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(
                         if (displayRemaining && duration > 0) "-${formatMs(duration - currentPos)}" else "${formatMs(currentPos)} / ${formatMs(duration)}",
@@ -328,128 +304,272 @@ fun WediyoPlayer(
                 }
             }
         }
+        // Seekbar at exact bottom of video - red bar is main bar, always visible, circle only when controls visible
+        Box(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .height(if (showControls) 14.dp else 3.dp)
+                .padding(horizontal = 0.dp)
+        ) {
+            // track background
+            Box(Modifier.fillMaxWidth().height(if (showControls) 4.dp else 3.dp).clip(RoundedCornerShape(2.dp)).background(Color.White.copy(alpha = 0.28f)).align(Alignment.Center)) {
+                Box(Modifier.fillMaxWidth(bufferedPct.coerceIn(0f,1f)).fillMaxHeight().background(Color.White.copy(alpha = 0.55f)))
+                val prog = if (duration > 0) (currentPos.toFloat()/duration).coerceIn(0f,1f) else 0f
+                Box(Modifier.fillMaxWidth(prog).fillMaxHeight().background(Color.Red))
+            }
+            // slider
+            val prog = if (duration > 0) (currentPos.toFloat()/duration).coerceIn(0f,1f) else 0f
+            var dragPos by remember(prog) { mutableStateOf(prog) }
+            var dragging by remember { mutableStateOf(false) }
+            val disp = if (dragging) dragPos else prog
+            Slider(
+                value = disp,
+                onValueChange = { dragPos = it; dragging = true },
+                onValueChangeFinished = {
+                    val ms = (dragPos * duration).toLong()
+                    PlayerManager.get().seekTo(ms); currentPos = ms; dragging = false
+                },
+                colors = SliderDefaults.colors(
+                    thumbColor = if (showControls) Color.White else Color.Transparent,
+                    activeTrackColor = Color.Transparent,
+                    inactiveTrackColor = Color.Transparent
+                ),
+                thumb = {
+                    if (showControls) {
+                        Box(Modifier.size(12.dp).clip(CircleShape).background(Color.White))
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().align(Alignment.Center)
+            )
+        }
 
-        // Thin seek when controls hidden is now merged above - still keep subtle thin if desired? Already same bar.
-
-        // Settings sheets
-        if (showSettingsSheet && settingsMode == null) {
-            ModalBottomSheet(onDismissRequest = { showSettingsSheet = false }, containerColor = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) {
-                Column(Modifier.padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Settings", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
-                    SettingsRow(icon = Icons.Filled.Hd, title = "Quality", subtitle = "${PlayerManager.get().qualityOptions(detail).size} options", onClick = { settingsMode = "quality" })
-                    SettingsRow(icon = Icons.Filled.Subtitles, title = "Captions", subtitle = if (detail.captionTracks.isEmpty()) "No captions" else "${detail.captionTracks.size} languages", onClick = { settingsMode = "captions" })
-                    SettingsRow(icon = Icons.Filled.Speed, title = "Playback speed", subtitle = if (playbackSpeed==1f) "Normal" else "${playbackSpeed}x", onClick = { settingsMode = "speed" })
-                    SettingsRow(icon = Icons.Filled.QueryStats, title = "Stats for nerds", subtitle = "View playback stats", onClick = { settingsMode = "stats" })
-                    Spacer(Modifier.height(12.dp))
-                }
-            }
-        }
-        if (settingsMode == "quality") {
-            val opts = PlayerManager.get().qualityOptions(detail)
-            ModalBottomSheet(onDismissRequest = { settingsMode = null }, containerColor = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) {
-                Column(Modifier.padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { settingsMode = null }) { Icon(Icons.Filled.ArrowBack, null) }
-                        Text("Quality", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
-                        IconButton(onClick = { settingsMode = null; showSettingsSheet = false }) { Icon(Icons.Filled.Close, null) }
-                    }
-                    Text("Select quality", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    val all = listOf(0) + opts
-                    all.forEach { h ->
-                        val label = if (h==0) "Auto (recommended)" else "${h}p"
-                        val sub = if (h==0) "Adapts to network" else "${h}p"
-                        Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable {
-                            PlayerManager.get().switchQuality(ctx, detail, h); settingsMode = null; showSettingsSheet = false
-                        }) {
-                            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(36.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Hd, null, modifier = Modifier.size(18.dp)) } }
-                                Column(Modifier.weight(1f)) { Text(label, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)); Text(sub, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                                Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+        // Settings sheets - portrait bottom sheets, landscape side panels 30% width
+        Box(Modifier.fillMaxSize()) {
+            val isLandscapeSheet = isFullscreen
+            if (isLandscapeSheet) {
+                // Fullscreen: sheets come from right 30% width, video adjusted to 70%
+                if (showSettingsSheet && settingsMode == null) {
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.42f)).clickable { showSettingsSheet = false }) {}
+                    Surface(
+                        modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.30f),
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
+                        tonalElevation = 4.dp
+                    ) {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Settings", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
+                                IconButton(onClick = { showSettingsSheet = false }, modifier = Modifier.size(32.dp)) { Icon(Icons.Filled.Close, null, modifier = Modifier.size(18.dp)) }
                             }
+                            SettingsRow(icon = Icons.Filled.Hd, title = "Quality", subtitle = "${PlayerManager.get().qualityOptions(detail).size} options", onClick = { settingsMode = "quality" })
+                            SettingsRow(icon = Icons.Filled.Subtitles, title = "Captions", subtitle = if (detail.captionTracks.isEmpty()) "No captions" else "${detail.captionTracks.size} languages", onClick = { settingsMode = "captions" })
+                            SettingsRow(icon = Icons.Filled.Speed, title = "Playback speed", subtitle = if (playbackSpeed==1f) "Normal" else "${playbackSpeed}x", onClick = { settingsMode = "speed" })
+                            SettingsRow(icon = Icons.Filled.QueryStats, title = "Stats for nerds", subtitle = "View playback stats", onClick = { settingsMode = "stats" })
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
                 }
-            }
-        }
-        if (settingsMode == "speed") {
-            ModalBottomSheet(onDismissRequest = { settingsMode = null }, containerColor = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) {
-                Column(Modifier.padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { settingsMode = null }) { Icon(Icons.Filled.ArrowBack, null) }
-                        Text("Playback speed", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
-                        IconButton(onClick = { settingsMode = null; showSettingsSheet = false }) { Icon(Icons.Filled.Close, null) }
-                    }
-                    PlayerManager.get().speedOptions().forEach { s ->
-                        val label = when(s){0.25f->"0.25x";0.5f->"0.5x";0.75f->"0.75x";1f->"Normal"; else->"${s}x"}
-                        val sel = s==playbackSpeed
-                        Surface(shape = RoundedCornerShape(14.dp), color = if(sel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f), modifier = Modifier.fillMaxWidth().clickable {
-                            PlayerManager.get().setSpeed(s); playbackSpeed=s; settingsMode=null; showSettingsSheet=false
-                        }) {
-                            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Icon(if(sel) Icons.Filled.CheckCircle else Icons.Filled.PlayCircle, null, modifier = Modifier.size(20.dp), tint = if(sel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(label, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if(sel) FontWeight.Bold else FontWeight.Medium), color = if(sel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
-                                Spacer(Modifier.weight(1f))
-                                if(sel) Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp))
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(12.dp))
-                }
-            }
-        }
-        if (settingsMode == "captions") {
-            ModalBottomSheet(onDismissRequest = { settingsMode = null }, containerColor = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) {
-                Column(Modifier.padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { settingsMode = null }) { Icon(Icons.Filled.ArrowBack, null) }
-                        Text("Captions", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
-                        IconButton(onClick = { settingsMode = null; showSettingsSheet = false }) { Icon(Icons.Filled.Close, null) }
-                    }
-                    if (detail.captionTracks.isEmpty()) {
-                        Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
-                            Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { Text("No captions available", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                        }
-                    } else {
-                        detail.captionTracks.forEach { ct ->
-                            Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable { settingsMode=null; showSettingsSheet=false }) {
-                                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(36.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(ct.languageCode.take(2).uppercase(), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)) } }
-                                    Column(Modifier.weight(1f)) { Text(ct.name.ifBlank{ct.languageCode}, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)); Text(ct.kind.ifBlank{"standard"}, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                if (settingsMode == "quality") {
+                    val opts = PlayerManager.get().qualityOptions(detail)
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.42f)).clickable { settingsMode = null }) {}
+                    Surface(modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.30f), color = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp)) {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = { settingsMode = null }, modifier = Modifier.size(32.dp)) { Icon(Icons.Filled.ArrowBack, null, modifier = Modifier.size(18.dp)) }; Text("Quality", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f)); IconButton(onClick = { settingsMode = null; showSettingsSheet = false }, modifier = Modifier.size(32.dp)) { Icon(Icons.Filled.Close, null, modifier = Modifier.size(18.dp)) } }
+                            Text("Select quality", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            val all = listOf(0) + opts
+                            all.forEach { h ->
+                                val label = if (h==0) "Auto" else "${h}p"; val sub = if (h==0) "Auto" else "${h}p"
+                                Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable { PlayerManager.get().switchQuality(ctx, detail, h); settingsMode = null; showSettingsSheet = false }) {
+                                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(32.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Hd, null, modifier = Modifier.size(16.dp)) } }
+                                        Column(Modifier.weight(1f)) { Text(label, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)); Text(sub, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                    }
                                 }
                             }
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
                 }
-            }
-        }
-        if (settingsMode == "stats") {
-            val p = player as? androidx.media3.exoplayer.ExoPlayer
-            val vs = p?.videoSize
-            val vf = p?.videoFormat
-            ModalBottomSheet(onDismissRequest = { settingsMode = null }, containerColor = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) {
-                Column(Modifier.padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { settingsMode = null }) { Icon(Icons.Filled.ArrowBack, null) }
-                        Text("Stats for nerds", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
-                        IconButton(onClick = { settingsMode = null; showSettingsSheet = false }) { Icon(Icons.Filled.Close, null) }
-                    }
-                    Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            StatLine("Video ID", detail.videoId)
-                            StatLine("Resolution", if(vs!=null && vs.width>0) "${vs.width}×${vs.height}" else detail.adaptiveFormats.firstOrNull { !it.isAudio }?.let{"${it.width}×${it.height}"} ?: "—")
-                            StatLine("FPS", vf?.frameRate?.takeIf{it>0}?.let{"%.0f".format(it)} ?: detail.adaptiveFormats.firstOrNull{it.fps>0}?.fps?.toString() ?: "—")
-                            StatLine("Bitrate", vf?.bitrate?.takeIf{it>0}?.let{"${it/1000} kbps"} ?: "—")
-                            StatLine("Codec", vf?.sampleMimeType ?: detail.adaptiveFormats.firstOrNull{!it.isAudio}?.mimeType?.substringBefore(";") ?: "—")
-                            StatLine("Buffered", "${(bufferedPct*100).toInt()}%  •  ${formatMs(currentPos)} / ${formatMs(duration)}")
-                            StatLine("Speed", "${playbackSpeed}x")
-                            StatLine("State", when(p?.playbackState){ Player.STATE_BUFFERING->"Buffering"; Player.STATE_READY-> if(isPlaying) "Playing" else "Paused"; Player.STATE_ENDED->"Ended"; else->"Idle"})
-                            StatLine("View", detail.viewCountText.ifBlank{"—"})
-                            StatLine("Duration", detail.durationText.ifBlank{ formatMs(duration) })
+                if (settingsMode == "speed") {
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.42f)).clickable { settingsMode = null }) {}
+                    Surface(modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.30f), color = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp)) {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = { settingsMode = null }, modifier = Modifier.size(32.dp)) { Icon(Icons.Filled.ArrowBack, null) }; Text("Playback speed", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f)); IconButton(onClick = { settingsMode = null; showSettingsSheet = false }, modifier = Modifier.size(32.dp)) { Icon(Icons.Filled.Close, null) } }
+                            PlayerManager.get().speedOptions().forEach { s ->
+                                val label = when(s){0.25f->"0.25x";0.5f->"0.5x";0.75f->"0.75x";1f->"Normal"; else->"${s}x"}; val sel = s==playbackSpeed
+                                Surface(shape = RoundedCornerShape(14.dp), color = if(sel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f), modifier = Modifier.fillMaxWidth().clickable { PlayerManager.get().setSpeed(s); playbackSpeed=s; settingsMode=null; showSettingsSheet=false }) {
+                                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Icon(if(sel) Icons.Filled.CheckCircle else Icons.Filled.PlayCircle, null, modifier = Modifier.size(18.dp), tint = if(sel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(label, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if(sel) FontWeight.Bold else FontWeight.Medium), color = if(sel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
+                                        Spacer(Modifier.weight(1f))
+                                        if(sel) Icon(Icons.Filled.Check, null, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
+                }
+                if (settingsMode == "captions") {
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.42f)).clickable { settingsMode = null }) {}
+                    Surface(modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.30f), color = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp)) {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = { settingsMode = null }, modifier = Modifier.size(32.dp)) { Icon(Icons.Filled.ArrowBack, null) }; Text("Captions", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f)); IconButton(onClick = { settingsMode = null; showSettingsSheet = false }, modifier = Modifier.size(32.dp)) { Icon(Icons.Filled.Close, null) } }
+                            if (detail.captionTracks.isEmpty()) {
+                                Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) { Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { Text("No captions available", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+                            } else {
+                                detail.captionTracks.forEach { ct ->
+                                    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable { settingsMode=null; showSettingsSheet=false }) {
+                                        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(32.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(ct.languageCode.take(2).uppercase(), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)) } }
+                                            Column(Modifier.weight(1f)) { Text(ct.name.ifBlank{ct.languageCode}, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)); Text(ct.kind.ifBlank{"standard"}, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (settingsMode == "stats") {
+                    val p = player as? androidx.media3.exoplayer.ExoPlayer; val vs = p?.videoSize; val vf = p?.videoFormat
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.42f)).clickable { settingsMode = null }) {}
+                    Surface(modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.30f), color = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp)) {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = { settingsMode = null }, modifier = Modifier.size(32.dp)) { Icon(Icons.Filled.ArrowBack, null) }; Text("Stats for nerds", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f)); IconButton(onClick = { settingsMode = null; showSettingsSheet = false }, modifier = Modifier.size(32.dp)) { Icon(Icons.Filled.Close, null) } }
+                            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    StatLine("Video ID", detail.videoId)
+                                    StatLine("Resolution", if(vs!=null && vs.width>0) "${vs.width}×${vs.height}" else detail.adaptiveFormats.firstOrNull { !it.isAudio }?.let{"${it.width}×${it.height}"} ?: "—")
+                                    StatLine("FPS", vf?.frameRate?.takeIf{it>0}?.let{"%.0f".format(it)} ?: detail.adaptiveFormats.firstOrNull{it.fps>0}?.fps?.toString() ?: "—")
+                                    StatLine("Bitrate", vf?.bitrate?.takeIf{it>0}?.let{"${it/1000} kbps"} ?: "—")
+                                    StatLine("Codec", vf?.sampleMimeType ?: detail.adaptiveFormats.firstOrNull{!it.isAudio}?.mimeType?.substringBefore(";") ?: "—")
+                                    StatLine("Buffered", "${(bufferedPct*100).toInt()}%  •  ${formatMs(currentPos)} / ${formatMs(duration)}")
+                                    StatLine("Speed", "${playbackSpeed}x")
+                                    StatLine("State", when(p?.playbackState){ Player.STATE_BUFFERING->"Buffering"; Player.STATE_READY-> if(isPlaying) "Playing" else "Paused"; Player.STATE_ENDED->"Ended"; else->"Idle"})
+                                    StatLine("View", detail.viewCountText.ifBlank{"—"})
+                                    StatLine("Duration", detail.durationText.ifBlank{ formatMs(duration) })
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                if (showSettingsSheet && settingsMode == null) {
+                    ModalBottomSheet(onDismissRequest = { showSettingsSheet = false }, containerColor = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) {
+                        Column(Modifier.padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("Settings", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                            SettingsRow(icon = Icons.Filled.Hd, title = "Quality", subtitle = "${PlayerManager.get().qualityOptions(detail).size} options", onClick = { settingsMode = "quality" })
+                            SettingsRow(icon = Icons.Filled.Subtitles, title = "Captions", subtitle = if (detail.captionTracks.isEmpty()) "No captions" else "${detail.captionTracks.size} languages", onClick = { settingsMode = "captions" })
+                            SettingsRow(icon = Icons.Filled.Speed, title = "Playback speed", subtitle = if (playbackSpeed==1f) "Normal" else "${playbackSpeed}x", onClick = { settingsMode = "speed" })
+                            SettingsRow(icon = Icons.Filled.QueryStats, title = "Stats for nerds", subtitle = "View playback stats", onClick = { settingsMode = "stats" })
+                            Spacer(Modifier.height(12.dp))
+                        }
+                    }
+                }
+                if (settingsMode == "quality") {
+                    val opts = PlayerManager.get().qualityOptions(detail)
+                    ModalBottomSheet(onDismissRequest = { settingsMode = null }, containerColor = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) {
+                        Column(Modifier.padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { settingsMode = null }) { Icon(Icons.Filled.ArrowBack, null) }
+                                Text("Quality", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
+                                IconButton(onClick = { settingsMode = null; showSettingsSheet = false }) { Icon(Icons.Filled.Close, null) }
+                            }
+                            Text("Select quality", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            val all = listOf(0) + opts
+                            all.forEach { h ->
+                                val label = if (h==0) "Auto (recommended)" else "${h}p"
+                                val sub = if (h==0) "Adapts to network" else "${h}p"
+                                Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable {
+                                    PlayerManager.get().switchQuality(ctx, detail, h); settingsMode = null; showSettingsSheet = false
+                                }) {
+                                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(36.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Hd, null, modifier = Modifier.size(18.dp)) } }
+                                        Column(Modifier.weight(1f)) { Text(label, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)); Text(sub, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                        Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(12.dp))
+                        }
+                    }
+                }
+                if (settingsMode == "speed") {
+                    ModalBottomSheet(onDismissRequest = { settingsMode = null }, containerColor = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) {
+                        Column(Modifier.padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { settingsMode = null }) { Icon(Icons.Filled.ArrowBack, null) }
+                                Text("Playback speed", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
+                                IconButton(onClick = { settingsMode = null; showSettingsSheet = false }) { Icon(Icons.Filled.Close, null) }
+                            }
+                            PlayerManager.get().speedOptions().forEach { s ->
+                                val label = when(s){0.25f->"0.25x";0.5f->"0.5x";0.75f->"0.75x";1f->"Normal"; else->"${s}x"}
+                                val sel = s==playbackSpeed
+                                Surface(shape = RoundedCornerShape(14.dp), color = if(sel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f), modifier = Modifier.fillMaxWidth().clickable {
+                                    PlayerManager.get().setSpeed(s); playbackSpeed=s; settingsMode=null; showSettingsSheet=false
+                                }) {
+                                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        Icon(if(sel) Icons.Filled.CheckCircle else Icons.Filled.PlayCircle, null, modifier = Modifier.size(20.dp), tint = if(sel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(label, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if(sel) FontWeight.Bold else FontWeight.Medium), color = if(sel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
+                                        Spacer(Modifier.weight(1f))
+                                        if(sel) Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(12.dp))
+                        }
+                    }
+                }
+                if (settingsMode == "captions") {
+                    ModalBottomSheet(onDismissRequest = { settingsMode = null }, containerColor = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) {
+                        Column(Modifier.padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { settingsMode = null }) { Icon(Icons.Filled.ArrowBack, null) }
+                                Text("Captions", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
+                                IconButton(onClick = { settingsMode = null; showSettingsSheet = false }) { Icon(Icons.Filled.Close, null) }
+                            }
+                            if (detail.captionTracks.isEmpty()) {
+                                Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
+                                    Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { Text("No captions available", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                }
+                            } else {
+                                detail.captionTracks.forEach { ct ->
+                                    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable { settingsMode=null; showSettingsSheet=false }) {
+                                        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(36.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(ct.languageCode.take(2).uppercase(), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)) } }
+                                            Column(Modifier.weight(1f)) { Text(ct.name.ifBlank{ct.languageCode}, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)); Text(ct.kind.ifBlank{"standard"}, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(12.dp))
+                        }
+                    }
+                }
+                if (settingsMode == "stats") {
+                    val p = player as? androidx.media3.exoplayer.ExoPlayer
+                    val vs = p?.videoSize
+                    val vf = p?.videoFormat
+                    ModalBottomSheet(onDismissRequest = { settingsMode = null }, containerColor = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) {
+                        Column(Modifier.padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { settingsMode = null }) { Icon(Icons.Filled.ArrowBack, null) }
+                                Text("Stats for nerds", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
+                                IconButton(onClick = { settingsMode = null; showSettingsSheet = false }) { Icon(Icons.Filled.Close, null) }
+                            }
+                            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    StatLine("Video ID", detail.videoId)
+                                    StatLine("Resolution", if(vs!=null && vs.width>0) "${vs.width}×${vs.height}" else detail.adaptiveFormats.firstOrNull { !it.isAudio }?.let{"${it.width}×${it.height}"} ?: "—")
+                                    StatLine("FPS", vf?.frameRate?.takeIf{it>0}?.let{"%.0f".format(it)} ?: detail.adaptiveFormats.firstOrNull{it.fps>0}?.fps?.toString() ?: "—")
+                                    StatLine("Bitrate", vf?.bitrate?.takeIf{it>0}?.let{"${it/1000} kbps"} ?: "—")
+                                    StatLine("Codec", vf?.sampleMimeType ?: detail.adaptiveFormats.firstOrNull{!it.isAudio}?.mimeType?.substringBefore(";") ?: "—")
+                                    StatLine("Buffered", "${(bufferedPct*100).toInt()}%  •  ${formatMs(currentPos)} / ${formatMs(duration)}")
+                                    StatLine("Speed", "${playbackSpeed}x")
+                                    StatLine("State", when(p?.playbackState){ Player.STATE_BUFFERING->"Buffering"; Player.STATE_READY-> if(isPlaying) "Playing" else "Paused"; Player.STATE_ENDED->"Ended"; else->"Idle"})
+                                    StatLine("View", detail.viewCountText.ifBlank{"—"})
+                                    StatLine("Duration", detail.durationText.ifBlank{ formatMs(duration) })
+                                }
+                            }
+                            Spacer(Modifier.height(12.dp))
+                        }
+                    }
                 }
             }
         }
