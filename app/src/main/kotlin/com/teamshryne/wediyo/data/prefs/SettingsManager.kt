@@ -15,6 +15,7 @@ object SettingsKeys {
     val avatarQuality = stringPreferencesKey("avatar_quality")
     val theme = stringPreferencesKey("theme") // system, light, dark
     val shortsQuality = stringPreferencesKey("shorts_quality") // auto, 1080, 720, 480, ...
+    val videoQuality = stringPreferencesKey("video_quality") // auto, 1080, 720, 480, ...
 }
 
 class SettingsManager(private val context: Context) {
@@ -22,9 +23,11 @@ class SettingsManager(private val context: Context) {
     val avatarQuality: Flow<String> = context.dataStore.data.map { it[SettingsKeys.avatarQuality] ?: "high" }
     val theme: Flow<String> = context.dataStore.data.map { it[SettingsKeys.theme] ?: "system" }
     val shortsQuality: Flow<String> = context.dataStore.data.map { it[SettingsKeys.shortsQuality] ?: "auto" }
+    val videoQuality: Flow<String> = context.dataStore.data.map { it[SettingsKeys.videoQuality] ?: "auto" }
 
     suspend fun setThumbQuality(v: String) { context.dataStore.edit { it[SettingsKeys.thumbQuality] = v } }
     suspend fun setAvatarQuality(v: String) { context.dataStore.edit { it[SettingsKeys.avatarQuality] = v } }
     suspend fun setTheme(v: String) { context.dataStore.edit { it[SettingsKeys.theme] = v } }
     suspend fun setShortsQuality(v: String) { context.dataStore.edit { it[SettingsKeys.shortsQuality] = v } }
+    suspend fun setVideoQuality(v: String) { context.dataStore.edit { it[SettingsKeys.videoQuality] = v } }
 }

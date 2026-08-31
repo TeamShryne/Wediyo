@@ -53,8 +53,8 @@ fun ChipsRow(chips: List<UiChip>, onChipClick: (UiChip) -> Unit, onFilterClick: 
                 },
                 shape = RoundedCornerShape(8.dp),
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.onBackground,
-                    selectedLabelColor = MaterialTheme.colorScheme.background,
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     labelColor = MaterialTheme.colorScheme.onSurfaceVariant
                 ),

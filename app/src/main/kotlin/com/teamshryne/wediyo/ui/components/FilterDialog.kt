@@ -25,7 +25,7 @@ fun FilterDialog(
         onDismissRequest = onDismiss,
         title = { Text("Search filters") },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
+            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
                 groups.forEach { group ->
                     Text(group.title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 8.dp))
                     // single choice for TYPE/DURATION/UPLOAD DATE/PRIORITIZE, multi for FEATURES

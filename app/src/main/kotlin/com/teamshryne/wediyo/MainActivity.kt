@@ -18,22 +18,35 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.*
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.teamshryne.wediyo.data.prefs.SettingsManager
 import com.teamshryne.wediyo.ui.navigation.AppNavHost
 import com.teamshryne.wediyo.ui.navigation.Screen
 import com.teamshryne.wediyo.ui.theme.WediyoTheme
+import kotlinx.coroutines.flow.collectLatest
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            WediyoTheme {
+            val ctx = LocalContext.current
+            val settings = remember { SettingsManager(ctx) }
+            var themePref by remember { mutableStateOf("system") }
+            LaunchedEffect(Unit) { settings.theme.collectLatest { themePref = it } }
+            val useDark = when (themePref) {
+                "light" -> false
+                "dark" -> true
+                else -> isSystemInDarkTheme()
+            }
+            WediyoTheme(darkTheme = useDark) {
                 val nav = rememberNavController()
                 val backStack by nav.currentBackStackEntryAsState()
                 val route = backStack?.destination?.route
