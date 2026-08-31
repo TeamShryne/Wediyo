@@ -6,8 +6,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -126,16 +128,9 @@ private fun SettingDropdown(label: String, options: List<String>, selected: Stri
                     val isSel = opt == selected
                     DropdownMenuItem(
                         text = {
-                            androidx.compose.foundation.layout.Row(
-                                androidx.compose.ui.Alignment.CenterVertically,
-                                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
-                            ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(opt.replaceFirstChar { it.uppercase() })
-                                if (isSel) {
-                                    androidx.compose.material.icons.Icons.Filled.Check.let { icon ->
-                                        androidx.compose.material3.Icon(icon, contentDescription = null, modifier = androidx.compose.ui.Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-                                    }
-                                }
+                                if (isSel) Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
                             }
                         },
                         onClick = { onSelect(opt); expanded = false }

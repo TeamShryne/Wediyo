@@ -38,6 +38,7 @@ import androidx.media3.ui.PlayerView
 import com.teamshryne.wediyo.data.model.UiVideoDetail
 import com.teamshryne.wediyo.player.PlayerManager
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private val PlayerScrim = Color.Black
 private val PlayerScrimAffordance = Color.Black.copy(alpha = 0.40f)
@@ -392,8 +393,11 @@ fun WediyoPlayer(
                                 val isSel = h == selectedH
                                 Surface(shape = RoundedCornerShape(14.dp), color = if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable {
                                     val qStr = if (h==0) "auto" else "${h}p"
-                                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch { try { com.teamshryne.wediyo.data.prefs.SettingsManager(ctx).setVideoQuality(qStr) } catch (_: Exception) {} }
-                                    PlayerManager.get().switchQuality(ctx, detail, h); settingsMode = null; showSettingsSheet = false
+                                    PlayerManager.get().switchQuality(ctx, detail, h)
+                                    // persist without needing IO scope here: use rememberCoroutineScope in composable; fallback fire-and-forget
+                                    // launched via global scope to avoid composable scope capture inside clickable
+                                    try { kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) { com.teamshryne.wediyo.data.prefs.SettingsManager(ctx).setVideoQuality(qStr) } } catch (_: Exception) {}
+                                    settingsMode = null; showSettingsSheet = false
                                 }) {
                                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                         Surface(shape = CircleShape, color = if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(32.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Hd, null, modifier = Modifier.size(16.dp), tint = if (isSel) Color.White else MaterialTheme.colorScheme.onPrimaryContainer) } }
@@ -498,8 +502,9 @@ fun WediyoPlayer(
                                 val isSel = h == selectedH
                                 Surface(shape = RoundedCornerShape(14.dp), color = if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable {
                                     val qStr = if (h==0) "auto" else "${h}p"
-                                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch { try { com.teamshryne.wediyo.data.prefs.SettingsManager(ctx).setVideoQuality(qStr) } catch (_: Exception) {} }
-                                    PlayerManager.get().switchQuality(ctx, detail, h); settingsMode = null; showSettingsSheet = false
+                                    PlayerManager.get().switchQuality(ctx, detail, h)
+                                    try { kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) { com.teamshryne.wediyo.data.prefs.SettingsManager(ctx).setVideoQuality(qStr) } } catch (_: Exception) {}
+                                    settingsMode = null; showSettingsSheet = false
                                 }) {
                                     Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                         Surface(shape = CircleShape, color = if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(36.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Hd, null, modifier = Modifier.size(18.dp), tint = if (isSel) Color.White else MaterialTheme.colorScheme.onPrimaryContainer) } }
