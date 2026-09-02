@@ -135,8 +135,10 @@ class PlayerManager private constructor() {
 
     private fun buildSource(context: Context, d: UiVideoDetail, preferredHeight: Int? = null, audioTrackId: String? = null, captionLang: String? = null): androidx.media3.exoplayer.source.MediaSource? {
         val hasQualityPreference = preferredHeight != null && preferredHeight > 0
+        val hasAudioPreference = !audioTrackId.isNullOrBlank()
+        val forceMerge = hasQualityPreference || hasAudioPreference
         var baseSource: androidx.media3.exoplayer.source.MediaSource? = null
-        if (!hasQualityPreference) {
+        if (!forceMerge) {
             if (d.dashManifestUrl.isNotBlank()) {
                 val ds = YouTubeDataSource.factory(context)
                 baseSource = DashMediaSource.Factory(ds).createMediaSource(MediaItem.fromUri(d.dashManifestUrl))
@@ -183,8 +185,8 @@ class PlayerManager private constructor() {
     }
 
     private fun selectAudioFormat(audioFormats: List<UiStreamingFormat>, preferredId: String?): UiStreamingFormat {
-        if (preferredId.isNullOrBlank()) {
-            // Prefer original (isDefault && !isAutoDubbed) if exists, else highest bitrate
+        if (preferredId.isNullOrBlank() || preferredId.trim().equals("original", ignoreCase = true)) {
+            // Prefer original (isDefault && !isAutoDubbed) if exists, else any non-dubbed, else highest bitrate
             val original = audioFormats.filter { it.audioTrack?.isDefault == true && it.audioTrack?.isAutoDubbed == false }
             if (original.isNotEmpty()) return original.maxByOrNull { it.bitrate } ?: audioFormats.first()
             val nonDubbed = audioFormats.filter { it.audioTrack?.isAutoDubbed == false }
@@ -198,9 +200,12 @@ class PlayerManager private constructor() {
         // Try displayName contains
         val byName = audioFormats.filter { it.audioTrack?.displayName?.contains(normalized, ignoreCase = true) == true }
         if (byName.isNotEmpty()) return byName.maxByOrNull { it.bitrate } ?: byName.first()
-        // Try language prefix
-        val byLang = audioFormats.filter { it.audioTrack?.displayName?.lowercase()?.contains(normalized.lowercase()) == true }
+        // Try language prefix on id
+        val byLang = audioFormats.filter { it.audioTrack?.id?.lowercase()?.contains(normalized.lowercase()) == true }
         if (byLang.isNotEmpty()) return byLang.maxByOrNull { it.bitrate } ?: byLang.first()
+        // Fallback displayName lower
+        val byLang2 = audioFormats.filter { it.audioTrack?.displayName?.lowercase()?.contains(normalized.lowercase()) == true }
+        if (byLang2.isNotEmpty()) return byLang2.maxByOrNull { it.bitrate } ?: byLang2.first()
         return audioFormats.first()
     }
 
@@ -347,31 +352,48 @@ class PlayerManager private constructor() {
     fun selectedCaption(): String? = selectedCaptionLang
 
     fun selectCaption(languageCode: String?) {
+        val wasPlaying = player?.isPlaying == true || player?.playWhenReady == true
         selectedCaptionLang = if (languageCode.isNullOrBlank()) "off" else languageCode
         if (languageCode.isNullOrBlank() || languageCode == "off") {
             disableCaptionsInternal()
         } else {
             applyCaptionSelectionInternal(languageCode)
         }
+        // keep playback running after track switch
+        try {
+            if (wasPlaying) {
+                player?.playWhenReady = true
+                player?.play()
+            }
+        } catch (_: Exception) {}
     }
 
     private fun disableCaptionsInternal() {
         val ts = trackSelector ?: return
+        val wasPlaying = player?.isPlaying == true || player?.playWhenReady == true
         try {
             ts.setParameters(ts.buildUponParameters().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).clearOverridesOfType(C.TRACK_TYPE_TEXT).setPreferredTextLanguage(null).build())
         } catch (_: Exception) {}
+        try { if (wasPlaying) { player?.playWhenReady = true; player?.play() } } catch (_: Exception) {}
     }
 
     private fun applyCaptionSelectionInternal(languageCode: String?) {
         val ts = trackSelector ?: return
         val lang = languageCode?.takeIf { it.isNotBlank() && it != "off" } ?: return
+        val wasPlaying = player?.isPlaying == true || player?.playWhenReady == true
         try {
             // First try exact override if track group is available
             val p = player
             val idx = currentDetail?.captionTracks?.indexOfFirst { it.languageCode.equals(lang, ignoreCase = true) } ?: -1
+            // also try base language match if exact not found
+            var effectiveIdx = idx
+            if (effectiveIdx < 0) {
+                val base = lang.substringBefore("-").substringBefore("_").lowercase()
+                effectiveIdx = currentDetail?.captionTracks?.indexOfFirst { it.languageCode.substringBefore("-").substringBefore("_").lowercase() == base } ?: -1
+            }
             var matched = false
-            if (p != null && idx >= 0) {
-                val wantedId = subtitleId(idx)
+            if (p != null && effectiveIdx >= 0) {
+                val wantedId = subtitleId(effectiveIdx)
                 val tracks = p.currentTracks
                 for (group in tracks.groups) {
                     if (group.type != C.TRACK_TYPE_TEXT) continue
@@ -395,6 +417,7 @@ class PlayerManager private constructor() {
                 ts.setParameters(ts.buildUponParameters().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).setPreferredTextLanguage(lang).build())
             } catch (_: Exception) {}
         }
+        try { if (wasPlaying) { player?.playWhenReady = true; player?.play() } } catch (_: Exception) {}
     }
 
     fun isCaptionEnabled(): Boolean {
