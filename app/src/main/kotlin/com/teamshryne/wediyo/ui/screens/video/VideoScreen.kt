@@ -47,7 +47,9 @@ import coil.compose.AsyncImage
 import com.teamshryne.wediyo.data.model.UiComment
 import com.teamshryne.wediyo.data.model.UiVideoDetail
 import com.teamshryne.wediyo.data.prefs.SettingsManager
+import com.teamshryne.wediyo.player.SleepTimerManager
 import com.teamshryne.wediyo.ui.components.ChannelVideoListCard
+import com.teamshryne.wediyo.ui.components.SleepTimerSheet
 import com.teamshryne.wediyo.ui.components.WediyoPlayer
 import com.teamshryne.wediyo.util.bestThumbUrl
 import kotlinx.coroutines.flow.collectLatest
@@ -67,7 +69,9 @@ fun VideoScreen(
     var thumbQ by remember { mutableStateOf("high") }
     var avatarQ by remember { mutableStateOf("high") }
     var isFullscreen by remember { mutableStateOf(false) }
+    var showSleepSheet by remember { mutableStateOf(false) }
     val config = LocalConfiguration.current
+    LaunchedEffect(Unit) { try { SleepTimerManager.init(ctx) } catch (_: Exception) {} }
 
     LaunchedEffect(Unit) { settings.thumbQuality.collectLatest { thumbQ = it } }
     LaunchedEffect(Unit) { settings.avatarQuality.collectLatest { avatarQ = it } }
@@ -188,7 +192,7 @@ fun VideoScreen(
                             }
                             LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(bottom = 24.dp)) {
                                 item { FlowVideoInfoSection(videoDetail = d, ctx = ctx, avatarQ = avatarQ, likeCount = d.likeCount, viewCount = d.viewCount, onChannelClick = { onChannelClick(d.channelId) }, onShare = { shareVideo(ctx, d) }, onDownload = { vm.setDetailsSheet(true) }, onSave = { vm.setDetailsSheet(true) }, onDescriptionClick = { vm.setDetailsSheet(true) }) }
-                                item { FlowVideoActionRowFlow(d = d, ctx = ctx, onLike = {}, onDislike = {}, onShare = { shareVideo(ctx, d) }, onSave = {}, onDownload = { vm.setDetailsSheet(true) }, onCopyLink = { copyLink(ctx, d, withTimestamp = false) }, onCopyLinkAtTime = { copyLink(ctx, d, withTimestamp = true) }) }
+                                item { FlowVideoActionRowFlow(d = d, ctx = ctx, onLike = {}, onDislike = {}, onShare = { shareVideo(ctx, d) }, onSave = {}, onDownload = { vm.setDetailsSheet(true) }, onCopyLink = { copyLink(ctx, d, withTimestamp = false) }, onCopyLinkAtTime = { copyLink(ctx, d, withTimestamp = true) }, onSleepTimer = { showSleepSheet = true }) }
                                 item { FlowCommentsPreview(comments = state.comments, countText = state.commentsCount ?: d.commentsCountText, avatarQ = avatarQ, onClick = { vm.setCommentsSheet(true) }) }
                             }
                         }
@@ -222,7 +226,7 @@ fun VideoScreen(
                         }
                         LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 28.dp)) {
                             item { FlowVideoInfoSection(videoDetail = d, ctx = ctx, avatarQ = avatarQ, likeCount = d.likeCount, viewCount = d.viewCount, onChannelClick = { onChannelClick(d.channelId) }, onShare = { shareVideo(ctx, d) }, onDownload = { vm.setDetailsSheet(true) }, onSave = { vm.setDetailsSheet(true) }, onDescriptionClick = { vm.setDetailsSheet(true) }) }
-                            item { FlowVideoActionRowFlow(d = d, ctx = ctx, onLike = {}, onDislike = {}, onShare = { shareVideo(ctx, d) }, onSave = {}, onDownload = { vm.setDetailsSheet(true) }, onCopyLink = { copyLink(ctx, d, withTimestamp = false) }, onCopyLinkAtTime = { copyLink(ctx, d, withTimestamp = true) }) }
+                            item { FlowVideoActionRowFlow(d = d, ctx = ctx, onLike = {}, onDislike = {}, onShare = { shareVideo(ctx, d) }, onSave = {}, onDownload = { vm.setDetailsSheet(true) }, onCopyLink = { copyLink(ctx, d, withTimestamp = false) }, onCopyLinkAtTime = { copyLink(ctx, d, withTimestamp = true) }, onSleepTimer = { showSleepSheet = true }) }
                             item { FlowCommentsPreview(comments = state.comments, countText = state.commentsCount ?: d.commentsCountText, avatarQ = avatarQ, onClick = { vm.setCommentsSheet(true) }) }
                             item {
                                 Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 18.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -245,6 +249,9 @@ fun VideoScreen(
                             }
                         }
                     }
+                }
+                if (showSleepSheet) {
+                    SleepTimerSheet(onDismiss = { showSleepSheet = false })
                 }
             }
         }
@@ -373,9 +380,41 @@ private fun FlowVideoActionRowFlow(
     onSave: () -> Unit,
     onDownload: () -> Unit,
     onCopyLink: () -> Unit,
-    onCopyLinkAtTime: () -> Unit
+    onCopyLinkAtTime: () -> Unit,
+    onSleepTimer: () -> Unit = {}
 ) {
+    val sleep by SleepTimerManager.state.collectAsState()
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+        // Sleep timer FIRST — most discoverable, shows remaining when active
+        item {
+            val isActive = sleep.isActive
+            val label = when {
+                !isActive -> "Sleep timer"
+                sleep.mode == SleepTimerManager.Mode.END_OF_VIDEO -> "Sleep • end"
+                else -> "Sleep ${formatDurationMs(sleep.remainingMs)}"
+            }
+            Surface(
+                onClick = onSleepTimer,
+                shape = RoundedCornerShape(18.dp),
+                color = if (isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f),
+                modifier = Modifier.height(36.dp)
+            ) {
+                Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        if (isActive) Icons.Filled.Bedtime else Icons.Outlined.Timer,
+                        null,
+                        modifier = Modifier.size(18.dp),
+                        tint = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(label, style = MaterialTheme.typography.labelLarge.copy(fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Medium), color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
+                    if (isActive) {
+                        Spacer(Modifier.width(6.dp))
+                        Box(Modifier.size(7.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
+                    }
+                }
+            }
+        }
         item {
             Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f), modifier = Modifier.height(36.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -617,6 +656,14 @@ private fun FlowCommentCard(comment: UiComment, avatarQ: String, onReply: (Strin
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────
+private fun formatDurationMs(ms: Long): String {
+    if (ms <= 0) return "0:00"
+    val s = ms / 1000
+    val m = s / 60
+    val sec = s % 60
+    return if (m >= 60) String.format("%d:%02d:%02d", m / 60, m % 60, sec) else String.format("%d:%02d", m, sec)
+}
+
 private fun shareVideo(ctx: Context, d: UiVideoDetail) {
     val url = d.canonicalUrl.ifBlank { "https://www.youtube.com/watch?v=${d.videoId}" }
     val send = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, "${d.title}\n$url"); putExtra(Intent.EXTRA_SUBJECT, d.title) }

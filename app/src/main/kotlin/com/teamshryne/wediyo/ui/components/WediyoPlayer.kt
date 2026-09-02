@@ -37,6 +37,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
 import com.teamshryne.wediyo.data.model.UiVideoDetail
 import com.teamshryne.wediyo.player.PlayerManager
+import com.teamshryne.wediyo.player.SleepTimerManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -72,8 +73,13 @@ fun WediyoPlayer(
     var playbackSpeed by remember { mutableStateOf(1f) }
     var showSettingsSheet by remember { mutableStateOf(false) }
     var settingsMode by remember { mutableStateOf<String?>(null) } // null=main, quality, speed, captions, stats
+    var showSleepTimerSheet by remember { mutableStateOf(false) }
+    val sleepState by SleepTimerManager.state.collectAsState()
     val haptic = LocalHapticFeedback.current
     var savedVideoQ by remember { mutableStateOf("auto") }
+    LaunchedEffect(Unit) {
+        try { SleepTimerManager.init(ctx) } catch (_: Exception) {}
+    }
     LaunchedEffect(Unit) {
         try { com.teamshryne.wediyo.data.prefs.SettingsManager(ctx).videoQuality.collect { savedVideoQ = it } } catch (_: Exception) {}
     }
@@ -222,8 +228,21 @@ fun WediyoPlayer(
             }
         }
 
+        // Sleep timer persistent pill — always visible when active (even when controls hidden)
+        AnimatedVisibility(
+            visible = sleepState.isActive,
+            enter = fadeIn() + slideInVertically { -it / 3 },
+            exit = fadeOut() + slideOutVertically { -it / 3 },
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 10.dp).statusBarsPadding()
+        ) {
+            SleepTimerIndicator(
+                modifier = Modifier.clickable { showSleepTimerSheet = true },
+                onClick = { showSleepTimerSheet = true }
+            )
+        }
+
         // Hold 2x indicator top
-        AnimatedVisibility(visible = isHolding2x, enter = fadeIn() + slideInVertically { -it/2 }, exit = fadeOut() + slideOutVertically { -it/2 }, modifier = Modifier.align(Alignment.TopCenter).padding(top = 10.dp).statusBarsPadding()) {
+        AnimatedVisibility(visible = isHolding2x, enter = fadeIn() + slideInVertically { -it/2 }, exit = fadeOut() + slideOutVertically { -it/2 }, modifier = Modifier.align(Alignment.TopCenter).padding(top = if (sleepState.isActive) 44.dp else 10.dp).statusBarsPadding()) {
             Surface(shape = RoundedCornerShape(20.dp), color = Color.Black.copy(alpha = 0.72f)) {
                 Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Filled.FastForward, null, tint = Color.White, modifier = Modifier.size(18.dp))
@@ -375,6 +394,15 @@ fun WediyoPlayer(
                             SettingsRow(icon = Icons.Filled.Subtitles, title = "Captions", subtitle = if (detail.captionTracks.isEmpty()) "No captions" else "${detail.captionTracks.size} languages", onClick = { settingsMode = "captions" })
                             SettingsRow(icon = Icons.Filled.Speed, title = "Playback speed", subtitle = if (playbackSpeed==1f) "Normal" else "${playbackSpeed}x", onClick = { settingsMode = "speed" })
                             SettingsRow(icon = Icons.Filled.QueryStats, title = "Stats for nerds", subtitle = "View playback stats", onClick = { settingsMode = "stats" })
+                            SettingsRow(
+                                icon = Icons.Filled.Bedtime,
+                                title = "Sleep timer",
+                                subtitle = if (sleepState.isActive) when (sleepState.mode) {
+                                    SleepTimerManager.Mode.END_OF_VIDEO -> "On • end of video"
+                                    else -> "On • ${formatMs(sleepState.remainingMs)} left"
+                                } else "Off • auto-pause playback",
+                                onClick = { showSettingsSheet = false; showSleepTimerSheet = true }
+                            )
                         }
                     }
                 }
@@ -480,6 +508,15 @@ fun WediyoPlayer(
                             SettingsRow(icon = Icons.Filled.Subtitles, title = "Captions", subtitle = if (detail.captionTracks.isEmpty()) "No captions" else "${detail.captionTracks.size} languages", onClick = { settingsMode = "captions" })
                             SettingsRow(icon = Icons.Filled.Speed, title = "Playback speed", subtitle = if (playbackSpeed==1f) "Normal" else "${playbackSpeed}x", onClick = { settingsMode = "speed" })
                             SettingsRow(icon = Icons.Filled.QueryStats, title = "Stats for nerds", subtitle = "View playback stats", onClick = { settingsMode = "stats" })
+                            SettingsRow(
+                                icon = Icons.Filled.Bedtime,
+                                title = "Sleep timer",
+                                subtitle = if (sleepState.isActive) when (sleepState.mode) {
+                                    SleepTimerManager.Mode.END_OF_VIDEO -> "On • end of video"
+                                    else -> "On • ${formatMs(sleepState.remainingMs)} left"
+                                } else "Off • auto-pause playback",
+                                onClick = { showSettingsSheet = false; showSleepTimerSheet = true }
+                            )
                             Spacer(Modifier.height(12.dp))
                         }
                     }
@@ -597,6 +634,10 @@ fun WediyoPlayer(
                             Spacer(Modifier.height(12.dp))
                         }
                     }
+                }
+                // Sleep timer sheet (both portrait & land)
+                if (showSleepTimerSheet) {
+                    SleepTimerSheet(onDismiss = { showSleepTimerSheet = false })
                 }
             }
         }

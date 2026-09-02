@@ -35,6 +35,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.teamshryne.wediyo.data.prefs.SettingsManager
 import com.teamshryne.wediyo.player.PlayerManager
+import com.teamshryne.wediyo.player.SleepTimerManager
+import com.teamshryne.wediyo.ui.components.SleepTimerSheet
+import com.teamshryne.wediyo.ui.components.SleepTimerIndicator
 import com.teamshryne.wediyo.util.bestThumbUrl
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -57,7 +60,9 @@ fun ShortsScreen(
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showSleepSheet by remember { mutableStateOf(false) }
 
+    LaunchedEffect(Unit) { try { SleepTimerManager.init(ctx) } catch (_: Exception) {} }
     LaunchedEffect(Unit) { settings.thumbQuality.collectLatest { thumbQ = it } }
     LaunchedEffect(Unit) { settings.avatarQuality.collectLatest { avatarQ = it } }
     LaunchedEffect(Unit) { settings.shortsQuality.collectLatest { shortsQuality = it } }
@@ -183,6 +188,7 @@ fun ShortsScreen(
                                     PlayerManager.get().switchQuality(ctx, it, height)
                                 }
                             },
+                            onSleepTimer = { showSleepSheet = true },
                             onVideoEnded = {
                                 scope.launch {
                                     if (page < pagerState.pageCount - 1) pagerState.animateScrollToPage(page + 1)
@@ -275,6 +281,15 @@ fun ShortsScreen(
             }
         }
 
+        // Sleep timer persistent pill on shorts
+        Box(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 48.dp)) {
+            SleepTimerIndicator(onClick = { showSleepSheet = true })
+        }
+
+        if (showSleepSheet) {
+            SleepTimerSheet(onDismiss = { showSleepSheet = false })
+        }
+
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp)
@@ -300,6 +315,7 @@ private fun ShortPageFlow(
     onShareClick: () -> Unit,
     onLikeClick: () -> Unit,
     onQualitySelected: (Int) -> Unit,
+    onSleepTimer: () -> Unit = {},
     onVideoEnded: () -> Unit
 ) {
     val title = detail?.title?.ifBlank { short.title } ?: short.title
@@ -452,6 +468,15 @@ private fun ShortPageFlow(
             ShortActionButtonFlow(icon = Icons.Filled.ChatBubble, label = commentCount.ifBlank { "Comment" }, onClick = onCommentClick)
             Spacer(Modifier.height(14.dp))
             ShortActionButtonFlow(icon = Icons.Filled.Share, label = "Share", onClick = onShareClick)
+            Spacer(Modifier.height(14.dp))
+            // Sleep timer — with active dot badge
+            Box(contentAlignment = Alignment.TopEnd) {
+                ShortActionButtonFlow(icon = Icons.Filled.Bedtime, label = "Sleep", onClick = onSleepTimer)
+                val sleep by SleepTimerManager.state.collectAsState()
+                if (sleep.isActive) {
+                    Box(Modifier.size(10.dp).clip(CircleShape).background(Color(0xFF00C853)).align(Alignment.TopEnd).offset(x = 4.dp, y = (-2).dp))
+                }
+            }
             Spacer(Modifier.height(14.dp))
             ShortActionButtonFlow(icon = Icons.Filled.MoreVert, label = "", onClick = { showQualitySheet = true })
             Spacer(Modifier.height(10.dp))
