@@ -337,12 +337,14 @@ class PlayerManager private constructor() {
         currentDetail = detail
         val p = player ?: return
         val pos = p.currentPosition
-        val wasPlaying = p.isPlaying
-        val src = buildSource(context, detail, null, trackId, selectedCaptionLang) ?: return
-        // try to keep quality: we pass null height so it picks best; to keep current height, get current height
+        val wasPlaying = p.isPlaying || p.playWhenReady
+        val keepHeight = currentQualityHeight()
+        // keep current video height to avoid quality hop + extra buffering
+        val src = buildSource(context, detail, keepHeight, trackId, selectedCaptionLang) ?: return
         p.setMediaSource(src, pos)
         p.prepare()
         p.playWhenReady = wasPlaying
+        if (wasPlaying) p.play()
         if (selectedCaptionLang == null || selectedCaptionLang == "off") disableCaptionsInternal() else applyCaptionSelectionInternal(selectedCaptionLang)
     }
 
