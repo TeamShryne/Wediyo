@@ -194,7 +194,7 @@ fun SleepTimerSheet(
                     FilledTonalButton(onClick = { showCustomPicker = true }, shape = RoundedCornerShape(24.dp), modifier = Modifier.weight(1f)) {
                         Icon(Icons.Filled.Schedule, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Custom")
                     }
-                    FilledButton(
+                    Button(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             SleepTimerManager.startEndOfVideo(ctx, fadeEnabled)
