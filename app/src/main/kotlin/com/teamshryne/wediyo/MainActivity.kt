@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.media3.common.util.UnstableApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,8 +34,11 @@ import com.teamshryne.wediyo.ui.theme.WediyoTheme
 import kotlinx.coroutines.flow.collectLatest
 
 class MainActivity : ComponentActivity() {
+    @OptIn(UnstableApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Restore sleep timer (alarm-backed, survives process death)
+        try { com.teamshryne.wediyo.player.SleepTimerManager.init(this) } catch (_: Exception) {}
         enableEdgeToEdge()
         setContent {
             val ctx = LocalContext.current
