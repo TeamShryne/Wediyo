@@ -297,6 +297,14 @@ object WediyoEngine {
         for (i in 0 until arr.length()) {
             val o = arr.getJSONObject(i)
             val trackObj = o.optJSONObject("audio_track")
+            val audioTrack = trackObj?.let {
+                UiAudioTrack(
+                    displayName = it.optString("display_name", ""),
+                    id = it.optString("id", ""),
+                    isAutoDubbed = it.optBoolean("is_auto_dubbed", false),
+                    isDefault = it.optBoolean("is_default", false)
+                )
+            }
             out.add(
                 UiStreamingFormat(
                     itag = o.optInt("itag", 0),
@@ -317,7 +325,8 @@ object WediyoEngine {
                     lastModified = o.optString("last_modified", ""),
                     isAudio = o.optBoolean("is_audio", false),
                     isDrc = o.optBoolean("is_drc", false),
-                    xtags = o.optString("xtags", "")
+                    xtags = o.optString("xtags", ""),
+                    audioTrack = audioTrack
                 )
             )
         }

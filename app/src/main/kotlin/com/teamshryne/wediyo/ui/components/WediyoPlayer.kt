@@ -77,11 +77,38 @@ fun WediyoPlayer(
     val sleepState by SleepTimerManager.state.collectAsState()
     val haptic = LocalHapticFeedback.current
     var savedVideoQ by remember { mutableStateOf("auto") }
+    var savedCaption by remember { mutableStateOf("off") }
+    var savedAudioId by remember { mutableStateOf("") }
     LaunchedEffect(Unit) {
         try { SleepTimerManager.init(ctx) } catch (_: Exception) {}
     }
     LaunchedEffect(Unit) {
         try { com.teamshryne.wediyo.data.prefs.SettingsManager(ctx).videoQuality.collect { savedVideoQ = it } } catch (_: Exception) {}
+    }
+    LaunchedEffect(Unit) {
+        try { com.teamshryne.wediyo.data.prefs.SettingsManager(ctx).captionLanguage.collect { savedCaption = it; if (it == "off") PlayerManager.get().selectCaption(null) else if (it.isNotBlank()) PlayerManager.get().selectCaption(it) } } catch (_: Exception) {}
+    }
+    LaunchedEffect(Unit) {
+        try { com.teamshryne.wediyo.data.prefs.SettingsManager(ctx).audioTrackId.collect { savedAudioId = it } } catch (_: Exception) {}
+    }
+    LaunchedEffect(detail.videoId, savedAudioId) {
+        if (savedAudioId.isNotBlank()) {
+            val opts = PlayerManager.get().audioOptions(detail)
+            if (opts.any { it.id == savedAudioId }) {
+                // apply without rebuilding if already correct, else rebuild after player ready
+                if (PlayerManager.get().currentAudioTrackId() != savedAudioId && PlayerManager.get().playerOrNull()?.playbackState == Player.STATE_READY) {
+                    PlayerManager.get().selectAudioTrack(ctx, detail, savedAudioId)
+                } else if (PlayerManager.get().currentAudioTrackId() == null) {
+                    // store for initial build
+                    try { PlayerManager.get().selectAudioTrack(ctx, detail, savedAudioId) } catch (_: Exception) {}
+                }
+            }
+        }
+    }
+    LaunchedEffect(detail.videoId, savedCaption) {
+        if (savedCaption.isNotBlank() && savedCaption != "off") {
+            if (detail.captionTracks.any { it.languageCode == savedCaption }) PlayerManager.get().selectCaption(savedCaption)
+        } else if (savedCaption == "off") PlayerManager.get().selectCaption(null)
     }
     // Auto-apply saved video quality on first load if not shorts
     val preferredHeightFromSettings = remember(savedVideoQ) { if (isShorts) null else savedVideoQ.lowercase().removeSuffix("p").trim().toIntOrNull() }
@@ -391,7 +418,18 @@ fun WediyoPlayer(
                                 IconButton(onClick = { showSettingsSheet = false }, modifier = Modifier.size(32.dp)) { Icon(Icons.Filled.Close, null, modifier = Modifier.size(18.dp)) }
                             }
                             SettingsRow(icon = Icons.Filled.Hd, title = "Quality", subtitle = "${PlayerManager.get().qualityOptions(detail).size} options", onClick = { settingsMode = "quality" })
-                            SettingsRow(icon = Icons.Filled.Subtitles, title = "Captions", subtitle = if (detail.captionTracks.isEmpty()) "No captions" else "${detail.captionTracks.size} languages", onClick = { settingsMode = "captions" })
+                            run {
+                                val audioOpts = PlayerManager.get().audioOptions(detail)
+                                val selId = PlayerManager.get().currentAudioTrackId()
+                                val sub = when {
+                                    audioOpts.isEmpty() -> "Original"
+                                    audioOpts.size == 1 -> audioOpts.first().displayName
+                                    selId != null -> audioOpts.find { it.id == selId }?.displayName ?: "${audioOpts.size} tracks"
+                                    else -> "${audioOpts.size} tracks • tap to switch"
+                                }
+                                SettingsRow(icon = Icons.Filled.GraphicEq, title = "Audio track", subtitle = sub, onClick = { settingsMode = "audio" })
+                            }
+                            SettingsRow(icon = Icons.Filled.Subtitles, title = "Captions", subtitle = run { val sel = PlayerManager.get().selectedCaption(); if (sel == null || sel == "off") if (detail.captionTracks.isEmpty()) "No captions" else "Off • ${detail.captionTracks.size} languages" else sel }, onClick = { settingsMode = "captions" })
                             SettingsRow(icon = Icons.Filled.Speed, title = "Playback speed", subtitle = if (playbackSpeed==1f) "Normal" else "${playbackSpeed}x", onClick = { settingsMode = "speed" })
                             SettingsRow(icon = Icons.Filled.QueryStats, title = "Stats for nerds", subtitle = "View playback stats", onClick = { settingsMode = "stats" })
                             SettingsRow(
@@ -461,14 +499,77 @@ fun WediyoPlayer(
                     Surface(modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.30f), color = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp)) {
                         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = { settingsMode = null }, modifier = Modifier.size(32.dp)) { Icon(Icons.Filled.ArrowBack, null) }; Text("Captions", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f)); IconButton(onClick = { settingsMode = null; showSettingsSheet = false }, modifier = Modifier.size(32.dp)) { Icon(Icons.Filled.Close, null) } }
+                            val selLang = PlayerManager.get().selectedCaption()
+                            val isOff = selLang == null || selLang == "off"
+                            Surface(shape = RoundedCornerShape(14.dp), color = if (isOff) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable {
+                                PlayerManager.get().selectCaption(null)
+                                try { kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) { com.teamshryne.wediyo.data.prefs.SettingsManager(ctx).setCaptionLanguage("off") } } catch (_: Exception) {}
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                settingsMode = null; showSettingsSheet = false
+                            }) {
+                                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Surface(shape = CircleShape, color = if (isOff) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(32.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Block, null, modifier = Modifier.size(16.dp), tint = if (isOff) Color.White else MaterialTheme.colorScheme.onSecondaryContainer) } }
+                                    Column(Modifier.weight(1f)) { Text("Off", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), color = if (isOff) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface); Text("No subtitles", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                    if (isOff) Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                }
+                            }
                             if (detail.captionTracks.isEmpty()) {
                                 Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) { Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { Text("No captions available", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
                             } else {
                                 detail.captionTracks.forEach { ct ->
-                                    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable { settingsMode=null; showSettingsSheet=false }) {
+                                    val isSelected = ct.languageCode == selLang
+                                    Surface(shape = RoundedCornerShape(14.dp), color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable {
+                                        PlayerManager.get().selectCaption(ct.languageCode)
+                                        try { kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) { com.teamshryne.wediyo.data.prefs.SettingsManager(ctx).setCaptionLanguage(ct.languageCode) } } catch (_: Exception) {}
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        settingsMode=null; showSettingsSheet=false
+                                    }) {
                                         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(32.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(ct.languageCode.take(2).uppercase(), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)) } }
-                                            Column(Modifier.weight(1f)) { Text(ct.name.ifBlank{ct.languageCode}, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)); Text(ct.kind.ifBlank{"standard"}, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                            Surface(shape = CircleShape, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(32.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(ct.languageCode.take(2).uppercase(), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSecondaryContainer) } }
+                                            Column(Modifier.weight(1f)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                    Text(ct.name.ifBlank{ct.languageCode}, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
+                                                    if (ct.kind.equals("asr", ignoreCase = true)) Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.tertiaryContainer) { Text("Auto", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onTertiaryContainer, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)) }
+                                                }
+                                                Text(ct.languageCode + " • " + ct.kind.ifBlank{"standard"}, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                            if (isSelected) Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (settingsMode == "audio") {
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.42f)).clickable { settingsMode = null }) {}
+                    Surface(modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.30f), color = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp)) {
+                        val audioOpts = PlayerManager.get().audioOptions(detail)
+                        val selId = PlayerManager.get().currentAudioTrackId()
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) { IconButton(onClick = { settingsMode = null }, modifier = Modifier.size(32.dp)) { Icon(Icons.Filled.ArrowBack, null) }; Text("Audio track", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f)); IconButton(onClick = { settingsMode = null; showSettingsSheet = false }, modifier = Modifier.size(32.dp)) { Icon(Icons.Filled.Close, null) } }
+                            if (audioOpts.isEmpty()) {
+                                Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) { Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { Text("Original audio only", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+                            } else {
+                                audioOpts.forEach { opt ->
+                                    val isSelected = opt.id == selId || (selId == null && opt.isDefault)
+                                    Surface(shape = RoundedCornerShape(14.dp), color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable {
+                                        PlayerManager.get().selectAudioTrack(ctx, detail, opt.id)
+                                        try { kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) { val mgr = com.teamshryne.wediyo.data.prefs.SettingsManager(ctx); mgr.setAudioTrackId(opt.id); mgr.setAudioLanguage(opt.displayName) } } catch (_: Exception) {}
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        settingsMode=null; showSettingsSheet=false
+                                    }) {
+                                        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            Surface(shape = CircleShape, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(32.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(if (opt.isAutoDubbed) Icons.Filled.RecordVoiceOver else Icons.Filled.GraphicEq, null, modifier = Modifier.size(16.dp), tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSecondaryContainer) } }
+                                            Column(Modifier.weight(1f)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                    Text(opt.displayName, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
+                                                    if (opt.isDefault) Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.secondaryContainer) { Text("Original", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)) }
+                                                    if (opt.isAutoDubbed) Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.tertiaryContainer) { Text("Dubbed", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)) }
+                                                }
+                                                Text(opt.id, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                            }
+                                            if (isSelected) Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                                         }
                                     }
                                 }
@@ -505,7 +606,18 @@ fun WediyoPlayer(
                         Column(Modifier.padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text("Settings", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
                             SettingsRow(icon = Icons.Filled.Hd, title = "Quality", subtitle = "${PlayerManager.get().qualityOptions(detail).size} options", onClick = { settingsMode = "quality" })
-                            SettingsRow(icon = Icons.Filled.Subtitles, title = "Captions", subtitle = if (detail.captionTracks.isEmpty()) "No captions" else "${detail.captionTracks.size} languages", onClick = { settingsMode = "captions" })
+                            run {
+                                val audioOpts = PlayerManager.get().audioOptions(detail)
+                                val selId = PlayerManager.get().currentAudioTrackId()
+                                val sub = when {
+                                    audioOpts.isEmpty() -> "Original"
+                                    audioOpts.size == 1 -> audioOpts.first().displayName
+                                    selId != null -> audioOpts.find { it.id == selId }?.displayName ?: "${audioOpts.size} tracks"
+                                    else -> "${audioOpts.size} tracks • tap to switch"
+                                }
+                                SettingsRow(icon = Icons.Filled.GraphicEq, title = "Audio track", subtitle = sub, onClick = { settingsMode = "audio" })
+                            }
+                            SettingsRow(icon = Icons.Filled.Subtitles, title = "Captions", subtitle = run { val sel = PlayerManager.get().selectedCaption(); if (sel == null || sel == "off") if (detail.captionTracks.isEmpty()) "No captions" else "Off • ${detail.captionTracks.size} languages" else sel }, onClick = { settingsMode = "captions" })
                             SettingsRow(icon = Icons.Filled.Speed, title = "Playback speed", subtitle = if (playbackSpeed==1f) "Normal" else "${playbackSpeed}x", onClick = { settingsMode = "speed" })
                             SettingsRow(icon = Icons.Filled.QueryStats, title = "Stats for nerds", subtitle = "View playback stats", onClick = { settingsMode = "stats" })
                             SettingsRow(
@@ -588,16 +700,81 @@ fun WediyoPlayer(
                                 Text("Captions", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
                                 IconButton(onClick = { settingsMode = null; showSettingsSheet = false }) { Icon(Icons.Filled.Close, null) }
                             }
-                            if (detail.captionTracks.isEmpty()) {
-                                Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
-                                    Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { Text("No captions available", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            val selLang = PlayerManager.get().selectedCaption()
+                            val isOff = selLang == null || selLang == "off"
+                            Surface(shape = RoundedCornerShape(14.dp), color = if (isOff) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable {
+                                PlayerManager.get().selectCaption(null)
+                                try { kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) { com.teamshryne.wediyo.data.prefs.SettingsManager(ctx).setCaptionLanguage("off") } } catch (_: Exception) {}
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                settingsMode=null; showSettingsSheet=false
+                            }) {
+                                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Surface(shape = CircleShape, color = if (isOff) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(36.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Block, null, modifier = Modifier.size(18.dp), tint = if (isOff) Color.White else MaterialTheme.colorScheme.onSecondaryContainer) } }
+                                    Column(Modifier.weight(1f)) { Text("Off", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), color = if (isOff) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface); Text("No subtitles", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                    if (isOff) Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                                 }
+                            }
+                            if (detail.captionTracks.isEmpty()) {
+                                Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) { Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { Text("No captions available", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
                             } else {
                                 detail.captionTracks.forEach { ct ->
-                                    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable { settingsMode=null; showSettingsSheet=false }) {
+                                    val isSelected = ct.languageCode == selLang
+                                    Surface(shape = RoundedCornerShape(14.dp), color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable {
+                                        PlayerManager.get().selectCaption(ct.languageCode)
+                                        try { kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) { com.teamshryne.wediyo.data.prefs.SettingsManager(ctx).setCaptionLanguage(ct.languageCode) } } catch (_: Exception) {}
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        settingsMode=null; showSettingsSheet=false
+                                    }) {
                                         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(36.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(ct.languageCode.take(2).uppercase(), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)) } }
-                                            Column(Modifier.weight(1f)) { Text(ct.name.ifBlank{ct.languageCode}, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)); Text(ct.kind.ifBlank{"standard"}, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                            Surface(shape = CircleShape, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(36.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(ct.languageCode.take(2).uppercase(), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSecondaryContainer) } }
+                                            Column(Modifier.weight(1f)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                    Text(ct.name.ifBlank{ct.languageCode}, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
+                                                    if (ct.kind.equals("asr", ignoreCase = true)) Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.tertiaryContainer) { Text("Auto", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)) }
+                                                }
+                                                Text(ct.languageCode + " • " + ct.kind.ifBlank{"standard"}, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                            if (isSelected) Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(12.dp))
+                        }
+                    }
+                }
+                if (settingsMode == "audio") {
+                    ModalBottomSheet(onDismissRequest = { settingsMode = null }, containerColor = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) {
+                        val audioOpts = PlayerManager.get().audioOptions(detail)
+                        val selId = PlayerManager.get().currentAudioTrackId()
+                        Column(Modifier.padding(20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { settingsMode = null }) { Icon(Icons.Filled.ArrowBack, null) }
+                                Text("Audio track", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
+                                IconButton(onClick = { settingsMode = null; showSettingsSheet = false }) { Icon(Icons.Filled.Close, null) }
+                            }
+                            if (audioOpts.isEmpty()) {
+                                Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) { Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) { Text("Original audio only", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+                            } else {
+                                audioOpts.forEach { opt ->
+                                    val isSelected = opt.id == selId || (selId == null && opt.isDefault)
+                                    Surface(shape = RoundedCornerShape(14.dp), color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), modifier = Modifier.fillMaxWidth().clickable {
+                                        PlayerManager.get().selectAudioTrack(ctx, detail, opt.id)
+                                        try { kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) { val mgr = com.teamshryne.wediyo.data.prefs.SettingsManager(ctx); mgr.setAudioTrackId(opt.id); mgr.setAudioLanguage(opt.displayName) } } catch (_: Exception) {}
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        settingsMode=null; showSettingsSheet=false
+                                    }) {
+                                        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            Surface(shape = CircleShape, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(36.dp)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(if (opt.isAutoDubbed) Icons.Filled.RecordVoiceOver else Icons.Filled.GraphicEq, null, modifier = Modifier.size(18.dp), tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSecondaryContainer) } }
+                                            Column(Modifier.weight(1f)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                    Text(opt.displayName, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
+                                                    if (opt.isDefault) Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.secondaryContainer) { Text("Original", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)) }
+                                                    if (opt.isAutoDubbed) Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.tertiaryContainer) { Text("Dubbed", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)) }
+                                                }
+                                                Text(opt.id, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                            }
+                                            if (isSelected) Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                                         }
                                     }
                                 }

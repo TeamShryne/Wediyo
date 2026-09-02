@@ -16,6 +16,9 @@ object SettingsKeys {
     val theme = stringPreferencesKey("theme") // system, light, dark
     val shortsQuality = stringPreferencesKey("shorts_quality") // auto, 1080, 720, 480, ...
     val videoQuality = stringPreferencesKey("video_quality") // auto, 1080, 720, 480, ...
+    val captionLanguage = stringPreferencesKey("caption_language") // off, en, hi, etc
+    val audioLanguage = stringPreferencesKey("audio_language") // original, en, hi, etc (id or display)
+    val audioTrackId = stringPreferencesKey("audio_track_id") // last selected track id
 }
 
 class SettingsManager(private val context: Context) {
@@ -24,10 +27,16 @@ class SettingsManager(private val context: Context) {
     val theme: Flow<String> = context.dataStore.data.map { it[SettingsKeys.theme] ?: "system" }
     val shortsQuality: Flow<String> = context.dataStore.data.map { it[SettingsKeys.shortsQuality] ?: "auto" }
     val videoQuality: Flow<String> = context.dataStore.data.map { it[SettingsKeys.videoQuality] ?: "auto" }
+    val captionLanguage: Flow<String> = context.dataStore.data.map { it[SettingsKeys.captionLanguage] ?: "off" }
+    val audioLanguage: Flow<String> = context.dataStore.data.map { it[SettingsKeys.audioLanguage] ?: "original" }
+    val audioTrackId: Flow<String> = context.dataStore.data.map { it[SettingsKeys.audioTrackId] ?: "" }
 
     suspend fun setThumbQuality(v: String) { context.dataStore.edit { it[SettingsKeys.thumbQuality] = v } }
     suspend fun setAvatarQuality(v: String) { context.dataStore.edit { it[SettingsKeys.avatarQuality] = v } }
     suspend fun setTheme(v: String) { context.dataStore.edit { it[SettingsKeys.theme] = v } }
     suspend fun setShortsQuality(v: String) { context.dataStore.edit { it[SettingsKeys.shortsQuality] = v } }
     suspend fun setVideoQuality(v: String) { context.dataStore.edit { it[SettingsKeys.videoQuality] = v } }
+    suspend fun setCaptionLanguage(v: String) { context.dataStore.edit { it[SettingsKeys.captionLanguage] = v } }
+    suspend fun setAudioLanguage(v: String) { context.dataStore.edit { it[SettingsKeys.audioLanguage] = v } }
+    suspend fun setAudioTrackId(v: String) { context.dataStore.edit { it[SettingsKeys.audioTrackId] = v } }
 }

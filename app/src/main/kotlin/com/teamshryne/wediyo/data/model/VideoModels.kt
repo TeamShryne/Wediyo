@@ -15,6 +15,13 @@ data class UiTranslationLanguage(
     val languageName: String
 )
 
+data class UiAudioTrack(
+    val displayName: String,
+    val id: String,
+    val isAutoDubbed: Boolean,
+    val isDefault: Boolean
+)
+
 data class UiStreamingFormat(
     val itag: Int,
     val url: String,
@@ -34,7 +41,8 @@ data class UiStreamingFormat(
     val lastModified: String,
     val isAudio: Boolean,
     val isDrc: Boolean,
-    val xtags: String
+    val xtags: String,
+    val audioTrack: UiAudioTrack? = null
 )
 
 data class UiVideoDetail(
