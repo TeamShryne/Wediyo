@@ -13,9 +13,9 @@ object LoadControlFactory {
         val resolvedMax = maxOf(p.maxBufferMs, resolvedMin)
         return DefaultLoadControl.Builder()
             .setBufferDurationsMs(resolvedMin, resolvedMax, p.playbackMs, p.rebufferMs)
-            .setBackBuffer(p.backBufferMs, false)
+            .setBackBuffer(p.backBufferMs, true)
             .setPrioritizeTimeOverSizeThresholds(true)
-            .setAllocator(DefaultAllocator(true, 64 * 1024))
+            .setAllocator(DefaultAllocator(true, PlayerConfig.ALLOCATOR_BUFFER_SIZE))
             .setTargetBufferBytes(DefaultLoadControl.DEFAULT_TARGET_BUFFER_BYTES)
             .build()
     }
