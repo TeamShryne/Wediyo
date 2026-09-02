@@ -53,7 +53,7 @@ object YouTubeDataSource {
         return CacheDataSource.Factory()
             .setCache(cache)
             .setUpstreamDataSourceFactory(defaultDs)
-            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR or CacheDataSource.FLAG_IGNORE_CACHE_FOR_UNSET_LENGTH)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
     }
 
     fun progressiveFactory(context: Context): DataSource.Factory = factory(context)
