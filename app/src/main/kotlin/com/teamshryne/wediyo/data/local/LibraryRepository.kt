@@ -283,14 +283,14 @@ object LibraryRepository {
     // ── Custom playlists ──
     fun playlists(): Flow<List<LocalPlaylistEntity>> = db().playlists().playlists()
 
-    suspend fun createPlaylist(title: String, description: String = ""): String {
+    suspend fun createPlaylist(title: String, description: String = ""): String? {
         val id = UUID.randomUUID().toString()
-        try {
+        return try {
             db().playlists().upsertPlaylist(
                 LocalPlaylistEntity(playlistId = id, title = title.trim(), description = description.trim())
             )
-        } catch (_: Exception) {}
-        return id
+            id
+        } catch (e: Exception) { null }
     }
 
     suspend fun renamePlaylist(id: String, title: String, description: String = "") {
@@ -304,21 +304,33 @@ object LibraryRepository {
         try { db().playlists().deletePlaylist(id) } catch (_: Exception) {}
     }
 
-    suspend fun addToPlaylist(playlistId: String, video: UiVideo, source: String = "library") {
+    suspend fun addToPlaylist(playlistId: String, video: UiVideo, source: String = "library"): Boolean {
         cacheVideo(video)
-        addToPlaylistById(playlistId, video.id, source)
+        return addToPlaylistById(playlistId, video.id, source)
     }
 
-    suspend fun addToPlaylistById(playlistId: String, videoId: String, source: String = "library") {
-        try {
+    suspend fun addToPlaylistById(playlistId: String, videoId: String, source: String = "library"): Boolean {
+        return try {
             val dao = db().playlists()
+            if (dao.getPlaylist(playlistId) == null) return false
             val pos = dao.nextPosition(playlistId)
             dao.addItem(PlaylistItemEntity(playlistId = playlistId, videoId = videoId, position = pos, source = source))
             dao.getPlaylist(playlistId)?.let { pl ->
                 dao.upsertPlaylist(pl.copy(updatedAt = System.currentTimeMillis(), coverVideoId = pl.coverVideoId ?: videoId))
             }
-        } catch (_: Exception) {}
+            true
+        } catch (e: Exception) { false }
     }
+
+    fun playlistItemCounts(): Flow<Map<String, Int>> =
+        try {
+            db().playlists().itemCounts().let { flow ->
+                kotlinx.coroutines.flow.map(flow) { list -> list.associate { it.playlistId to it.c } }
+            }
+        } catch (_: Exception) { kotlinx.coroutines.flow.flowOf(emptyMap()) }
+
+    fun playlistCovers(): Flow<List<PlaylistCover>> =
+        try { db().playlists().covers() } catch (_: Exception) { kotlinx.coroutines.flow.flowOf(emptyList()) }
 
     suspend fun removeFromPlaylist(playlistId: String, videoId: String) {
         try { db().playlists().removeVideo(playlistId, videoId) } catch (_: Exception) {}

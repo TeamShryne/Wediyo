@@ -82,13 +82,6 @@ import com.teamshryne.wediyo.util.rememberHaptics
 import java.text.DateFormat
 import java.util.Date
 
-sealed interface LocalListKind {
-    data class Custom(val playlist: LocalPlaylistEntity) : LocalListKind
-    data object History : LocalListKind
-    data object WatchLater : LocalListKind
-    data object Liked : LocalListKind
-}
-
 data class DetailRow(
     val videoId: String,
     val title: String,
@@ -139,6 +132,8 @@ fun LibraryScreen(
     val watchLater by vm.watchLater.collectAsState()
     val liked by vm.liked.collectAsState()
     val playlists by vm.playlists.collectAsState()
+    val playlistCounts by vm.playlistCounts.collectAsState()
+    val playlistCovers by vm.playlistCovers.collectAsState()
     val subs by vm.subscriptions.collectAsState()
     val distinctVideos by vm.distinctVideos.collectAsState()
     val totalWatchMs by vm.totalWatchMs.collectAsState()
@@ -146,14 +141,14 @@ fun LibraryScreen(
     var section by remember { mutableStateOf("All") }
     var showCreate by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
-    var openList by remember { mutableStateOf<LocalListKind?>(null) }
+    var openPlaylist by remember { mutableStateOf<LocalPlaylistEntity?>(null) }
 
-    // ── Detail view (custom or system list, PlaylistScreen-style) ──
-    openList?.let { kind ->
+    // ── Detail view (PlaylistScreen-style) ──
+    openPlaylist?.let { pl ->
         LocalListDetail(
-            kind = kind,
+            playlist = pl,
             vm = vm,
-            onBack = { openList = null },
+            onBack = { openPlaylist = null },
             onVideoClick = onVideoClick
         )
         return
@@ -294,58 +289,15 @@ fun LibraryScreen(
                         }
                     )
                 }
-                if (section == "All") {
-                    if (history.isNotEmpty()) {
-                        item {
-                            SystemPlaylistCard(
-                                title = "History",
-                                subtitle = "Recently watched",
-                                count = history.size,
-                                icon = Icons.Filled.History,
-                                coverUrl = bestThumbUrl(
-                                    history.firstOrNull()?.thumbnailsJson ?: "[]",
-                                    history.firstOrNull()?.thumbnailUrl ?: "", "high"
-                                ),
-                                onClick = { openList = LocalListKind.History }
-                            )
-                        }
-                    }
-                    if (watchLater.isNotEmpty()) {
-                        item {
-                            SystemPlaylistCard(
-                                title = "Watch Later",
-                                subtitle = "Saved for later",
-                                count = watchLater.size,
-                                icon = Icons.Filled.Schedule,
-                                coverUrl = bestThumbUrl(
-                                    watchLater.firstOrNull()?.thumbnailsJson ?: "[]",
-                                    watchLater.firstOrNull()?.thumbnailUrl ?: "", "high"
-                                ),
-                                onClick = { openList = LocalListKind.WatchLater }
-                            )
-                        }
-                    }
-                    if (liked.isNotEmpty()) {
-                        item {
-                            SystemPlaylistCard(
-                                title = "Liked videos",
-                                subtitle = "Videos you liked",
-                                count = liked.size,
-                                icon = Icons.Filled.Favorite,
-                                coverUrl = bestThumbUrl(
-                                    liked.firstOrNull()?.thumbnailsJson ?: "[]",
-                                    liked.firstOrNull()?.thumbnailUrl ?: "", "high"
-                                ),
-                                onClick = { openList = LocalListKind.Liked }
-                            )
-                        }
-                    }
-                }
                 val customs = if (section == "Playlists") playlists else playlists.take(5)
                 items(customs, key = { "p${it.playlistId}" }) { pl ->
+                    val cover = playlistCovers[pl.playlistId]
                     PlaylistRow(
                         playlist = pl,
-                        onClick = { openList = LocalListKind.Custom(pl) }
+                        count = playlistCounts[pl.playlistId] ?: 0,
+                        coverThumb = cover?.thumb,
+                        coverThumbs = cover?.thumbs,
+                        onClick = { openPlaylist = pl }
                     )
                 }
                 if (playlists.isEmpty() && section == "Playlists") {
@@ -414,7 +366,7 @@ fun LibraryScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LocalListDetail(
-    kind: LocalListKind,
+    playlist: LocalPlaylistEntity,
     vm: LibraryViewModel,
     onBack: () -> Unit,
     onVideoClick: (String) -> Unit
@@ -422,108 +374,31 @@ private fun LocalListDetail(
     val h = rememberHaptics()
     var menuOpen by remember { mutableStateOf(false) }
     var showDelete by remember { mutableStateOf(false) }
-    var showClear by remember { mutableStateOf(false) }
     var showRename by remember { mutableStateOf(false) }
     var renameText by remember { mutableStateOf("") }
 
-    val title: String
-    val subtitle: String
-    val rows: List<DetailRow>
-    val onRemove: ((String) -> Unit)?
-
-    when (kind) {
-        is LocalListKind.Custom -> {
-            val pid = kind.playlist.playlistId
-            val itemsFlow = remember(pid) { vm.playlistItems(pid) }
-            val items by itemsFlow.collectAsState()
-            title = kind.playlist.title
-            subtitle = kind.playlist.description.ifBlank { "Private playlist • on this device" }
-            rows = items.map {
-                DetailRow(
-                    videoId = it.videoId,
-                    title = it.title ?: "Untitled",
-                    author = it.author ?: "",
-                    thumbUrl = it.thumbnailUrl ?: "",
-                    thumbsJson = it.thumbnailsJson ?: "[]",
-                    durationText = it.durationText ?: "",
-                    meta = listOfNotNull(
-                        it.author?.takeIf { s -> s.isNotBlank() },
-                        it.viewCountText?.takeIf { s -> s.isNotBlank() }
-                    ).joinToString(" • ")
-                )
-            }
-            onRemove = { vid -> vm.removeFromPlaylist(pid, vid) }
-        }
-        LocalListKind.History -> {
-            val history by vm.history.collectAsState()
-            title = "History"
-            subtitle = "Recently watched • on this device"
-            rows = history.take(200).map {
-                DetailRow(
-                    videoId = it.videoId,
-                    title = it.title ?: "Untitled",
-                    author = "",
-                    thumbUrl = it.thumbnailUrl ?: "",
-                    thumbsJson = it.thumbnailsJson ?: "[]",
-                    durationText = it.durationText ?: "",
-                    meta = listOfNotNull(
-                        it.viewCountText?.takeIf { s -> s.isNotBlank() },
-                        "Watched ${formatTimeAgo(it.watchedAt)}"
-                    ).joinToString(" • ")
-                )
-            }
-            onRemove = { vid -> vm.removeHistoryVideo(vid) }
-        }
-        LocalListKind.WatchLater -> {
-            val queue by vm.watchLater.collectAsState()
-            title = "Watch Later"
-            subtitle = "Saved for later • on this device"
-            rows = queue.map {
-                DetailRow(
-                    videoId = it.videoId,
-                    title = it.title ?: "Untitled",
-                    author = it.author ?: "",
-                    thumbUrl = it.thumbnailUrl ?: "",
-                    thumbsJson = it.thumbnailsJson ?: "[]",
-                    durationText = it.durationText ?: "",
-                    meta = listOfNotNull(
-                        it.author?.takeIf { s -> s.isNotBlank() },
-                        "Saved ${formatTimeAgo(it.addedAt)}"
-                    ).joinToString(" • ")
-                )
-            }
-            onRemove = { vid -> vm.removeWatchLater(vid) }
-        }
-        LocalListKind.Liked -> {
-            val liked by vm.liked.collectAsState()
-            title = "Liked videos"
-            subtitle = "Videos you liked • on this device"
-            rows = liked.map {
-                DetailRow(
-                    videoId = it.videoId,
-                    title = it.title ?: "Untitled",
-                    author = it.author ?: "",
-                    thumbUrl = it.thumbnailUrl ?: "",
-                    thumbsJson = it.thumbnailsJson ?: "[]",
-                    durationText = it.durationText ?: "",
-                    meta = listOfNotNull(
-                        it.author?.takeIf { s -> s.isNotBlank() },
-                        "Liked ${formatTimeAgo(it.addedAt)}"
-                    ).joinToString(" • ")
-                )
-            }
-            onRemove = { vid -> vm.unlike(vid) }
-        }
+    val pid = playlist.playlistId
+    val itemsFlow = remember(pid) { vm.playlistItems(pid) }
+    val items by itemsFlow.collectAsState()
+    val title = playlist.title
+    val subtitle = playlist.description.ifBlank { "Private playlist • on this device" }
+    val rows: List<DetailRow> = items.map {
+        DetailRow(
+            videoId = it.videoId,
+            title = it.title ?: "Untitled",
+            author = it.author ?: "",
+            thumbUrl = it.thumbnailUrl ?: "",
+            thumbsJson = it.thumbnailsJson ?: "[]",
+            durationText = it.durationText ?: "",
+            meta = listOfNotNull(
+                it.author?.takeIf { s -> s.isNotBlank() },
+                it.viewCountText?.takeIf { s -> s.isNotBlank() }
+            ).joinToString(" • ")
+        )
     }
+    val onRemove: (String) -> Unit = { vid -> vm.removeFromPlaylist(pid, vid) }
 
-    val showMenu = when (kind) {
-        is LocalListKind.Custom -> true
-        LocalListKind.WatchLater -> true
-        LocalListKind.Liked -> true
-        LocalListKind.History -> false // history controls live in Settings → History & privacy
-    }
-
-    if (showRename && kind is LocalListKind.Custom) {
+    if (showRename) {
         AlertDialog(
             onDismissRequest = { showRename = false },
             title = { Text("Rename playlist") },
@@ -541,7 +416,7 @@ private fun LocalListDetail(
                     enabled = renameText.isNotBlank(),
                     onClick = {
                         h.confirm()
-                        vm.renamePlaylist(kind.playlist.playlistId, renameText)
+                        vm.renamePlaylist(playlist.playlistId, renameText)
                         showRename = false
                         onBack()
                     }
@@ -550,48 +425,22 @@ private fun LocalListDetail(
             dismissButton = { TextButton(onClick = { showRename = false }) { Text("Cancel") } }
         )
     }
-    if (showDelete && kind is LocalListKind.Custom) {
+    if (showDelete) {
         AlertDialog(
             onDismissRequest = { showDelete = false },
-            title = { Text("Delete \"${kind.playlist.title}\"?") },
+            title = { Text("Delete \"${playlist.title}\"?") },
             text = { Text("The playlist will be removed from this device. Videos stay in history.") },
             confirmButton = {
                 TextButton(
                     onClick = {
                         h.toggle(false)
-                        vm.deletePlaylist(kind.playlist.playlistId)
+                        vm.deletePlaylist(playlist.playlistId)
                         showDelete = false
                         onBack()
                     }
                 ) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { showDelete = false }) { Text("Keep") } }
-        )
-    }
-    if (showClear) {
-        val label = when (kind) {
-            LocalListKind.WatchLater -> "Watch Later"
-            LocalListKind.Liked -> "Liked videos"
-            else -> "this list"
-        }
-        AlertDialog(
-            onDismissRequest = { showClear = false },
-            title = { Text("Clear $label?") },
-            text = { Text("Removes all videos from $label on this device.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        h.toggle(false)
-                        when (kind) {
-                            LocalListKind.WatchLater -> vm.clearWatchLater()
-                            LocalListKind.Liked -> vm.clearLiked()
-                            else -> {}
-                        }
-                        showClear = false
-                    }
-                ) { Text("Clear", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = { TextButton(onClick = { showClear = false }) { Text("Keep") } }
         )
     }
 
@@ -601,38 +450,23 @@ private fun LocalListDetail(
                 title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = { IconButton(onClick = { h.tap(); onBack() }) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back") } },
                 actions = {
-                    if (showMenu) {
-                        Box {
-                            IconButton(onClick = { h.tap(); menuOpen = true }) {
-                                Icon(Icons.Filled.MoreVert, contentDescription = "List options")
-                            }
-                            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                                if (kind is LocalListKind.Custom) {
-                                    DropdownMenuItem(
-                                        text = { Text("Rename") },
-                                        onClick = {
-                                            menuOpen = false
-                                            renameText = kind.playlist.title
-                                            showRename = true
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Delete playlist", color = MaterialTheme.colorScheme.error) },
-                                        onClick = { menuOpen = false; showDelete = true }
-                                    )
-                                } else {
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                if (kind == LocalListKind.WatchLater) "Clear Watch Later"
-                                                else "Clear liked videos",
-                                                color = MaterialTheme.colorScheme.error
-                                            )
-                                        },
-                                        onClick = { menuOpen = false; showClear = true }
-                                    )
+                    Box {
+                        IconButton(onClick = { h.tap(); menuOpen = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = "Playlist options")
+                        }
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Rename") },
+                                onClick = {
+                                    menuOpen = false
+                                    renameText = playlist.title
+                                    showRename = true
                                 }
-                            }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Delete playlist", color = MaterialTheme.colorScheme.error) },
+                                onClick = { menuOpen = false; showDelete = true }
+                            )
                         }
                     }
                 }
@@ -870,74 +704,62 @@ private fun EmptyHint(icon: ImageVector, text: String) {
 }
 
 @Composable
-private fun SystemPlaylistCard(
-    title: String,
-    subtitle: String,
+private fun PlaylistRow(
+    playlist: LocalPlaylistEntity,
     count: Int,
-    icon: ImageVector,
-    coverUrl: String,
+    coverThumb: String?,
+    coverThumbs: String?,
     onClick: () -> Unit
 ) {
     val h = rememberHaptics()
-    Card(
-        onClick = { h.tap(); onClick() },
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+    val coverUrl = bestThumbUrl(coverThumbs ?: "[]", coverThumb ?: "", "high")
+    Row(
+        Modifier.fillMaxWidth().clickable { h.tap(); onClick() }.padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF111111)),
-                contentAlignment = Alignment.Center
-            ) {
-                if (coverUrl.isNotBlank()) {
-                    AsyncImage(model = coverUrl, contentDescription = title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                } else {
-                    Icon(icon, null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(26.dp))
-                }
-                Box(Modifier.align(Alignment.BottomEnd).padding(3.dp).background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 1.dp)) {
-                    Text("$count", color = Color.White, style = MaterialTheme.typography.labelSmall)
+        // YouTube-style stacked thumbnail: cover + right count strip
+        Box(
+            Modifier.width(136.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp)).background(Color(0xFF111111))
+        ) {
+            if (coverUrl.isNotBlank()) {
+                AsyncImage(model = coverUrl, contentDescription = playlist.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            } else {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.PlaylistPlay, null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(28.dp))
                 }
             }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // Right strip with count — the classic YouTube playlist look
+            Box(
+                Modifier.align(Alignment.CenterEnd).width(42.dp).fillMaxHeight()
+                    .background(Color.Black.copy(alpha = 0.72f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("$count", color = Color.White, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                    Icon(Icons.Filled.PlaylistPlay, null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.size(16.dp))
+                }
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(playlist.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold))
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "Private • $count video${if (count == 1) "" else "s"}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (playlist.description.isNotBlank()) {
                 Text(
-                    "$subtitle • $count video${if (count == 1) "" else "s"}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    playlist.description,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
-        }
-    }
-}
-
-@Composable
-private fun PlaylistRow(playlist: LocalPlaylistEntity, onClick: () -> Unit) {
-    val h = rememberHaptics()
-    Card(
-        onClick = { h.tap(); onClick() },
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
-    ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                Icon(Icons.Filled.PlaylistPlay, null, modifier = Modifier.padding(12.dp).size(22.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(playlist.title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    if (playlist.description.isNotBlank()) playlist.description else "Tap to view videos",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis
-                )
-            }
-            Icon(Icons.Filled.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

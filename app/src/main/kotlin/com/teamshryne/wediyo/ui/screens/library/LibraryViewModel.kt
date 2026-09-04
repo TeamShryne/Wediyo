@@ -11,6 +11,7 @@ import com.teamshryne.wediyo.data.local.SubscriptionRow
 import com.teamshryne.wediyo.data.model.UiVideo
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -28,6 +29,13 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
 
     val playlists: StateFlow<List<LocalPlaylistEntity>> =
         LibraryRepository.playlists().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val playlistCounts: StateFlow<Map<String, Int>> =
+        LibraryRepository.playlistItemCounts().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    val playlistCovers: StateFlow<Map<String, com.teamshryne.wediyo.data.local.PlaylistCover>> =
+        LibraryRepository.playlistCovers().map { list -> list.associateBy { it.playlistId } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val subscriptions: StateFlow<List<SubscriptionRow>> =
         LibraryRepository.subscriptions().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
