@@ -319,7 +319,7 @@ fun LibraryScreen(
                                 icon = Icons.Filled.Schedule,
                                 coverUrl = bestThumbUrl(
                                     watchLater.firstOrNull()?.thumbnailsJson ?: "[]",
-                                    watchLater.firstOrNull()?.thumbUrlSafe(), "high"
+                                    watchLater.firstOrNull()?.thumbnailUrl ?: "", "high"
                                 ),
                                 onClick = { openList = LocalListKind.WatchLater }
                             )
@@ -334,7 +334,7 @@ fun LibraryScreen(
                                 icon = Icons.Filled.Favorite,
                                 coverUrl = bestThumbUrl(
                                     liked.firstOrNull()?.thumbnailsJson ?: "[]",
-                                    liked.firstOrNull()?.thumbUrlSafe(), "high"
+                                    liked.firstOrNull()?.thumbnailUrl ?: "", "high"
                                 ),
                                 onClick = { openList = LocalListKind.Liked }
                             )
@@ -406,8 +406,6 @@ fun LibraryScreen(
         }
     }
 }
-
-private fun SavedVideoRow.thumbUrlSafe(): String = thumbnailUrl ?: ""
 
 // ─────────────────────────────────────────────────────────────
 // Local list detail — mirrors PlaylistScreen (hero + Play all /
