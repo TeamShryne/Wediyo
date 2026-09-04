@@ -551,7 +551,7 @@ private fun SavedRow(row: SavedVideoRow, subtitle: String, onClick: () -> Unit, 
                 .background(Color(0xFF111111))
         ) {
             AsyncImage(
-                model = bestThumbUrl(row.thumbsJson ?: "[]", row.thumbUrl ?: "", "high"),
+                model = bestThumbUrl(row.thumbnailsJson ?: "[]", row.thumbnailUrl ?: "", "high"),
                 contentDescription = row.title,
                 modifier = Modifier.fillMaxWidth().height(68.dp),
                 contentScale = ContentScale.Crop
@@ -608,6 +608,7 @@ private fun PlaylistRow(playlist: LocalPlaylistEntity, onClick: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PlaylistDetailView(
     playlist: LocalPlaylistEntity,
