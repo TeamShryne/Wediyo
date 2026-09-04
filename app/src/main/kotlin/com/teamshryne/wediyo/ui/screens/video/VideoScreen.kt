@@ -44,15 +44,22 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.teamshryne.wediyo.data.local.LibraryRepository
 import com.teamshryne.wediyo.data.model.UiComment
+import com.teamshryne.wediyo.data.model.UiVideo
 import com.teamshryne.wediyo.data.model.UiVideoDetail
 import com.teamshryne.wediyo.data.prefs.SettingsManager
 import com.teamshryne.wediyo.player.SleepTimerManager
 import com.teamshryne.wediyo.ui.components.ChannelVideoListCard
 import com.teamshryne.wediyo.ui.components.SleepTimerSheet
+import com.teamshryne.wediyo.ui.components.SubscribeButton
+import com.teamshryne.wediyo.ui.components.VideoActionsSheet
 import com.teamshryne.wediyo.ui.components.WediyoPlayer
 import com.teamshryne.wediyo.util.bestThumbUrl
+import com.teamshryne.wediyo.util.rememberHaptics
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.media3.common.util.UnstableApi::class)
 @Composable
@@ -70,12 +77,32 @@ fun VideoScreen(
     var avatarQ by remember { mutableStateOf("high") }
     var isFullscreen by remember { mutableStateOf(false) }
     var showSleepSheet by remember { mutableStateOf(false) }
+    var showSaveSheet by remember { mutableStateOf(false) }
+    val libScope = rememberCoroutineScope()
+    val libHaptics = rememberHaptics()
     val config = LocalConfiguration.current
     LaunchedEffect(Unit) { try { SleepTimerManager.init(ctx) } catch (_: Exception) {} }
+    LaunchedEffect(Unit) { try { LibraryRepository.init(ctx) } catch (_: Exception) {} }
 
     LaunchedEffect(Unit) { settings.thumbQuality.collectLatest { thumbQ = it } }
     LaunchedEffect(Unit) { settings.avatarQuality.collectLatest { avatarQ = it } }
     LaunchedEffect(videoId) { vm.load(videoId) }
+
+    // Library: cache + history (local-only, respects pause toggle)
+    val openedVideoId = state.detail?.videoId
+    LaunchedEffect(openedVideoId) {
+        val d = state.detail ?: return@LaunchedEffect
+        try {
+            LibraryRepository.cacheVideoDetail(d)
+            if (!settings.historyPaused.first()) {
+                LibraryRepository.logHistory(videoId = d.videoId, channelId = d.channelId, source = "video")
+            }
+        } catch (_: Exception) {}
+    }
+    val isLikedLocal by remember(openedVideoId) {
+        if (openedVideoId.isNullOrBlank()) kotlinx.coroutines.flow.flowOf(false)
+        else try { LibraryRepository.isLiked(openedVideoId) } catch (_: Exception) { kotlinx.coroutines.flow.flowOf(false) }
+    }.collectAsState(initial = false)
 
     // Apply fullscreen orientation / insets - no recreate due to configChanges
     LaunchedEffect(isFullscreen) {
@@ -192,7 +219,7 @@ fun VideoScreen(
                             }
                             LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(bottom = 24.dp)) {
                                 item { FlowVideoInfoSection(videoDetail = d, ctx = ctx, avatarQ = avatarQ, likeCount = d.likeCount, viewCount = d.viewCount, onChannelClick = { onChannelClick(d.channelId) }, onShare = { shareVideo(ctx, d) }, onDownload = { vm.setDetailsSheet(true) }, onSave = { vm.setDetailsSheet(true) }, onDescriptionClick = { vm.setDetailsSheet(true) }) }
-                                item { FlowVideoActionRowFlow(d = d, ctx = ctx, onLike = {}, onDislike = {}, onShare = { shareVideo(ctx, d) }, onSave = {}, onDownload = { vm.setDetailsSheet(true) }, onCopyLink = { copyLink(ctx, d, withTimestamp = false) }, onCopyLinkAtTime = { copyLink(ctx, d, withTimestamp = true) }, onSleepTimer = { showSleepSheet = true }) }
+                                item { FlowVideoActionRowFlow(d = d, ctx = ctx, isLiked = isLikedLocal, onLike = { libHaptics.toggle(!isLikedLocal); libScope.launch { try { LibraryRepository.toggleLike(d) } catch (_: Exception) {} } }, onDislike = {}, onShare = { shareVideo(ctx, d) }, onSave = { libHaptics.longPress(); showSaveSheet = true }, onDownload = { vm.setDetailsSheet(true) }, onCopyLink = { copyLink(ctx, d, withTimestamp = false) }, onCopyLinkAtTime = { copyLink(ctx, d, withTimestamp = true) }, onSleepTimer = { showSleepSheet = true }) }
                                 item { FlowCommentsPreview(comments = state.comments, countText = state.commentsCount ?: d.commentsCountText, avatarQ = avatarQ, onClick = { vm.setCommentsSheet(true) }) }
                             }
                         }
@@ -226,7 +253,7 @@ fun VideoScreen(
                         }
                         LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 28.dp)) {
                             item { FlowVideoInfoSection(videoDetail = d, ctx = ctx, avatarQ = avatarQ, likeCount = d.likeCount, viewCount = d.viewCount, onChannelClick = { onChannelClick(d.channelId) }, onShare = { shareVideo(ctx, d) }, onDownload = { vm.setDetailsSheet(true) }, onSave = { vm.setDetailsSheet(true) }, onDescriptionClick = { vm.setDetailsSheet(true) }) }
-                            item { FlowVideoActionRowFlow(d = d, ctx = ctx, onLike = {}, onDislike = {}, onShare = { shareVideo(ctx, d) }, onSave = {}, onDownload = { vm.setDetailsSheet(true) }, onCopyLink = { copyLink(ctx, d, withTimestamp = false) }, onCopyLinkAtTime = { copyLink(ctx, d, withTimestamp = true) }, onSleepTimer = { showSleepSheet = true }) }
+                            item { FlowVideoActionRowFlow(d = d, ctx = ctx, isLiked = isLikedLocal, onLike = { libHaptics.toggle(!isLikedLocal); libScope.launch { try { LibraryRepository.toggleLike(d) } catch (_: Exception) {} } }, onDislike = {}, onShare = { shareVideo(ctx, d) }, onSave = { libHaptics.longPress(); showSaveSheet = true }, onDownload = { vm.setDetailsSheet(true) }, onCopyLink = { copyLink(ctx, d, withTimestamp = false) }, onCopyLinkAtTime = { copyLink(ctx, d, withTimestamp = true) }, onSleepTimer = { showSleepSheet = true }) }
                             item { FlowCommentsPreview(comments = state.comments, countText = state.commentsCount ?: d.commentsCountText, avatarQ = avatarQ, onClick = { vm.setCommentsSheet(true) }) }
                             item {
                                 Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 18.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -252,6 +279,27 @@ fun VideoScreen(
                 }
                 if (showSleepSheet) {
                     SleepTimerSheet(onDismiss = { showSleepSheet = false })
+                }
+                if (showSaveSheet) {
+                    VideoActionsSheet(
+                        video = UiVideo(
+                            id = d.videoId,
+                            title = d.title,
+                            author = d.author.ifBlank { d.channelTitle },
+                            channelId = d.channelId,
+                            thumbnailUrl = d.thumbnailUrl,
+                            thumbnailsJson = d.thumbnailsJson,
+                            avatarUrl = d.channelAvatarUrl,
+                            avatarsJson = d.channelAvatarsJson,
+                            viewCountText = d.viewCountText,
+                            publishedText = d.uploadDate.ifBlank { d.publishDate },
+                            durationText = d.durationText,
+                            isLive = d.isLive,
+                            badges = emptyList(),
+                            description = d.shortDescription
+                        ),
+                        onDismiss = { showSaveSheet = false }
+                    )
                 }
             }
         }
@@ -342,30 +390,14 @@ private fun FlowVideoInfoSection(
                 }
             }
             Spacer(Modifier.width(8.dp))
-            FlowSubscribeButton(isSubscribed = false, onSubscribe = onChannelClick)
-        }
-    }
-}
-
-@Composable
-private fun FlowSubscribeButton(isSubscribed: Boolean, onSubscribe: () -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    val bg = if (isSubscribed) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f) else MaterialTheme.colorScheme.onBackground
-    val fg = if (isSubscribed) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surface
-    Box {
-        Surface(onClick = { if (isSubscribed) expanded = true else onSubscribe() }, shape = RoundedCornerShape(18.dp), color = bg, modifier = Modifier.height(36.dp)) {
-            Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                if (isSubscribed) {
-                    Icon(Icons.Filled.Notifications, null, modifier = Modifier.size(18.dp), tint = fg)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Subscribed", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium), color = fg)
-                    Spacer(Modifier.width(4.dp))
-                    Icon(Icons.Filled.KeyboardArrowDown, null, modifier = Modifier.size(16.dp), tint = fg)
-                } else Text("Subscribe", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium), color = fg)
-            }
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(text = { Text("Unsubscribe") }, leadingIcon = { Icon(Icons.Filled.PersonRemove, null) }, onClick = { expanded = false; onSubscribe() })
+            SubscribeButton(
+                channelId = videoDetail.channelId,
+                title = videoDetail.channelTitle.ifBlank { videoDetail.author },
+                handle = videoDetail.channelHandle,
+                avatarUrl = videoDetail.channelAvatarUrl,
+                avatarsJson = videoDetail.channelAvatarsJson,
+                subsText = videoDetail.subscriberCountText
+            )
         }
     }
 }
@@ -374,6 +406,7 @@ private fun FlowSubscribeButton(isSubscribed: Boolean, onSubscribe: () -> Unit) 
 private fun FlowVideoActionRowFlow(
     d: UiVideoDetail,
     ctx: Context,
+    isLiked: Boolean = false,
     onLike: () -> Unit,
     onDislike: () -> Unit,
     onShare: () -> Unit,
@@ -419,9 +452,9 @@ private fun FlowVideoActionRowFlow(
             Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f), modifier = Modifier.height(36.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Row(Modifier.clickable { onLike() }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(if (d.likeCountText.isNotBlank() || d.likeCount > 0) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurface)
+                        Icon(if (isLiked) Icons.Filled.ThumbUp else if (d.likeCountText.isNotBlank() || d.likeCount > 0) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, null, modifier = Modifier.size(18.dp), tint = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
                         Spacer(Modifier.width(6.dp))
-                        Text(if (d.likeCountText.isNotBlank()) d.likeCountText else if (d.likeCount > 0) formatCompact(d.likeCount) else "Like", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSurface)
+                        Text(if (isLiked) "Liked" else if (d.likeCountText.isNotBlank()) d.likeCountText else if (d.likeCount > 0) formatCompact(d.likeCount) else "Like", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium), color = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
                     }
                     Box(Modifier.width(1.dp).height(24.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)))
                     Row(Modifier.clickable { onDislike() }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -18,7 +18,6 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.teamshryne.wediyo.data.model.UiVideo
 import com.teamshryne.wediyo.util.bestThumbUrl
-
 @Composable
 fun VideoCard(video: UiVideo, thumbQuality: String, avatarQuality: String, onClick: () -> Unit) {
     Column(Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 6.dp)) {
@@ -165,7 +164,16 @@ fun ChannelCard(channel: com.teamshryne.wediyo.data.model.UiChannel, thumbQualit
             Text(channel.handle.ifBlank { channel.subs }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (channel.desc.isNotBlank()) Text(channel.desc, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Text("Subscribe", color = Color.White, modifier = Modifier.background(Color.Black, RoundedCornerShape(18.dp)).padding(horizontal = 12.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium)
+        SubscribeButton(
+            channelId = channel.channelId,
+            title = channel.title,
+            handle = channel.handle,
+            avatarUrl = channel.thumbUrl,
+            avatarsJson = channel.thumbsJson,
+            subsText = channel.subs,
+            verified = channel.verified,
+            compact = true
+        )
     }
 }
 

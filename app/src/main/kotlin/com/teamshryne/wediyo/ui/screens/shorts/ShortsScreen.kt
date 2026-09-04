@@ -33,6 +33,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.teamshryne.wediyo.data.local.LibraryRepository
+import com.teamshryne.wediyo.data.model.UiVideo
 import com.teamshryne.wediyo.data.prefs.SettingsManager
 import com.teamshryne.wediyo.player.PlayerManager
 import com.teamshryne.wediyo.player.SleepTimerManager
@@ -40,6 +42,7 @@ import com.teamshryne.wediyo.ui.components.SleepTimerSheet
 import com.teamshryne.wediyo.ui.components.SleepTimerIndicator
 import com.teamshryne.wediyo.util.bestThumbUrl
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 private const val SHORTS_SHEET_HEIGHT_FRACTION = 0.72f
@@ -63,6 +66,7 @@ fun ShortsScreen(
     var showSleepSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { try { SleepTimerManager.init(ctx) } catch (_: Exception) {} }
+    LaunchedEffect(Unit) { try { LibraryRepository.init(ctx) } catch (_: Exception) {} }
     LaunchedEffect(Unit) { settings.thumbQuality.collectLatest { thumbQ = it } }
     LaunchedEffect(Unit) { settings.avatarQuality.collectLatest { avatarQ = it } }
     LaunchedEffect(Unit) { settings.shortsQuality.collectLatest { shortsQuality = it } }
@@ -79,6 +83,28 @@ fun ShortsScreen(
         }
         if (state.shorts.isNotEmpty() && idx >= state.shorts.size - 4) {
             state.continuation?.let { vm.loadMoreContinuation(it) }
+        }
+    }
+
+    // Library: log shorts watch (local-only, respects pause) — fires once per page
+    LaunchedEffect(pagerState.currentPage) {
+        val idx = pagerState.currentPage
+        if (state.shorts.isNotEmpty() && idx in state.shorts.indices) {
+            val s = state.shorts[idx]
+            try {
+                LibraryRepository.cacheVideo(
+                    UiVideo(
+                        id = s.videoId, title = s.title, author = "",
+                        channelId = "", thumbnailUrl = s.thumbUrl, thumbnailsJson = s.thumbsJson,
+                        avatarUrl = "", avatarsJson = "[]", viewCountText = s.views,
+                        publishedText = "", durationText = "", isLive = false,
+                        badges = emptyList(), description = ""
+                    )
+                )
+                if (!settings.historyPaused.first()) {
+                    LibraryRepository.logHistory(videoId = s.videoId, source = "shorts", isShorts = true)
+                }
+            } catch (_: Exception) {}
         }
     }
 
@@ -179,7 +205,21 @@ fun ShortsScreen(
                             },
                             onLikeClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                scope.launch { snackbarHostState.showSnackbar("Added to liked shorts") }
+                                scope.launch {
+                                    val msg = try {
+                                        val det = detail
+                                        val vid = det?.videoId ?: short.videoId
+                                        if (det != null) LibraryRepository.cacheVideoDetail(det, "shorts")
+                                        if (LibraryRepository.isLikedOnce(vid)) {
+                                            LibraryRepository.setLiked(vid, false)
+                                            "Removed from liked"
+                                        } else {
+                                            LibraryRepository.setLiked(vid, true, "shorts")
+                                            "Added to liked"
+                                        }
+                                    } catch (_: Exception) { "Couldn't save like" }
+                                    try { snackbarHostState.showSnackbar(msg) } catch (_: Exception) {}
+                                }
                             },
                             onQualitySelected = { height ->
                                 val qStr = if (height == 0) "auto" else "${height}p"

@@ -39,6 +39,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // Restore sleep timer (alarm-backed, survives process death)
         try { com.teamshryne.wediyo.player.SleepTimerManager.init(this) } catch (_: Exception) {}
+        // Local library DB (history, likes, playlists, subscriptions)
+        try { com.teamshryne.wediyo.data.local.LibraryRepository.init(this) } catch (_: Exception) {}
         enableEdgeToEdge()
         setContent {
             val ctx = LocalContext.current
