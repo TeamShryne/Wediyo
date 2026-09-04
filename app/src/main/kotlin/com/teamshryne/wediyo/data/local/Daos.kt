@@ -260,7 +260,16 @@ interface LocalPlaylistDao {
 
     @Query("SELECT COUNT(*) FROM local_playlist_items WHERE playlistId = :pid")
     fun itemCount(pid: String): Flow<Int>
+
+    @Query("SELECT playlistId AS playlistId, COUNT(*) AS c FROM local_playlist_items GROUP BY playlistId")
+    fun itemCounts(): Flow<List<PlaylistCount>>
+
+    @Query("SELECT p.playlistId AS playlistId, v.thumbnailUrl AS thumb, v.thumbnailsJson AS thumbs FROM local_playlists p LEFT JOIN videos v ON v.videoId = p.coverVideoId")
+    fun covers(): Flow<List<PlaylistCover>>
 }
+
+data class PlaylistCount(val playlistId: String, val c: Int)
+data class PlaylistCover(val playlistId: String, val thumb: String?, val thumbs: String?)
 
 @Dao
 interface SearchEventDao {

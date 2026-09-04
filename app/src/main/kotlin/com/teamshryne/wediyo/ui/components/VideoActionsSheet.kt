@@ -1,5 +1,6 @@
 package com.teamshryne.wediyo.ui.components
 
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -79,6 +80,9 @@ fun VideoActionsSheet(
     var showNew by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
     var justAdded by remember { mutableStateOf<String?>(null) }
+    val toast = remember(ctx) {
+        { msg: String -> try { Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show() } catch (_: Exception) {} }
+    }
     if (justAdded != null) {
         LaunchedEffect(justAdded) {
             kotlinx.coroutines.delay(1200)
@@ -107,8 +111,12 @@ fun VideoActionsSheet(
                 onClick = {
                     h.toggle(!liked)
                     scope.launch {
-                        LibraryRepository.cacheVideo(video)
-                        LibraryRepository.setLiked(vid, !liked)
+                        try {
+                            LibraryRepository.cacheVideo(video)
+                            LibraryRepository.setLiked(vid, !liked)
+                        } catch (e: Exception) {
+                            toast("Couldn't save like")
+                        }
                     }
                 }
             )
@@ -118,8 +126,12 @@ fun VideoActionsSheet(
                 onClick = {
                     h.toggle(!saved)
                     scope.launch {
-                        if (saved) LibraryRepository.removeWatchLater(vid)
-                        else LibraryRepository.addWatchLater(video)
+                        try {
+                            if (saved) LibraryRepository.removeWatchLater(vid)
+                            else LibraryRepository.addWatchLater(video)
+                        } catch (e: Exception) {
+                            toast("Couldn't update Watch Later")
+                        }
                     }
                 }
             )
@@ -150,10 +162,21 @@ fun VideoActionsSheet(
                         onClick = {
                             h.confirm()
                             scope.launch {
-                                val pid = LibraryRepository.createPlaylist(newName)
-                                LibraryRepository.addToPlaylist(pid, video)
-                                newName = ""
-                                showNew = false
+                                try {
+                                    val pid = LibraryRepository.createPlaylist(newName)
+                                    if (pid == null) {
+                                        toast("Couldn't create playlist")
+                                    } else if (LibraryRepository.addToPlaylist(pid, video)) {
+                                        justAdded = pid
+                                        toast("Added to $newName")
+                                        newName = ""
+                                        showNew = false
+                                    } else {
+                                        toast("Couldn't add video")
+                                    }
+                                } catch (e: Exception) {
+                                    toast("Couldn't create playlist")
+                                }
                             }
                         }
                     ) { Text("Create") }
@@ -170,8 +193,16 @@ fun VideoActionsSheet(
                             Modifier.fillMaxWidth().clickable {
                                 h.tap()
                                 scope.launch {
-                                    LibraryRepository.addToPlaylist(pl.playlistId, video)
-                                    justAdded = pl.playlistId
+                                    try {
+                                        if (LibraryRepository.addToPlaylist(pl.playlistId, video)) {
+                                            justAdded = pl.playlistId
+                                            toast("Added to ${pl.title}")
+                                        } else {
+                                            toast("Couldn't add to ${pl.title}")
+                                        }
+                                    } catch (e: Exception) {
+                                        toast("Couldn't add to ${pl.title}")
+                                    }
                                 }
                             }.padding(vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
