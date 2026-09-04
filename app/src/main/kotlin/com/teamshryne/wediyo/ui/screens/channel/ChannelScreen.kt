@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.teamshryne.wediyo.data.model.toUiVideo
 import com.teamshryne.wediyo.data.prefs.SettingsManager
 import com.teamshryne.wediyo.ui.components.SubscribeButton
 import com.teamshryne.wediyo.util.bestThumbUrl
@@ -268,7 +269,7 @@ fun ChannelScreen(
                                             if (p.updatedText.isNotBlank()) Text(p.updatedText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                                             else if (p.episodeCountText.isNotBlank()) Text(p.episodeCountText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
-                                        Box(Modifier.size(24.dp)) { Text("⋮", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                        com.teamshryne.wediyo.ui.components.VideoOverflowButton(p.toUiVideo())
                                     }
                                 }
                             } else if (!state.isPodcastsLoading) { item { Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { Text("No podcasts", color = MaterialTheme.colorScheme.onSurfaceVariant) } } }

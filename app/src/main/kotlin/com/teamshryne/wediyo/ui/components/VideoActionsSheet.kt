@@ -32,6 +32,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -77,6 +78,13 @@ fun VideoActionsSheet(
     val playlists by playlistsFlow.collectAsState(initial = emptyList())
     var showNew by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
+    var justAdded by remember { mutableStateOf<String?>(null) }
+    if (justAdded != null) {
+        LaunchedEffect(justAdded) {
+            kotlinx.coroutines.delay(1200)
+            justAdded = null
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -157,25 +165,44 @@ fun VideoActionsSheet(
             } else {
                 LazyColumn(modifier = Modifier.height(240.dp)) {
                     items(playlists, key = { it.playlistId }) { pl ->
+                        val added = justAdded == pl.playlistId
                         Row(
                             Modifier.fillMaxWidth().clickable {
                                 h.tap()
-                                scope.launch { LibraryRepository.addToPlaylist(pl.playlistId, video) }
+                                scope.launch {
+                                    LibraryRepository.addToPlaylist(pl.playlistId, video)
+                                    justAdded = pl.playlistId
+                                }
                             }.padding(vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Card(
                                 shape = RoundedCornerShape(8.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (added) MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
                             ) {
-                                Icon(Icons.Filled.PlaylistAdd, null, modifier = Modifier.padding(8.dp))
+                                Icon(
+                                    if (added) Icons.Filled.Check else Icons.Filled.PlaylistAdd,
+                                    null,
+                                    modifier = Modifier.padding(8.dp),
+                                    tint = if (added) MaterialTheme.colorScheme.onPrimaryContainer
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(pl.title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium), maxLines = 1)
-                                if (pl.description.isNotBlank()) Text(pl.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                Text(
+                                    if (added) "Added ✓"
+                                    else if (pl.description.isNotBlank()) pl.description
+                                    else "Tap to add",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (added) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1
+                                )
                             }
-                            Icon(Icons.Filled.Check, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0f), modifier = Modifier.size(18.dp))
                         }
                     }
                 }

@@ -158,6 +158,8 @@ class MainActivity : ComponentActivity() {
                             .padding(bottom = inner.calculateBottomPadding())
                     ) {
                         AppNavHost(nav)
+                        // Global video overflow sheet (save/like/add-to-playlist from any ⋮)
+                        com.teamshryne.wediyo.ui.components.VideoSheetHost()
                     }
                 }
             }

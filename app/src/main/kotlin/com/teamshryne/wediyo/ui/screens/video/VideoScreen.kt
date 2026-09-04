@@ -219,7 +219,7 @@ fun VideoScreen(
                             }
                             LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(bottom = 24.dp)) {
                                 item { FlowVideoInfoSection(videoDetail = d, ctx = ctx, avatarQ = avatarQ, likeCount = d.likeCount, viewCount = d.viewCount, onChannelClick = { onChannelClick(d.channelId) }, onShare = { shareVideo(ctx, d) }, onDownload = { vm.setDetailsSheet(true) }, onSave = { vm.setDetailsSheet(true) }, onDescriptionClick = { vm.setDetailsSheet(true) }) }
-                                item { FlowVideoActionRowFlow(d = d, ctx = ctx, isLiked = isLikedLocal, onLike = { libHaptics.toggle(!isLikedLocal); libScope.launch { try { LibraryRepository.toggleLike(d) } catch (_: Exception) {} } }, onDislike = {}, onShare = { shareVideo(ctx, d) }, onSave = { libHaptics.longPress(); showSaveSheet = true }, onDownload = { vm.setDetailsSheet(true) }, onCopyLink = { copyLink(ctx, d, withTimestamp = false) }, onCopyLinkAtTime = { copyLink(ctx, d, withTimestamp = true) }, onSleepTimer = { showSleepSheet = true }) }
+                                item { FlowVideoActionRowFlow(d = d, ctx = ctx, isLiked = isLikedLocal, onLike = { libHaptics.toggle(!isLikedLocal); libScope.launch { try { LibraryRepository.toggleLike(d) } catch (_: Exception) {} } }, onShare = { shareVideo(ctx, d) }, onSave = { libHaptics.longPress(); showSaveSheet = true }, onDownload = { vm.setDetailsSheet(true) }, onCopyLink = { copyLink(ctx, d, withTimestamp = false) }, onCopyLinkAtTime = { copyLink(ctx, d, withTimestamp = true) }, onSleepTimer = { showSleepSheet = true }) }
                                 item { FlowCommentsPreview(comments = state.comments, countText = state.commentsCount ?: d.commentsCountText, avatarQ = avatarQ, onClick = { vm.setCommentsSheet(true) }) }
                             }
                         }
@@ -253,7 +253,7 @@ fun VideoScreen(
                         }
                         LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 28.dp)) {
                             item { FlowVideoInfoSection(videoDetail = d, ctx = ctx, avatarQ = avatarQ, likeCount = d.likeCount, viewCount = d.viewCount, onChannelClick = { onChannelClick(d.channelId) }, onShare = { shareVideo(ctx, d) }, onDownload = { vm.setDetailsSheet(true) }, onSave = { vm.setDetailsSheet(true) }, onDescriptionClick = { vm.setDetailsSheet(true) }) }
-                            item { FlowVideoActionRowFlow(d = d, ctx = ctx, isLiked = isLikedLocal, onLike = { libHaptics.toggle(!isLikedLocal); libScope.launch { try { LibraryRepository.toggleLike(d) } catch (_: Exception) {} } }, onDislike = {}, onShare = { shareVideo(ctx, d) }, onSave = { libHaptics.longPress(); showSaveSheet = true }, onDownload = { vm.setDetailsSheet(true) }, onCopyLink = { copyLink(ctx, d, withTimestamp = false) }, onCopyLinkAtTime = { copyLink(ctx, d, withTimestamp = true) }, onSleepTimer = { showSleepSheet = true }) }
+                            item { FlowVideoActionRowFlow(d = d, ctx = ctx, isLiked = isLikedLocal, onLike = { libHaptics.toggle(!isLikedLocal); libScope.launch { try { LibraryRepository.toggleLike(d) } catch (_: Exception) {} } }, onShare = { shareVideo(ctx, d) }, onSave = { libHaptics.longPress(); showSaveSheet = true }, onDownload = { vm.setDetailsSheet(true) }, onCopyLink = { copyLink(ctx, d, withTimestamp = false) }, onCopyLinkAtTime = { copyLink(ctx, d, withTimestamp = true) }, onSleepTimer = { showSleepSheet = true }) }
                             item { FlowCommentsPreview(comments = state.comments, countText = state.commentsCount ?: d.commentsCountText, avatarQ = avatarQ, onClick = { vm.setCommentsSheet(true) }) }
                             item {
                                 Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(top = 18.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -408,7 +408,6 @@ private fun FlowVideoActionRowFlow(
     ctx: Context,
     isLiked: Boolean = false,
     onLike: () -> Unit,
-    onDislike: () -> Unit,
     onShare: () -> Unit,
     onSave: () -> Unit,
     onDownload: () -> Unit,
@@ -450,16 +449,10 @@ private fun FlowVideoActionRowFlow(
         }
         item {
             Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f), modifier = Modifier.height(36.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Row(Modifier.clickable { onLike() }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(if (isLiked) Icons.Filled.ThumbUp else if (d.likeCountText.isNotBlank() || d.likeCount > 0) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, null, modifier = Modifier.size(18.dp), tint = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-                        Spacer(Modifier.width(6.dp))
-                        Text(if (isLiked) "Liked" else if (d.likeCountText.isNotBlank()) d.likeCountText else if (d.likeCount > 0) formatCompact(d.likeCount) else "Like", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium), color = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-                    }
-                    Box(Modifier.width(1.dp).height(24.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)))
-                    Row(Modifier.clickable { onDislike() }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.ThumbDown, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurface)
-                    }
+                Row(Modifier.clickable { onLike() }.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(if (isLiked) Icons.Filled.ThumbUp else if (d.likeCountText.isNotBlank() || d.likeCount > 0) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, null, modifier = Modifier.size(18.dp), tint = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (isLiked) "Liked" else if (d.likeCountText.isNotBlank()) d.likeCountText else if (d.likeCount > 0) formatCompact(d.likeCount) else "Like", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium), color = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
                 }
             }
         }

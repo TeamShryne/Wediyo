@@ -243,6 +243,10 @@ object LibraryRepository {
         try { db().likes().isLikedOnce(videoId) } catch (_: Exception) { false }
     fun likedVideos(): Flow<List<SavedVideoRow>> = db().likes().likedVideos()
 
+    suspend fun clearLiked() {
+        try { db().likes().clearAll() } catch (_: Exception) {}
+    }
+
     // ── Subscriptions ──
     suspend fun subscribe(channelId: String, title: String, handle: String = "", avatarUrl: String = "", avatarsJson: String = "[]", subsText: String = "", verified: Boolean = false) {
         try {
@@ -332,5 +336,9 @@ object LibraryRepository {
     suspend fun logSearchClick(query: String, videoId: String? = null, channelId: String? = null) {
         if (query.isBlank() && videoId.isNullOrBlank()) return
         try { db().searches().log(SearchEventEntity(query = query.trim(), clickedVideoId = videoId, clickedChannelId = channelId)) } catch (_: Exception) {}
+    }
+
+    suspend fun clearSearchHistory() {
+        try { db().searches().clearAll() } catch (_: Exception) {}
     }
 }

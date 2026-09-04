@@ -79,7 +79,7 @@ fun VideoCard(video: UiVideo, thumbQuality: String, avatarQuality: String, onCli
                     }
                 }
             }
-            Box(Modifier.size(24.dp)) { Text("⋮", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            VideoOverflowButton(video)
         }
     }
 }
@@ -142,7 +142,7 @@ fun ChannelVideoListCard(video: UiVideo, thumbQuality: String, onClick: () -> Un
                 }
             }
         }
-        Box(Modifier.size(24.dp)) { Text("⋮", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        VideoOverflowButton(video)
     }
 }
 
