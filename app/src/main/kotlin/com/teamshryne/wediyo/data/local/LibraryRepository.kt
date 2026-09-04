@@ -6,6 +6,8 @@ import com.teamshryne.wediyo.data.model.UiVideo
 import com.teamshryne.wediyo.data.model.UiVideoDetail
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 
 /**
  * Single entry point for the local-only library.
@@ -324,13 +326,11 @@ object LibraryRepository {
 
     fun playlistItemCounts(): Flow<Map<String, Int>> =
         try {
-            db().playlists().itemCounts().let { flow ->
-                kotlinx.coroutines.flow.map(flow) { list -> list.associate { it.playlistId to it.c } }
-            }
-        } catch (_: Exception) { kotlinx.coroutines.flow.flowOf(emptyMap()) }
+            db().playlists().itemCounts().map { list -> list.associate { it.playlistId to it.c } }
+        } catch (_: Exception) { flowOf(emptyMap()) }
 
     fun playlistCovers(): Flow<List<PlaylistCover>> =
-        try { db().playlists().covers() } catch (_: Exception) { kotlinx.coroutines.flow.flowOf(emptyList()) }
+        try { db().playlists().covers() } catch (_: Exception) { flowOf(emptyList()) }
 
     suspend fun removeFromPlaylist(playlistId: String, videoId: String) {
         try { db().playlists().removeVideo(playlistId, videoId) } catch (_: Exception) {}
