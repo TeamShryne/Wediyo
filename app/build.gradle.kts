@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -94,6 +95,10 @@ dependencies {
     implementation(libs.androidx.media3.datasource)
     implementation(libs.androidx.media3.datasource.okhttp)
     implementation(libs.okhttp)
+    // Local library — Room (on-device history, likes, playlists, subs; stats-ready)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
 
     // Go gomobile AAR — committed by go.yml to app/libs/wediyo.aar
     implementation(files("libs/wediyo.aar"))

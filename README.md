@@ -4,6 +4,7 @@ Mobile YouTube client — **metadata only** for now, full playback later.
 
 * Android app: Kotlin + Jetpack Compose, **highly compatible** (`minSdk 21` → Android 5.0+, `targetSdk 35`)
 * Go core: `go/wediyo` — metadata engine exposed to Kotlin via **gomobile bind** (`com.teamshryne.wediyo`)
+* Local library: **Room** (`data/local` — history, Watch Later, likes, custom playlists, subscriptions, search events) + **DataStore** prefs — on-device only, no login
 * Builds: **GitHub Actions only** — do NOT run `./gradlew` locally (this machine is bad)
 
 ## Project layout
@@ -13,6 +14,9 @@ Wediyo/
 ├── app/                                   # Android application (com.teamshryne.wediyo)
 │   ├── build.gradle.kts                   # Compose, minSdk21, Go AAR via files()
 │   ├── src/main/kotlin/...                # MainActivity + theme
+│   │   ├── data/local/                   # Room DB: videos/channels cache, history_events, progress, likes, watch_later, subscriptions, local_playlists, search_events
+│   │   ├── ui/screens/library/           # You tab (history, Watch Later, liked, playlists)
+│   │   └── ui/screens/subscriptions/     # Local-only followed channels
 │   └── libs/wediyo.aar                    # COMMITTED Go AAR (via go.yml)
 ├── go/
 │   └── wediyo/                            # Go metadata engine (pure Go, net/http)

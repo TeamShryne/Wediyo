@@ -27,6 +27,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.teamshryne.wediyo.data.prefs.SettingsManager
+import com.teamshryne.wediyo.ui.components.SubscribeButton
 import com.teamshryne.wediyo.util.bestThumbUrl
 import kotlinx.coroutines.flow.collectLatest
 
@@ -123,6 +124,16 @@ fun ChannelScreen(
                                             Spacer(Modifier.height(8.dp))
                                             Text(h.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.clickable { vm.selectAboutTab() })
                                         }
+                                        Spacer(Modifier.height(10.dp))
+                                        SubscribeButton(
+                                            channelId = h.channelId.ifBlank { browseId },
+                                            title = h.title,
+                                            handle = h.handle,
+                                            avatarUrl = h.avatarUrl,
+                                            avatarsJson = h.avatarsJson,
+                                            subsText = h.subs,
+                                            verified = h.verified
+                                        )
                                     }
                                 }
                                 HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)

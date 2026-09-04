@@ -115,7 +115,17 @@ fun AppNavHost(nav: NavHostController, start: String = Screen.Home.route) {
                 onChannelClick = { bid -> nav.navigate(Screen.Channel.route(bid)) }
             )
         }
-        composable(Screen.Subscriptions.route) { SubscriptionsScreen() }
-        composable(Screen.Library.route) { LibraryScreen() }
+        composable(Screen.Subscriptions.route) {
+            SubscriptionsScreen(
+                onChannelClick = { bid -> nav.navigate(Screen.Channel.route(bid)) }
+            )
+        }
+        composable(Screen.Library.route) {
+            LibraryScreen(
+                onVideoClick = { vid -> nav.navigate(Screen.Video.route(vid)) },
+                onChannelClick = { bid -> nav.navigate(Screen.Channel.route(bid)) },
+                onSubscriptionsClick = { nav.navigate(Screen.Subscriptions.route) }
+            )
+        }
     }
 }

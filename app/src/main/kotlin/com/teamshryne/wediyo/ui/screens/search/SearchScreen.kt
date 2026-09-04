@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.teamshryne.wediyo.data.local.LibraryRepository
 import com.teamshryne.wediyo.data.prefs.SettingsManager
 import com.teamshryne.wediyo.ui.components.*
 import com.teamshryne.wediyo.util.bestThumbUrl
@@ -50,6 +51,20 @@ fun SearchScreen(
 
     LaunchedEffect(Unit) { settings.thumbQuality.collectLatest { thumbQ = it } }
     LaunchedEffect(Unit) { settings.avatarQuality.collectLatest { avatarQ = it } }
+    LaunchedEffect(Unit) { try { LibraryRepository.init(ctx) } catch (_: Exception) {} }
+
+    // Library: log searches for future taste stats (query + result size, once per query)
+    var loggedQuery by remember { mutableStateOf<String?>(null) }
+    val searchResult = state.result
+    LaunchedEffect(searchResult) {
+        val res = searchResult
+        if (res != null && res.query.isNotBlank() && loggedQuery != res.query) {
+            loggedQuery = res.query
+            try {
+                LibraryRepository.logSearch(res.query, res.videos.size + res.channels.size + res.shorts.size + res.playlists.size)
+            } catch (_: Exception) {}
+        }
+    }
 
     var queryInput by remember { mutableStateOf(state.query) }
     val listState = rememberLazyListState()
