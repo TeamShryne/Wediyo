@@ -14,7 +14,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.teamshryne.wediyo.data.local.LibraryRepository
 import com.teamshryne.wediyo.data.prefs.SettingsManager
+import com.teamshryne.wediyo.util.rememberHaptics
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -23,6 +25,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     val ctx = LocalContext.current
     val mgr = remember { SettingsManager(ctx) }
     val scope = rememberCoroutineScope()
+    val haptics = rememberHaptics()
     var thumbQ by remember { mutableStateOf("high") }
     var avatarQ by remember { mutableStateOf("high") }
     var theme by remember { mutableStateOf("system") }
@@ -33,6 +36,43 @@ fun SettingsScreen(onBack: () -> Unit) {
     LaunchedEffect(Unit) { mgr.theme.collect { theme = it } }
     LaunchedEffect(Unit) { mgr.shortsQuality.collect { shortsQ = it } }
     LaunchedEffect(Unit) { mgr.videoQuality.collect { videoQ = it } }
+    LaunchedEffect(Unit) { try { LibraryRepository.init(ctx) } catch (_: Exception) {} }
+    val historyPaused by mgr.historyPaused.collectAsState(initial = false)
+    var confirmClear by remember { mutableStateOf<String?>(null) }
+
+    if (confirmClear != null) {
+        val key = confirmClear!!
+        val (title, body) = when (key) {
+            "history" -> "Clear watch history?" to "Removes all watched videos and resume positions on this device. Playlists, likes and subscriptions stay."
+            "watchlater" -> "Clear Watch Later?" to "Empties your saved-for-later queue on this device."
+            "liked" -> "Clear liked videos?" to "Removes all likes on this device."
+            else -> "Clear search history?" to "Removes past searches stored on this device."
+        }
+        AlertDialog(
+            onDismissRequest = { confirmClear = null },
+            title = { Text(title) },
+            text = { Text(body) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        haptics.toggle(false)
+                        scope.launch {
+                            try {
+                                when (key) {
+                                    "history" -> LibraryRepository.clearHistory()
+                                    "watchlater" -> LibraryRepository.clearWatchLater()
+                                    "liked" -> LibraryRepository.clearLiked()
+                                    else -> LibraryRepository.clearSearchHistory()
+                                }
+                            } catch (_: Exception) {}
+                        }
+                        confirmClear = null
+                    }
+                ) { Text("Clear", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { confirmClear = null }) { Text("Keep") } }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -89,6 +129,47 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
             }
 
+            // History & privacy — the only place that pauses or wipes library data
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                elevation = CardDefaults.cardElevation(0.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("History & privacy", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold))
+                    Text(
+                        "Your library lives only on this device — no account, no cloud.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Pause watch history", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium))
+                            Text(
+                                if (historyPaused) "Paused — new watches aren't saved"
+                                else "New watches are saved to history",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = historyPaused,
+                            onCheckedChange = { paused ->
+                                haptics.toggle(!paused)
+                                scope.launch { mgr.setHistoryPaused(paused) }
+                            }
+                        )
+                    }
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                    PrivacyRow("Clear watch history", "History + resume positions") { haptics.longPress(); confirmClear = "history" }
+                    PrivacyRow("Clear Watch Later", "Your saved-for-later queue") { haptics.longPress(); confirmClear = "watchlater" }
+                    PrivacyRow("Clear liked videos", "All likes on this device") { haptics.longPress(); confirmClear = "liked" }
+                    PrivacyRow("Clear search history", "Past searches on this device") { haptics.longPress(); confirmClear = "searches" }
+                }
+            }
+
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
@@ -109,6 +190,20 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PrivacyRow(title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium))
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        TextButton(onClick = onClick) { Text("Clear", color = MaterialTheme.colorScheme.error) }
     }
 }
 

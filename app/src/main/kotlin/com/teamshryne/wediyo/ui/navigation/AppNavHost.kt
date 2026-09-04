@@ -124,7 +124,8 @@ fun AppNavHost(nav: NavHostController, start: String = Screen.Home.route) {
             LibraryScreen(
                 onVideoClick = { vid -> nav.navigate(Screen.Video.route(vid)) },
                 onChannelClick = { bid -> nav.navigate(Screen.Channel.route(bid)) },
-                onSubscriptionsClick = { nav.navigate(Screen.Subscriptions.route) }
+                onSubscriptionsClick = { nav.navigate(Screen.Subscriptions.route) },
+                onSearchClick = { nav.navigate(Screen.Search.route) }
             )
         }
     }

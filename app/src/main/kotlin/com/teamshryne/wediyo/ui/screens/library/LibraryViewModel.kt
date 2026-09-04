@@ -44,6 +44,7 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
     fun removeWatchLater(videoId: String) = viewModelScope.launch { LibraryRepository.removeWatchLater(videoId) }
     fun clearWatchLater() = viewModelScope.launch { LibraryRepository.clearWatchLater() }
     fun unlike(videoId: String) = viewModelScope.launch { LibraryRepository.setLiked(videoId, false) }
+    fun clearLiked() = viewModelScope.launch { LibraryRepository.clearLiked() }
 
     fun createPlaylist(name: String) = viewModelScope.launch { LibraryRepository.createPlaylist(name) }
     fun renamePlaylist(id: String, name: String) = viewModelScope.launch { LibraryRepository.renamePlaylist(id, name) }

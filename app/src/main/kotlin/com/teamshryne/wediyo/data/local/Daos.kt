@@ -141,6 +141,9 @@ interface LikeDao {
     @Query("DELETE FROM likes WHERE videoId = :id")
     suspend fun unlike(id: String)
 
+    @Query("DELETE FROM likes")
+    suspend fun clearAll()
+
     @Query("SELECT EXISTS(SELECT 1 FROM likes WHERE videoId = :id AND state = 1)")
     fun isLiked(id: String): Flow<Boolean>
 

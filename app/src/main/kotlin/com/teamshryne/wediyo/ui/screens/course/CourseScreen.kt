@@ -27,7 +27,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.teamshryne.wediyo.data.model.toUiVideo
 import com.teamshryne.wediyo.data.prefs.SettingsManager
+import com.teamshryne.wediyo.ui.components.VideoOverflowButton
 import com.teamshryne.wediyo.util.bestThumbUrl
 import kotlinx.coroutines.flow.collectLatest
 
@@ -199,6 +201,7 @@ fun CourseScreen(playlistId: String, onBack: () -> Unit, vm: CourseViewModel = v
                                 if (meta.isNotBlank()) Text(meta, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 if (isUnav) { Spacer(Modifier.height(4.dp)); AssistChip(onClick = {}, label = { Text("Unavailable", style = MaterialTheme.typography.labelSmall) }, colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.errorContainer, labelColor = MaterialTheme.colorScheme.onErrorContainer)) }
                             }
+                            if (!isUnav) VideoOverflowButton(v.toUiVideo())
                         }
                         if (idx < state.videos.size - 1) HorizontalDivider(Modifier.padding(start = 40.dp, end = 12.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                     }
