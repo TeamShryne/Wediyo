@@ -1,7 +1,12 @@
-name: Go — AAR via gomobile → commit
+name: Go — AAR via gomobile → aar-latest branch
 
-# Builds Go metadata engine for Android and commits AAR so Android workflow can just use it.
-# Trigger only on Go changes + manual. Pure Go → ~10x faster than Rust.
+# Builds Go metadata engine and force-pushes the AAR to orphan branch `aar-latest`
+# (single commit, overwritten each run — no history, no bloat on main).
+# android.yml fetches it at build time. Main never contains the binary.
+
+concurrency:
+  group: go-aar-publish
+  cancel-in-progress: false
 
 on:
   push:
@@ -72,18 +77,25 @@ jobs:
           ls -lh ../../app/libs/wediyo.aar
           unzip -l ../../app/libs/wediyo.aar | head -n 50
 
-      - name: Commit AAR if changed
+      - name: Publish AAR to orphan branch (overwrite, no history)
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add app/libs/wediyo.aar || true
-          git add go/wediyo/go.mod go/wediyo/go.sum 2>/dev/null || true
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
-          git commit -m "chore(go): rebuild wediyo AAR via gomobile"
-          git push
+          MAIN_SHA=$(git rev-parse HEAD)
+          TMPDIR=$(mktemp -d)
+          cp app/libs/wediyo.aar "$TMPDIR/wediyo.aar"
+          git checkout --orphan aar-publish
+          git rm -rf . --quiet || true
+          cp "$TMPDIR/wediyo.aar" ./wediyo.aar
+          {
+            echo "source-main: $MAIN_SHA"
+            echo "built: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            (cd "$TMPDIR" && sha256sum wediyo.aar)
+          } > wediyo.meta.txt
+          git add wediyo.aar wediyo.meta.txt
+          git commit -m "chore(go): wediyo AAR snapshot from $MAIN_SHA"
+          git push --force origin HEAD:aar-latest
 
       - name: Upload artifact
         if: always()

@@ -1,6 +1,7 @@
-name: Android — APK (uses committed Go AAR)
+name: Android — APK (uses AAR from aar-latest branch)
 
-# No Go build here. Uses AAR already committed by go.yml.
+# No Go build here. Fetches wediyo.aar from orphan branch `aar-latest`
+# (published by go.yml, single commit, no history). Main never holds the binary.
 
 on:
   push:
@@ -46,9 +47,14 @@ jobs:
       - name: Cache Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Verify committed Go AAR present
+      - name: Fetch Go AAR from aar-latest branch
         run: |
-          ls -lh app/libs/wediyo.aar || (echo "::error::Go AAR missing — did go.yml run?" && exit 1)
+          set -euo pipefail
+          mkdir -p app/libs
+          git fetch origin aar-latest --depth 1
+          git show FETCH_HEAD:wediyo.aar > app/libs/wediyo.aar
+          git show FETCH_HEAD:wediyo.meta.txt || true
+          ls -lh app/libs/wediyo.aar
           unzip -l app/libs/wediyo.aar | head -n 20
           echo "AAR ok"
 
@@ -66,7 +72,7 @@ jobs:
     steps:
       - run: |
           echo "✅ Local Gradle disabled — builds run only here."
-          echo "Go AAR committed by go.yml → android.yml just consumes it."
+          echo "Go AAR from aar-latest branch → android.yml just consumes it."
           echo "Highly compatible: minSdk 21, target 35, NDK 27"
 
   prune-caches:

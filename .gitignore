@@ -33,6 +33,11 @@ Thumbs.db
 # research fixtures — local only (contains cURL cookies/tokens + large JSON), never commit
 research/
 
+# Go gomobile AAR — NEVER commit to main. Lives only on orphan branch `aar-latest`
+# (overwritten each build, no history). Fetched at build time by android.yml.
+app/libs/wediyo.aar
+app/libs/
+
 # UniFFI committed bindings live in app/src/main/kotlin/uniffi/ — tracked
 # GH Actions
 # (gradle wrapper jar is intentionally tracked for CI)

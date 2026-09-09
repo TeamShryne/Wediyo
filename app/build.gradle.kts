@@ -100,7 +100,7 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
-    // Go gomobile AAR — committed by go.yml to app/libs/wediyo.aar
+    // Go gomobile AAR — fetched at CI time from orphan branch `aar-latest` (never committed to main)
     implementation(files("libs/wediyo.aar"))
 
     testImplementation(libs.junit)
@@ -112,10 +112,8 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
 }
 
-// ---------------------------------------------------------------------------
-// Go + gomobile — builds app/libs/wediyo.aar via `gomobile bind -target=android -androidapi 21`
-//   go.yml commits AAR, android.yml just uses it. Local machine is bad.
-// ---------------------------------------------------------------------------
+// Go + gomobile — CI builds app/libs/wediyo.aar via `gomobile bind` (see go.yml → aar-latest).
+// android.yml fetches it before Gradle. Local: run gomobileBind or fetch the branch manually.
 val goDir = file("../go/wediyo")
 val goAar = file("libs/wediyo.aar")
 val gomobileBind by tasks.registering(Exec::class) {
@@ -134,4 +132,4 @@ val gomobileBind by tasks.registering(Exec::class) {
     doFirst { file("libs").mkdirs() }
 }
 
-// NOTE: preBuild does NOT depend on gomobileBind — APK uses committed AAR.
+// NOTE: preBuild does NOT depend on gomobileBind — CI fetches the AAR from aar-latest first.
