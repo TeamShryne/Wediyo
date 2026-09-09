@@ -19,7 +19,7 @@ on:
       - "app/**"
       - "gradle/**"
   workflow_run:
-    workflows: ["Go — AAR via gomobile → commit"]
+    workflows: ["Go — AAR via gomobile → aar-latest branch"]
     types: [completed]
     branches: [main, master]
   workflow_dispatch:
