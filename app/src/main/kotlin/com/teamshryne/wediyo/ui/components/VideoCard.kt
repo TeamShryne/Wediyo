@@ -19,7 +19,7 @@ import coil.compose.AsyncImage
 import com.teamshryne.wediyo.data.model.UiVideo
 import com.teamshryne.wediyo.util.bestThumbUrl
 @Composable
-fun VideoCard(video: UiVideo, thumbQuality: String, avatarQuality: String, onClick: () -> Unit, showAvatar: Boolean = true) {
+fun VideoCard(video: UiVideo, thumbQuality: String, avatarQuality: String, showAvatar: Boolean = true, onClick: () -> Unit) {
     Column(Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 6.dp)) {
         Box(Modifier.fillMaxWidth().aspectRatio(16f/9f).clip(RoundedCornerShape(12.dp)).background(Color(0xFF111111))) {
             AsyncImage(
