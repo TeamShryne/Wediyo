@@ -43,6 +43,28 @@ data class SavedVideoRow(
     val publishedText: String?
 )
 
+// ── Resume row: latest unfinished progress joined with cached video ──
+data class ResumeWithVideo(
+    val videoId: String,
+    val positionMs: Long,
+    val durationMs: Long,
+    val updatedAt: Long,
+    val title: String?,
+    val author: String?,
+    val channelId: String?,
+    val thumbnailUrl: String?,
+    val thumbnailsJson: String?,
+    val durationText: String?,
+    val viewCountText: String?,
+    val publishedText: String?
+)
+
+data class ChannelAffinity(
+    val channelId: String,
+    val plays: Int,
+    val watchMs: Long
+)
+
 data class SubscriptionRow(
     val channelId: String,
     val title: String,
@@ -114,6 +136,16 @@ interface HistoryDao {
 
     @Query("SELECT COALESCE(SUM(watchDurationMs),0) FROM history_events WHERE watchedAt >= :since")
     fun watchMsSince(since: Long): Flow<Long>
+
+    // ── Home feed helpers (one-shot, suspend — no migration needed) ──
+    @Query("SELECT channelId as channelId, COUNT(*) as plays, COALESCE(SUM(watchDurationMs),0) as watchMs FROM history_events WHERE watchedAt >= :since AND channelId != '' GROUP BY channelId ORDER BY plays DESC, watchMs DESC LIMIT :limit")
+    suspend fun topChannels(since: Long, limit: Int = 8): List<ChannelAffinity>
+
+    @Query("SELECT videoId FROM history_events GROUP BY videoId ORDER BY MAX(watchedAt) DESC LIMIT :limit")
+    suspend fun recentVideoIds(limit: Int = 10): List<String>
+
+    @Query("SELECT DISTINCT videoId FROM history_events ORDER BY watchedAt DESC LIMIT :limit")
+    suspend fun watchedIdSet(limit: Int = 300): List<String>
 }
 
 @Dao
@@ -132,6 +164,19 @@ interface ProgressDao {
 
     @Query("DELETE FROM watch_progress")
     suspend fun clearAll()
+
+    // Latest unfinished progress with cached video — powers Resume hero.
+    @Query(
+        """SELECT p.videoId as videoId, p.positionMs as positionMs, p.durationMs as durationMs,
+           p.updatedAt as updatedAt, v.title as title, v.author as author, v.channelId as channelId,
+           v.thumbnailUrl as thumbnailUrl, v.thumbnailsJson as thumbnailsJson,
+           v.durationText as durationText, v.viewCountText as viewCountText,
+           v.publishedText as publishedText
+           FROM watch_progress p JOIN videos v ON v.videoId = p.videoId
+           WHERE p.completed = 0 AND p.positionMs > 5000
+           ORDER BY p.updatedAt DESC LIMIT :limit"""
+    )
+    suspend fun resumeCandidates(limit: Int = 3): List<ResumeWithVideo>
 }
 
 @Dao

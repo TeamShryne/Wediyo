@@ -6,6 +6,7 @@ import com.teamshryne.wediyo.data.model.UiVideo
 import com.teamshryne.wediyo.data.model.UiVideoDetail
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
@@ -361,6 +362,33 @@ object LibraryRepository {
 
     fun playlistItems(playlistId: String): Flow<List<SavedVideoRow>> =
         db().playlists().items(playlistId)
+
+    // ── Home feed helpers (one-shot, failure-safe) ──
+    suspend fun resumeCandidates(limit: Int = 3): List<ResumeWithVideo> =
+        try { db().progress().resumeCandidates(limit) } catch (_: Exception) { emptyList() }
+
+    suspend fun dismissResume(videoId: String) {
+        try { db().progress().delete(videoId) } catch (_: Exception) {}
+        try { db().history().deleteForVideo(videoId) } catch (_: Exception) {}
+    }
+
+    suspend fun topChannels(days: Int = 30, limit: Int = 8): List<ChannelAffinity> =
+        try {
+            val since = System.currentTimeMillis() - days * 24L * 60 * 60 * 1000
+            db().history().topChannels(since, limit)
+        } catch (_: Exception) { emptyList() }
+
+    suspend fun recentSeeds(limit: Int = 6): List<String> =
+        try { db().history().recentVideoIds(limit) } catch (_: Exception) { emptyList() }
+
+    suspend fun watchedSet(limit: Int = 300): Set<String> =
+        try { db().history().watchedIdSet(limit).toSet() } catch (_: Exception) { emptySet() }
+
+    suspend fun subscriptionsOnce(): List<SubscriptionRow> =
+        try { subscriptions().first() } catch (_: Exception) { emptyList() }
+
+    suspend fun recentQueries(limit: Int = 8): List<String> =
+        try { db().searches().recentQueries(limit).map { it.query }.filter { it.isNotBlank() } } catch (_: Exception) { emptyList() }
 
     // ── Search events (future taste stats) ──
     suspend fun logSearch(query: String, resultCount: Int = 0) {
