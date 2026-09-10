@@ -11,6 +11,7 @@ import com.teamshryne.wediyo.data.model.UiShort
 import com.teamshryne.wediyo.data.model.UiVideo
 import com.teamshryne.wediyo.data.repository.ChannelRepository
 import com.teamshryne.wediyo.data.repository.SearchRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -85,11 +86,14 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     private val continuations = ArrayDeque<String>()  // related continuations (cheapest next page)
     private var branchesUsed = 0
     private var refreshCount = 0
+    // Load gate: a Job flag, NOT state flags — initial state starts with
+    // isLoading=true (skeletons), so gating on state would no-op the first
+    // refresh forever (the stuck-loading bug).
+    private var loadJob: Job? = null
 
     fun refresh() {
-        val cur = _state.value
-        if (cur.isLoading || cur.isRefreshing) return
-        viewModelScope.launch {
+        if (loadJob?.isActive == true) return
+        loadJob = viewModelScope.launch {
             _state.update {
                 it.copy(
                     isLoading = it.videos.isEmpty(),
@@ -224,7 +228,10 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         _state.update {
             it.copy(
                 isLoading = false, isRefreshing = false, isLoadingMore = false,
-                resume = if (it.resumeDismissed) null else resume,
+                // Dismissed row was deleted from DB, so it can't reappear —
+                // safe to re-arm for future genuine resumes.
+                resume = resume,
+                resumeDismissed = false,
                 videos = applyFilter(mixed, filter),
                 shorts = shorts.take(12),
                 error = if (mixed.isEmpty() && !offline) "Nothing yet — search or subscribe to fill your home" else null,

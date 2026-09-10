@@ -58,6 +58,9 @@ jobs:
           unzip -l app/libs/wediyo.aar | head -n 20
           echo "AAR ok"
 
+      - name: Unit tests (GH Action only — not local)
+        run: ./gradlew testDebugUnitTest --stacktrace
+
       - name: Assemble Debug (GH Action only — not local)
         run: ./gradlew assembleDebug --stacktrace
 
