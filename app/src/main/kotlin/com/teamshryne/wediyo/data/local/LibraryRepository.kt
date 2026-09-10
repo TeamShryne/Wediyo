@@ -298,7 +298,8 @@ object LibraryRepository {
     suspend fun renamePlaylist(id: String, title: String, description: String = "") {
         try {
             val cur = db().playlists().getPlaylist(id) ?: return
-            db().playlists().upsertPlaylist(cur.copy(title = title.trim(), description = description.trim(), updatedAt = System.currentTimeMillis()))
+            // Must use UPDATE — upsert(REPLACE) would DELETE parent and CASCADE-wipe items.
+            db().playlists().updatePlaylist(cur.copy(title = title.trim(), description = description.trim(), updatedAt = System.currentTimeMillis()))
         } catch (_: Exception) {}
     }
 
@@ -315,13 +316,35 @@ object LibraryRepository {
         return try {
             val dao = db().playlists()
             if (dao.getPlaylist(playlistId) == null) return false
+            if (dao.isInPlaylistOnce(playlistId, videoId)) return true // idempotent — no dupes
             val pos = dao.nextPosition(playlistId)
             dao.addItem(PlaylistItemEntity(playlistId = playlistId, videoId = videoId, position = pos, source = source))
-            dao.getPlaylist(playlistId)?.let { pl ->
-                dao.upsertPlaylist(pl.copy(updatedAt = System.currentTimeMillis(), coverVideoId = pl.coverVideoId ?: videoId))
-            }
+            // UPDATE only — never REPLACE an existing playlist (CASCADE would wipe items).
+            dao.touchPlaylist(playlistId, System.currentTimeMillis(), videoId)
             true
         } catch (e: Exception) { false }
+    }
+
+    fun isInPlaylist(playlistId: String, videoId: String): Flow<Boolean> =
+        try { db().playlists().isInPlaylist(playlistId, videoId) } catch (_: Exception) { flowOf(false) }
+
+    fun containingPlaylists(videoId: String): Flow<Set<String>> =
+        try {
+            db().playlists().containingPlaylists(videoId).map { it.toSet() }
+        } catch (_: Exception) { flowOf(emptySet()) }
+
+    suspend fun toggleInPlaylist(playlistId: String, video: UiVideo, source: String = "library"): Boolean {
+        cacheVideo(video)
+        return try {
+            val dao = db().playlists()
+            if (dao.isInPlaylistOnce(playlistId, video.id)) {
+                dao.removeVideo(playlistId, video.id)
+                false
+            } else {
+                addToPlaylistById(playlistId, video.id, source)
+                true
+            }
+        } catch (_: Exception) { false }
     }
 
     fun playlistItemCounts(): Flow<Map<String, Int>> =

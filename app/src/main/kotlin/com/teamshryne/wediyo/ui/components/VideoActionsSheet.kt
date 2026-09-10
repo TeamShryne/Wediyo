@@ -33,7 +33,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -77,17 +76,15 @@ fun VideoActionsSheet(
     val liked by likedFlow.collectAsState(initial = false)
     val saved by savedFlow.collectAsState(initial = false)
     val playlists by playlistsFlow.collectAsState(initial = emptyList())
+    // Real membership from DB — survives close/reopen (fixes stale "Tap to add" / fake check).
+    val memberFlow = remember(vid) {
+        try { LibraryRepository.containingPlaylists(vid) } catch (_: Exception) { kotlinx.coroutines.flow.flowOf(emptySet()) }
+    }
+    val members by memberFlow.collectAsState(initial = emptySet())
     var showNew by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
-    var justAdded by remember { mutableStateOf<String?>(null) }
     val toast = remember(ctx) {
         { msg: String -> try { Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show() } catch (_: Exception) {} }
-    }
-    if (justAdded != null) {
-        LaunchedEffect(justAdded) {
-            kotlinx.coroutines.delay(1200)
-            justAdded = null
-        }
     }
 
     ModalBottomSheet(
@@ -167,7 +164,6 @@ fun VideoActionsSheet(
                                     if (pid == null) {
                                         toast("Couldn't create playlist")
                                     } else if (LibraryRepository.addToPlaylist(pid, video)) {
-                                        justAdded = pid
                                         toast("Added to $newName")
                                         newName = ""
                                         showNew = false
@@ -188,14 +184,16 @@ fun VideoActionsSheet(
             } else {
                 LazyColumn(modifier = Modifier.height(240.dp)) {
                     items(playlists, key = { it.playlistId }) { pl ->
-                        val added = justAdded == pl.playlistId
+                        val added = pl.playlistId in members
                         Row(
                             Modifier.fillMaxWidth().clickable {
                                 h.tap()
                                 scope.launch {
                                     try {
-                                        if (LibraryRepository.addToPlaylist(pl.playlistId, video)) {
-                                            justAdded = pl.playlistId
+                                        if (added) {
+                                            LibraryRepository.removeFromPlaylist(pl.playlistId, vid)
+                                            toast("Removed from ${pl.title}")
+                                        } else if (LibraryRepository.addToPlaylist(pl.playlistId, video)) {
                                             toast("Added to ${pl.title}")
                                         } else {
                                             toast("Couldn't add to ${pl.title}")
@@ -226,7 +224,7 @@ fun VideoActionsSheet(
                             Column(Modifier.weight(1f)) {
                                 Text(pl.title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium), maxLines = 1)
                                 Text(
-                                    if (added) "Added ✓"
+                                    if (added) "Added ✓ — tap to remove"
                                     else if (pl.description.isNotBlank()) pl.description
                                     else "Tap to add",
                                     style = MaterialTheme.typography.bodySmall,

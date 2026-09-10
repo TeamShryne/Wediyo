@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 // ── Rich joined rows for UI ──
@@ -218,8 +219,17 @@ interface SubscriptionDao {
 
 @Dao
 interface LocalPlaylistDao {
+    // Creation only — never call this on an existing playlist.
+    // REPLACE = DELETE+INSERT and would fire ON DELETE CASCADE wiping items.
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertPlaylist(pl: LocalPlaylistEntity)
+
+    // Safe metadata update — does NOT touch child items.
+    @Update
+    suspend fun updatePlaylist(pl: LocalPlaylistEntity)
+
+    @Query("UPDATE local_playlists SET updatedAt = :updatedAt, coverVideoId = COALESCE(coverVideoId, :coverVideoId) WHERE playlistId = :pid")
+    suspend fun touchPlaylist(pid: String, updatedAt: Long, coverVideoId: String)
 
     @Query("DELETE FROM local_playlists WHERE playlistId = :id")
     suspend fun deletePlaylist(id: String)
@@ -247,6 +257,15 @@ interface LocalPlaylistDao {
 
     @Query("SELECT COALESCE(MAX(position),-1)+1 FROM local_playlist_items WHERE playlistId = :pid")
     suspend fun nextPosition(pid: String): Int
+
+    @Query("SELECT EXISTS(SELECT 1 FROM local_playlist_items WHERE playlistId = :pid AND videoId = :vid)")
+    fun isInPlaylist(pid: String, vid: String): Flow<Boolean>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM local_playlist_items WHERE playlistId = :pid AND videoId = :vid)")
+    suspend fun isInPlaylistOnce(pid: String, vid: String): Boolean
+
+    @Query("SELECT playlistId FROM local_playlist_items WHERE videoId = :vid")
+    fun containingPlaylists(vid: String): Flow<List<String>>
 
     @Query(
         """SELECT i.videoId as videoId, i.addedAt as addedAt, 0 as sortOrder, i.position as position,
