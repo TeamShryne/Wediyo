@@ -101,12 +101,13 @@ fun ShortsPlayer(
         onDispose { p.removeListener(listener) }
     }
 
-    // lifecycle pause/resume only for current page
+    // lifecycle pause/resume only for current page — background play keeps audio alive
+    // via PlaybackService when enabled (miniplayer + notification stay in control).
     DisposableEffect(lifecycle, isCurrent) {
         val obs = LifecycleEventObserver { _, e ->
             if (!isCurrent) return@LifecycleEventObserver
             when (e) {
-                Lifecycle.Event.ON_PAUSE -> player?.pause()
+                Lifecycle.Event.ON_PAUSE -> if (!PlayerManager.get().backgroundPlayEnabled) player?.pause()
                 Lifecycle.Event.ON_RESUME -> player?.play()
                 else -> {}
             }

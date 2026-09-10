@@ -95,6 +95,9 @@ dependencies {
     implementation(libs.androidx.media3.datasource)
     implementation(libs.androidx.media3.datasource.okhttp)
     implementation(libs.okhttp)
+    // Guava ListenableFuture for MediaSession callbacks (declared explicitly — Media3 only
+    // brings it transitively, which Gradle does not expose to our sources).
+    implementation("com.google.guava:guava:33.4.0-android")
     // Local library — Room (on-device history, likes, playlists, subs; stats-ready)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

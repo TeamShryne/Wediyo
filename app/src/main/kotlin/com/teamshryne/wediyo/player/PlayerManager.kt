@@ -1,10 +1,13 @@
 package com.teamshryne.wediyo.player
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.annotation.OptIn
+import androidx.core.content.ContextCompat
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
@@ -52,7 +55,7 @@ class PlayerManager private constructor() {
     private var isShortsMode: Boolean = false
     var lastVideoId: String? = null
         private set
-    private var currentDetail: UiVideoDetail? = null
+    private var activeDetail: UiVideoDetail? = null
     private var selectedCaptionLang: String? = null // null or "off" means disabled
     private var selectedAudioTrackId: String? = null
 
@@ -60,6 +63,22 @@ class PlayerManager private constructor() {
     val isPlaying: StateFlow<Boolean> = _isPlaying
     private val _duration = MutableStateFlow(0L)
     private val _position = MutableStateFlow(0L)
+
+    // ── Miniplayer / notification state ─────────────────────────────────────
+    // Current video shown in the miniplayer + system notification. Null = nothing playing.
+    private val _currentDetail = MutableStateFlow<UiVideoDetail?>(null)
+    val currentDetail: StateFlow<UiVideoDetail?> = _currentDetail
+    private val _currentIsShorts = MutableStateFlow(false)
+    val currentIsShorts: StateFlow<Boolean> = _currentIsShorts
+
+    // When true (default), playback continues when the app is backgrounded / screen off,
+    // kept alive by PlaybackService (foreground service + media notification).
+    // Synced from SettingsManager.backgroundPlay in MainActivity.
+    @Volatile var backgroundPlayEnabled: Boolean = true
+
+    // PlaybackService sets this so it can re-attach its MediaSession when the
+    // underlying ExoPlayer is recreated (video <-> shorts mode switch).
+    var onPlayerReplaced: ((androidx.media3.exoplayer.ExoPlayer) -> Unit)? = null
 
     fun ensure(context: Context, isShorts: Boolean = false): ExoPlayer {
         if (player != null && isShortsMode == isShorts) return player!!
@@ -85,13 +104,36 @@ class PlayerManager private constructor() {
             }
         })
         player = p
+        try { onPlayerReplaced?.invoke(p) } catch (_: Exception) {}
         return p
+    }
+
+    /** Media metadata carried on every MediaItem so the system notification / lockscreen
+     *  shows title, channel and artwork without any extra fetch. */
+    private fun mediaMetadata(d: UiVideoDetail): MediaMetadata {
+        val artist = d.channelTitle.ifBlank { d.author }
+        val thumb = d.thumbnailUrl.ifBlank { null }
+        return MediaMetadata.Builder()
+            .setTitle(d.title.ifBlank { d.videoId })
+            .setArtist(artist.ifBlank { null })
+            .setArtworkUri(try { if (thumb.isNullOrBlank()) null else Uri.parse(thumb) } catch (_: Exception) { null })
+            .build()
+    }
+
+    private fun startPlaybackService(context: Context) {
+        try {
+            val intent = Intent(context.applicationContext, PlaybackService::class.java)
+            ContextCompat.startForegroundService(context.applicationContext, intent)
+        } catch (_: Exception) { /* background-start race; notification attaches on next play */ }
     }
 
     fun playDetail(context: Context, detail: UiVideoDetail, startMs: Long = 0, isShorts: Boolean = false, preferredHeight: Int? = null) {
         val p = ensure(context, isShorts)
         lastVideoId = detail.videoId
-        currentDetail = detail
+        activeDetail = detail
+        _currentDetail.value = detail
+        _currentIsShorts.value = isShorts
+        startPlaybackService(context)
         val source = buildSource(context, detail, preferredHeight, selectedAudioTrackId, selectedCaptionLang)
         if (source == null) return
         p.setMediaSource(source, startMs)
@@ -118,6 +160,22 @@ class PlayerManager private constructor() {
         p.setMediaItem(item, 0)
         p.prepare()
         p.playWhenReady = true
+        startPlaybackService(context)
+    }
+
+    /** Full stop from miniplayer X / swipe-away / notification dismiss.
+     *  Keeps the ExoPlayer instance alive for a fast next play, but clears the
+     *  queue + miniplayer state and releases the foreground service. */
+    fun stopAndClear(context: Context? = null) {
+        try { player?.stop() } catch (_: Exception) {}
+        try { player?.clearMediaItems() } catch (_: Exception) {}
+        lastVideoId = null
+        activeDetail = null
+        _currentDetail.value = null
+        _isPlaying.value = false
+        if (context != null) {
+            try { context.applicationContext.stopService(Intent(context.applicationContext, PlaybackService::class.java)) } catch (_: Exception) {}
+        }
     }
 
     fun playerOrNull(): ExoPlayer? = player
@@ -138,13 +196,16 @@ class PlayerManager private constructor() {
         val hasAudioPreference = !audioTrackId.isNullOrBlank()
         val forceMerge = hasQualityPreference || hasAudioPreference
         var baseSource: androidx.media3.exoplayer.source.MediaSource? = null
+        val meta = mediaMetadata(d)
         if (!forceMerge) {
             if (d.dashManifestUrl.isNotBlank()) {
                 val ds = YouTubeDataSource.factory(context)
-                baseSource = DashMediaSource.Factory(ds).createMediaSource(MediaItem.fromUri(d.dashManifestUrl))
+                val item = MediaItem.Builder().setUri(d.dashManifestUrl).setMediaMetadata(meta).build()
+                baseSource = DashMediaSource.Factory(ds).createMediaSource(item)
             } else if (d.hlsManifestUrl.isNotBlank()) {
                 val ds = YouTubeDataSource.factory(context)
-                baseSource = HlsMediaSource.Factory(ds).createMediaSource(MediaItem.fromUri(d.hlsManifestUrl))
+                val item = MediaItem.Builder().setUri(d.hlsManifestUrl).setMediaMetadata(meta).build()
+                baseSource = HlsMediaSource.Factory(ds).createMediaSource(item)
             }
         }
         if (baseSource == null) {
@@ -161,15 +222,17 @@ class PlayerManager private constructor() {
                     videoFormats.first()
                 }
                 val bestAudio = selectAudioFormat(audioFormats, audioTrackId)
-                baseSource = merging(context, bestVideo.url, bestAudio.url, pickMime(bestVideo.mimeType), pickMime(bestAudio.mimeType))
+                baseSource = merging(context, bestVideo.url, bestAudio.url, pickMime(bestVideo.mimeType), pickMime(bestAudio.mimeType), meta)
             } else {
                 val prog = d.formats.firstOrNull { it.url.isNotBlank() } ?: videoFormats.firstOrNull()
                 if (prog != null && prog.url.isNotBlank()) {
                     val cacheDs = YouTubeDataSource.factory(context)
-                    baseSource = ProgressiveMediaSource.Factory(cacheDs).createMediaSource(MediaItem.fromUri(prog.url))
+                    val item = MediaItem.Builder().setUri(prog.url).setMediaMetadata(meta).build()
+                    baseSource = ProgressiveMediaSource.Factory(cacheDs).createMediaSource(item)
                 } else if (videoFormats.isNotEmpty()) {
                     val cacheDs = YouTubeDataSource.factory(context)
-                    baseSource = ProgressiveMediaSource.Factory(cacheDs).createMediaSource(MediaItem.fromUri(videoFormats.first().url))
+                    val item = MediaItem.Builder().setUri(videoFormats.first().url).setMediaMetadata(meta).build()
+                    baseSource = ProgressiveMediaSource.Factory(cacheDs).createMediaSource(item)
                 }
             }
         }
@@ -232,9 +295,12 @@ class PlayerManager private constructor() {
         } catch (_: Exception) { null }
     }
 
-    private fun merging(context: Context, videoUrl: String, audioUrl: String, videoMime: String, audioMime: String): MergingMediaSource {
+    private fun merging(context: Context, videoUrl: String, audioUrl: String, videoMime: String, audioMime: String, meta: MediaMetadata? = null): MergingMediaSource {
         val ds = YouTubeDataSource.factory(context)
-        val videoItem = MediaItem.Builder().setUri(videoUrl).setMimeType(videoMime).build()
+        // Metadata lives on the video part so the notification shows title/channel/artwork.
+        val videoItem = MediaItem.Builder().setUri(videoUrl).setMimeType(videoMime).apply {
+            if (meta != null) setMediaMetadata(meta)
+        }.build()
         val audioItem = MediaItem.Builder().setUri(audioUrl).setMimeType(audioMime).build()
         val videoSource = ProgressiveMediaSource.Factory(ds).createMediaSource(videoItem)
         val audioSource = ProgressiveMediaSource.Factory(ds).createMediaSource(audioItem)
@@ -250,7 +316,7 @@ class PlayerManager private constructor() {
         val p = player ?: return
         val pos = p.currentPosition
         val wasPlaying = p.isPlaying
-        currentDetail = detail
+        activeDetail = detail
         val videoFormats = detail.adaptiveFormats.filter { !it.isAudio && it.url.isNotBlank() }
         val audioFormats = detail.adaptiveFormats.filter { it.isAudio && it.url.isNotBlank() }.sortedByDescending { it.bitrate }
         if (videoFormats.isNotEmpty() && audioFormats.isNotEmpty()) {
@@ -261,7 +327,7 @@ class PlayerManager private constructor() {
                     ?: videoFormats.minByOrNull { kotlin.math.abs(it.height - height) }
             } ?: return
             val audio = selectAudioFormat(audioFormats, selectedAudioTrackId)
-            val src = merging(context, target.url, audio.url, pickMime(target.mimeType), pickMime(audio.mimeType))
+            val src = merging(context, target.url, audio.url, pickMime(target.mimeType), pickMime(audio.mimeType), mediaMetadata(detail))
             // merge subtitles again
             val finalSrc = if (detail.captionTracks.isNotEmpty()) {
                 val subs = detail.captionTracks.mapIndexedNotNull { i, ct -> if (ct.baseUrl.isBlank()) null else createSubtitleSource(context, ct, i) }
@@ -334,7 +400,7 @@ class PlayerManager private constructor() {
 
     fun selectAudioTrack(context: Context, detail: UiVideoDetail, trackId: String) {
         selectedAudioTrackId = trackId
-        currentDetail = detail
+        activeDetail = detail
         val p = player ?: return
         val pos = p.currentPosition
         val wasPlaying = p.isPlaying || p.playWhenReady
@@ -386,12 +452,12 @@ class PlayerManager private constructor() {
         try {
             // First try exact override if track group is available
             val p = player
-            val idx = currentDetail?.captionTracks?.indexOfFirst { it.languageCode.equals(lang, ignoreCase = true) } ?: -1
+            val idx = activeDetail?.captionTracks?.indexOfFirst { it.languageCode.equals(lang, ignoreCase = true) } ?: -1
             // also try base language match if exact not found
             var effectiveIdx = idx
             if (effectiveIdx < 0) {
                 val base = lang.substringBefore("-").substringBefore("_").lowercase()
-                effectiveIdx = currentDetail?.captionTracks?.indexOfFirst { it.languageCode.substringBefore("-").substringBefore("_").lowercase() == base } ?: -1
+                effectiveIdx = activeDetail?.captionTracks?.indexOfFirst { it.languageCode.substringBefore("-").substringBefore("_").lowercase() == base } ?: -1
             }
             var matched = false
             if (p != null && effectiveIdx >= 0) {
@@ -432,7 +498,7 @@ class PlayerManager private constructor() {
     @Deprecated("Use selectCaption")
     fun setCaptionEnabled(enabled: Boolean) {
         if (!enabled) selectCaption(null) else {
-            val lang = currentDetail?.captionTracks?.firstOrNull()?.languageCode
+            val lang = activeDetail?.captionTracks?.firstOrNull()?.languageCode
             if (lang != null) selectCaption(lang)
         }
     }

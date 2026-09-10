@@ -159,7 +159,10 @@ fun WediyoPlayer(
     DisposableEffect(lifecycle) {
         val obs = LifecycleEventObserver { _, e ->
             when (e) {
-                Lifecycle.Event.ON_PAUSE -> player?.pause()
+                // With background play on (default), the PlaybackService keeps audio alive
+                // when the screen turns off / app is backgrounded — miniplayer + notification
+                // stay in control. Only hard-pause when the user disabled background play.
+                Lifecycle.Event.ON_PAUSE -> if (!PlayerManager.get().backgroundPlayEnabled) player?.pause()
                 Lifecycle.Event.ON_RESUME -> if (autoPlay) player?.play()
                 else -> {}
             }

@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Wediyo</string>
+    <string name="playback_channel_name">Playback</string>
 </resources>

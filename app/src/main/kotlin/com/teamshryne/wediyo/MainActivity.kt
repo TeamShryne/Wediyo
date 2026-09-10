@@ -5,7 +5,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.media3.common.util.UnstableApi
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -28,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.teamshryne.wediyo.data.prefs.SettingsManager
+import com.teamshryne.wediyo.ui.components.Miniplayer
 import com.teamshryne.wediyo.ui.navigation.AppNavHost
 import com.teamshryne.wediyo.ui.navigation.Screen
 import com.teamshryne.wediyo.ui.theme.WediyoTheme
@@ -57,6 +64,20 @@ class MainActivity : ComponentActivity() {
                 val backStack by nav.currentBackStackEntryAsState()
                 val route = backStack?.destination?.route
                 val showBottom = route in setOf(Screen.Home.route, Screen.Shorts.route, Screen.Subscriptions.route, Screen.Library.route)
+                // Sync background-playback toggle into the player (survives rotation: singleton).
+                LaunchedEffect(Unit) {
+                    try {
+                        SettingsManager(ctx).backgroundPlay.collectLatest {
+                            com.teamshryne.wediyo.player.PlayerManager.get().backgroundPlayEnabled = it
+                        }
+                    } catch (_: Exception) {}
+                }
+                // Miniplayer state: visible whenever something is loaded, except on the
+                // full-screen watch pages themselves (video/… and shorts/… own the player UI).
+                val miniDetail by com.teamshryne.wediyo.player.PlayerManager.get().currentDetail.collectAsState()
+                val isWatchRoute = route?.startsWith("video/") == true ||
+                    route == Screen.Shorts.route || route?.startsWith("short/") == true
+                val showMini = miniDetail != null && !isWatchRoute
 
                 Scaffold(
                     containerColor = MaterialTheme.colorScheme.background,
@@ -64,7 +85,26 @@ class MainActivity : ComponentActivity() {
                     // This fixes the "extra space above header" from nested scaffolds
                     contentWindowInsets = WindowInsets(0.dp),
                     bottomBar = {
-                        if (showBottom) {
+                        Column {
+                            AnimatedVisibility(
+                                visible = showMini,
+                                enter = slideInVertically { it } + fadeIn(),
+                                exit = slideOutVertically { it } + fadeOut()
+                            ) {
+                                miniDetail?.let { d ->
+                                    Miniplayer(
+                                        detail = d,
+                                        onExpand = {
+                                            try {
+                                                nav.navigate(Screen.Video.route(d.videoId)) {
+                                                    launchSingleTop = true
+                                                }
+                                            } catch (_: Exception) {}
+                                        }
+                                    )
+                                }
+                            }
+                            if (showBottom) {
                             NavigationBar(
                                 containerColor = MaterialTheme.colorScheme.surface,
                                 tonalElevation = 0.dp
@@ -147,7 +187,8 @@ class MainActivity : ComponentActivity() {
                                     )
                                 )
                             }
-                        }
+                            } // showBottom
+                        } // Column: miniplayer + nav bar
                     }
                 ) { inner ->
                     // Only apply bottom padding (nav bar) — top is handled inside each screen

@@ -38,6 +38,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     LaunchedEffect(Unit) { mgr.videoQuality.collect { videoQ = it } }
     LaunchedEffect(Unit) { try { LibraryRepository.init(ctx) } catch (_: Exception) {} }
     val historyPaused by mgr.historyPaused.collectAsState(initial = false)
+    val backgroundPlay by mgr.backgroundPlay.collectAsState(initial = true)
     var confirmClear by remember { mutableStateOf<String?>(null) }
 
     if (confirmClear != null) {
@@ -114,6 +115,25 @@ fun SettingsScreen(onBack: () -> Unit) {
                     SettingDropdown("Channel avatar quality", listOf("high", "720p", "360p", "low"), avatarQ) { v -> scope.launch { mgr.setAvatarQuality(v) } }
                     SettingDropdown("Video quality", listOf("auto", "1080p", "720p", "480p", "360p"), videoQ) { v -> scope.launch { mgr.setVideoQuality(v) } }
                     SettingDropdown("Shorts quality", listOf("auto", "1080p", "720p", "480p", "360p"), shortsQ) { v -> scope.launch { mgr.setShortsQuality(v) } }
+                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Background play", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium))
+                            Text(
+                                if (backgroundPlay) "Miniplayer + notification keep playing"
+                                else "Playback pauses outside the app",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = backgroundPlay,
+                            onCheckedChange = { v ->
+                                haptics.toggle(v)
+                                scope.launch { mgr.setBackgroundPlay(v) }
+                            }
+                        )
+                    }
                 }
             }
 

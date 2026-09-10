@@ -21,6 +21,7 @@ object SettingsKeys {
     val audioLanguage = stringPreferencesKey("audio_language") // original, en, hi, etc (id or display)
     val audioTrackId = stringPreferencesKey("audio_track_id") // last selected track id
     val historyPaused = booleanPreferencesKey("history_paused")
+    val backgroundPlay = booleanPreferencesKey("background_play") // keep audio with screen off / app backgrounded
 }
 
 class SettingsManager(private val context: Context) {
@@ -33,6 +34,7 @@ class SettingsManager(private val context: Context) {
     val audioLanguage: Flow<String> = context.dataStore.data.map { it[SettingsKeys.audioLanguage] ?: "original" }
     val audioTrackId: Flow<String> = context.dataStore.data.map { it[SettingsKeys.audioTrackId] ?: "" }
     val historyPaused: Flow<Boolean> = context.dataStore.data.map { it[SettingsKeys.historyPaused] ?: false }
+    val backgroundPlay: Flow<Boolean> = context.dataStore.data.map { it[SettingsKeys.backgroundPlay] ?: true }
 
     suspend fun setThumbQuality(v: String) { context.dataStore.edit { it[SettingsKeys.thumbQuality] = v } }
     suspend fun setAvatarQuality(v: String) { context.dataStore.edit { it[SettingsKeys.avatarQuality] = v } }
@@ -43,4 +45,5 @@ class SettingsManager(private val context: Context) {
     suspend fun setAudioLanguage(v: String) { context.dataStore.edit { it[SettingsKeys.audioLanguage] = v } }
     suspend fun setAudioTrackId(v: String) { context.dataStore.edit { it[SettingsKeys.audioTrackId] = v } }
     suspend fun setHistoryPaused(v: Boolean) { context.dataStore.edit { it[SettingsKeys.historyPaused] = v } }
+    suspend fun setBackgroundPlay(v: Boolean) { context.dataStore.edit { it[SettingsKeys.backgroundPlay] = v } }
 }
