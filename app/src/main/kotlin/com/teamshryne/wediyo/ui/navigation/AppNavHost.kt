@@ -117,7 +117,9 @@ fun AppNavHost(nav: NavHostController, start: String = Screen.Home.route) {
         }
         composable(Screen.Subscriptions.route) {
             SubscriptionsScreen(
-                onChannelClick = { bid -> nav.navigate(Screen.Channel.route(bid)) }
+                onChannelClick = { bid -> nav.navigate(Screen.Channel.route(bid)) },
+                onVideoClick = { vid -> nav.navigate(Screen.Video.route(vid)) },
+                onShortClick = { vid -> nav.navigate(Screen.ShortPlayer.route(vid)) }
             )
         }
         composable(Screen.Library.route) {
