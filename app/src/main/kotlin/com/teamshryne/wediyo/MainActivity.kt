@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -92,16 +94,24 @@ class MainActivity : ComponentActivity() {
                                 exit = slideOutVertically { it } + fadeOut()
                             ) {
                                 miniDetail?.let { d ->
-                                    Miniplayer(
-                                        detail = d,
-                                        onExpand = {
-                                            try {
-                                                nav.navigate(Screen.Video.route(d.videoId)) {
-                                                    launchSingleTop = true
-                                                }
-                                            } catch (_: Exception) {}
-                                        }
-                                    )
+                                    // Floating card docked bottom-end above the nav bar (Flow-style).
+                                    Box(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(end = 12.dp, bottom = 8.dp),
+                                        contentAlignment = Alignment.BottomEnd
+                                    ) {
+                                        Miniplayer(
+                                            detail = d,
+                                            onExpand = {
+                                                try {
+                                                    nav.navigate(Screen.Video.route(d.videoId)) {
+                                                        launchSingleTop = true
+                                                    }
+                                                } catch (_: Exception) {}
+                                            }
+                                        )
+                                    }
                                 }
                             }
                             if (showBottom) {
