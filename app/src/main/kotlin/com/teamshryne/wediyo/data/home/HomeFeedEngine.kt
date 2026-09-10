@@ -103,8 +103,16 @@ object HomeFeedEngine {
         return out
     }
 
-    /** Round-robin interleave: each source list is newest-first, turns approximate recency mix. */
-    fun <T> interleave(lists: List<List<T>>, perListTake: Int = Int.MAX_VALUE): List<T> {
+    /** Fill a blank avatar from a known-good source; never overwrite a real one. Pure. */
+    fun withAvatar(video: UiVideo, avatarUrl: String, avatarsJson: String): UiVideo {
+        if (video.avatarUrl.isNotBlank() || avatarUrl.isBlank()) return video
+        return video.copy(
+            avatarUrl = avatarUrl,
+            avatarsJson = if (avatarsJson.isBlank() || avatarsJson == "[]") video.avatarsJson else avatarsJson
+        )
+    }
+
+    /** Round-robin interleave: each source list is newest-first, turns approximate recency mix. */    fun <T> interleave(lists: List<List<T>>, perListTake: Int = Int.MAX_VALUE): List<T> {
         if (lists.isEmpty()) return emptyList()
         val capped = lists.map { it.take(perListTake) }
         val out = ArrayList<T>(capped.sumOf { it.size })

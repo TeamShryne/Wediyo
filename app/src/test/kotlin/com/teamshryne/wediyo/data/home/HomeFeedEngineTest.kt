@@ -100,4 +100,17 @@ class HomeFeedEngineTest {
         )
         assertEquals(listOf(1, 10, 2, 20, 3), out)
     }
+
+    @Test
+    fun withAvatar_fillsBlank_neverOverwrites() {
+        val blank = vid("b1")
+        val filled = HomeFeedEngine.withAvatar(blank, "https://a", "[{}]")
+        assertEquals("https://a", filled.avatarUrl)
+
+        val has = blank.copy(avatarUrl = "https://orig", avatarsJson = "[{}]")
+        assertEquals(has, HomeFeedEngine.withAvatar(has, "https://new", "[{}]"))
+
+        // Blank source changes nothing.
+        assertEquals(blank, HomeFeedEngine.withAvatar(blank, "", ""))
+    }
 }

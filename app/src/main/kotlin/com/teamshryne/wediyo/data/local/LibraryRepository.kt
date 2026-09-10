@@ -71,21 +71,25 @@ object LibraryRepository {
 
     suspend fun cacheVideo(v: UiVideo) {
         try {
+            // Preserve previously cached identity/artwork when the new snapshot
+            // lacks it (e.g. related-queue items carry no avatar) — otherwise
+            // one blank write would wipe avatars for the whole app.
+            val existing = try { db().videos().get(v.id) } catch (_: Exception) { null }
             db().videos().upsert(
                 VideoEntity(
                     videoId = v.id,
-                    title = v.title,
-                    author = v.author,
-                    channelId = v.channelId,
-                    thumbnailUrl = v.thumbnailUrl,
-                    thumbnailsJson = v.thumbnailsJson,
-                    avatarUrl = v.avatarUrl,
-                    avatarsJson = v.avatarsJson,
-                    viewCountText = v.viewCountText,
-                    publishedText = v.publishedText,
-                    durationText = v.durationText,
+                    title = v.title.ifBlank { existing?.title ?: "" },
+                    author = v.author.ifBlank { existing?.author ?: "" },
+                    channelId = v.channelId.ifBlank { existing?.channelId ?: "" },
+                    thumbnailUrl = v.thumbnailUrl.ifBlank { existing?.thumbnailUrl ?: "" },
+                    thumbnailsJson = if (v.thumbnailsJson.isBlank() || v.thumbnailsJson == "[]") existing?.thumbnailsJson ?: "[]" else v.thumbnailsJson,
+                    avatarUrl = v.avatarUrl.ifBlank { existing?.avatarUrl ?: "" },
+                    avatarsJson = if (v.avatarsJson.isBlank() || v.avatarsJson == "[]") existing?.avatarsJson ?: "[]" else v.avatarsJson,
+                    viewCountText = v.viewCountText.ifBlank { existing?.viewCountText ?: "" },
+                    publishedText = v.publishedText.ifBlank { existing?.publishedText ?: "" },
+                    durationText = v.durationText.ifBlank { existing?.durationText ?: "" },
                     isLive = v.isLive,
-                    description = v.description,
+                    description = v.description.ifBlank { existing?.description ?: "" },
                     lastRefreshed = System.currentTimeMillis()
                 )
             )
@@ -389,6 +393,22 @@ object LibraryRepository {
 
     suspend fun recentQueries(limit: Int = 8): List<String> =
         try { db().searches().recentQueries(limit).map { it.query }.filter { it.isNotBlank() } } catch (_: Exception) { emptyList() }
+
+    /** channelId → (avatarUrl, avatarsJson) for non-blank cached channels. */
+    suspend fun channelAvatars(ids: List<String>): Map<String, Pair<String, String>> =
+        try {
+            db().channels().getMany(ids.distinct()).mapNotNull { c ->
+                if (c.avatarUrl.isBlank()) null else c.channelId to (c.avatarUrl to c.avatarsJson)
+            }.toMap()
+        } catch (_: Exception) { emptyMap() }
+
+    /** videoId → (avatarUrl, avatarsJson) for non-blank cached videos. */
+    suspend fun cachedVideoAvatars(videoIds: List<String>): Map<String, Pair<String, String>> =
+        try {
+            db().videos().getMany(videoIds.distinct()).mapNotNull { v ->
+                if (v.avatarUrl.isBlank()) null else v.videoId to (v.avatarUrl to v.avatarsJson)
+            }.toMap()
+        } catch (_: Exception) { emptyMap() }
 
     // ── Search events (future taste stats) ──
     suspend fun logSearch(query: String, resultCount: Int = 0) {

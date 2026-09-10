@@ -7,6 +7,7 @@ import com.teamshryne.wediyo.data.home.FeedSource
 import com.teamshryne.wediyo.data.home.HomeFeedEngine
 import com.teamshryne.wediyo.data.local.LibraryRepository
 import com.teamshryne.wediyo.data.local.ResumeWithVideo
+import com.teamshryne.wediyo.data.local.SubscriptionRow
 import com.teamshryne.wediyo.data.model.UiShort
 import com.teamshryne.wediyo.data.model.UiVideo
 import com.teamshryne.wediyo.data.repository.ChannelRepository
@@ -86,6 +87,13 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     private val continuations = ArrayDeque<String>()  // related continuations (cheapest next page)
     private var branchesUsed = 0
     private var refreshCount = 0
+    // Pagination reservoirs — when one source runs dry the next takes over,
+    // so the feed keeps going instead of ending after 1–2 pages.
+    private var allSeeds: List<String> = emptyList()
+    private var seedCursor = 1 // seeds[0] feeds the initial queue
+    private val pendingSubs = ArrayDeque<SubscriptionRow>()
+    private var searchQuery: String? = null
+    private var searchCont: String? = null
     // Load gate: a Job flag, NOT state flags — initial state starts with
     // isLoading=true (skeletons), so gating on state would no-op the first
     // refresh forever (the stuck-loading bug).
@@ -162,13 +170,20 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         watchedIds = watched
         val topIds = topChannels.map { it.channelId }.toSet()
 
+        // Reset pagination reservoirs for this generation.
+        allSeeds = seedIds
+        seedCursor = 1
+        pendingSubs.clear()
+        searchQuery = null
+        searchCont = null
+
         // 2. Network fan-out — each source failure-safe, bounded.
         var subsVideos: List<UiVideo>
         var queueVideos: List<UiVideo>
         var searchVideos: List<UiVideo>
         var shorts: List<UiShort>
         supervisorScope {
-            val subsD = async { fetchSubsVideos(subs.map { it.channelId to it.title }) }
+            val subsD = async { fetchSubsVideos(firstSubsBatch(subs)) }
             val queueD = async { fetchQueueSeed(seedIds) }
             val searchD = async { fetchSearchFresh(queries, refreshCount) }
             val shortsD = async { fetchShorts(subs.map { it.channelId }) }
@@ -184,7 +199,10 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                     if (!seenIds.contains(id)) frontier.add(id)
                 }
             }
-            searchVideos = withTimeoutOrNull(20_000) { searchD.await() } ?: emptyList()
+            val searchPage = withTimeoutOrNull(20_000) { searchD.await() }
+            searchVideos = searchPage?.videos ?: emptyList()
+            searchQuery = searchPage?.query
+            searchCont = searchPage?.continuation?.takeIf { it.isNotBlank() }
             shorts = withTimeoutOrNull(20_000) { shortsD.await() } ?: emptyList()
             // Merge search shorts into shelf when subs have none.
             if (shorts.isEmpty()) {
@@ -200,22 +218,23 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             offline = historyFallback.isNotEmpty()
         }
 
-        // 4. Rank / mix / vary per launch.
+        // 4. Rank / mix / vary per launch, then backfill missing avatars.
         val (mixed, sources) = HomeFeedEngine.rankAndMix(
             subs = subsVideos, queue = queueVideos, search = searchVideos,
             historyFallback = historyFallback,
             subIds = subIds, topChannelIds = topIds, watchedIds = watched,
             seed = seed
         )
-        fullVideos = mixed
+        val enriched = enrichAvatars(mixed)
+        fullVideos = enriched
         sourceOf = sources
         seenIds.clear()
-        seenIds.addAll(mixed.map { it.id })
+        seenIds.addAll(enriched.map { it.id })
         seedIds.forEach { seenIds.add(it) }
 
         // Cache for offline next launch (fire-and-forget).
-        if (mixed.isNotEmpty()) {
-            val toCache = mixed.take(30)
+        if (enriched.isNotEmpty()) {
+            val toCache = enriched.take(30)
             viewModelScope.launch {
                 try {
                     toCache.forEach { LibraryRepository.cacheVideo(it) }
@@ -232,15 +251,20 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                 // safe to re-arm for future genuine resumes.
                 resume = resume,
                 resumeDismissed = false,
-                videos = applyFilter(mixed, filter),
+                videos = applyFilter(enriched, filter),
                 shorts = shorts.take(12),
-                error = if (mixed.isEmpty() && !offline) "Nothing yet — search or subscribe to fill your home" else null,
+                error = if (enriched.isEmpty() && !offline) "Nothing yet — search or subscribe to fill your home" else null,
                 offline = offline,
-                canLoadMore = mixed.isNotEmpty() && (continuations.isNotEmpty() || frontier.isNotEmpty()),
+                canLoadMore = enriched.isNotEmpty() && hasMore(),
                 seed = seed
             )
         }
     }
+
+    /** Any pagination reservoir left? Drives the infinite footer. */
+    private fun hasMore(): Boolean =
+        continuations.isNotEmpty() || frontier.isNotEmpty() ||
+            seedCursor < allSeeds.size || searchCont != null || pendingSubs.isNotEmpty()
 
     private fun applyFilter(list: List<UiVideo>, f: HomeFilter): List<UiVideo> = when (f) {
         HomeFilter.ALL -> list
@@ -249,25 +273,45 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         HomeFilter.FRESH -> list.filter { it.id !in watchedIds }
     }
 
-    private fun appendVideos(added: List<UiVideo>, defaultSource: FeedSource) {
+    private suspend fun appendVideos(added: List<UiVideo>, defaultSource: FeedSource) {
         if (added.isEmpty()) return
         val fresh = added.filter { it.id.isNotBlank() && !seenIds.contains(it.id) }
         if (fresh.isEmpty()) return
-        fresh.forEach { seenIds.add(it.id) }
+        val enriched = enrichAvatars(fresh)
+        enriched.forEach { seenIds.add(it.id) }
         val mutableSources = sourceOf.toMutableMap()
-        fresh.forEach { mutableSources[it.id] = defaultSource }
+        enriched.forEach { mutableSources[it.id] = defaultSource }
         sourceOf = mutableSources
-        fullVideos = fullVideos + fresh
+        fullVideos = fullVideos + enriched
         // Cache paged items too.
         viewModelScope.launch {
-            try { fresh.forEach { LibraryRepository.cacheVideo(it) } } catch (_: Exception) {}
+            try { enriched.forEach { LibraryRepository.cacheVideo(it) } } catch (_: Exception) {}
         }
         val f = _state.value.filter
         _state.update {
             it.copy(
                 videos = applyFilter(fullVideos, f),
-                canLoadMore = continuations.isNotEmpty() || frontier.isNotEmpty() || branchesUsed < MAX_BRANCHES
+                canLoadMore = hasMore()
             )
+        }
+    }
+
+    /** Fill blank avatars: subscriptions → per-video cache → channel cache. */
+    private suspend fun enrichAvatars(videos: List<UiVideo>): List<UiVideo> {
+        val need = videos.filter { it.avatarUrl.isBlank() && it.channelId.isNotBlank() }
+        if (need.isEmpty()) return videos
+        val subAvatars: Map<String, Pair<String, String>> = try {
+            LibraryRepository.subscriptionsOnce()
+                .filter { it.avatarUrl.isNotBlank() }
+                .associate { it.channelId to (it.avatarUrl to it.avatarsJson) }
+        } catch (_: Exception) { emptyMap() }
+        val cachedVideo = LibraryRepository.cachedVideoAvatars(need.map { it.id })
+        val cachedChannel = LibraryRepository.channelAvatars(need.map { it.channelId })
+        if (subAvatars.isEmpty() && cachedVideo.isEmpty() && cachedChannel.isEmpty()) return videos
+        return videos.map { v ->
+            if (v.avatarUrl.isNotBlank()) return@map v
+            val hit = subAvatars[v.channelId] ?: cachedVideo[v.id] ?: cachedChannel[v.channelId]
+            if (hit == null) v else HomeFeedEngine.withAvatar(v, hit.first, hit.second)
         }
     }
 
@@ -279,7 +323,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         val frontierIds: List<String>
     )
 
-    /** One expansion step: continuation (1 cheap call) before branching (new detail fetch). */
+    /** One expansion step, cheapest source first; reservoirs cascade so pages keep coming. */
     private suspend fun expandOnce(): List<UiVideo> {
         // 1. Exhaust related continuations first.
         while (continuations.isNotEmpty()) {
@@ -306,23 +350,72 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             val fresh = res.videos.filter { !seenIds.contains(it.id) }
             if (fresh.isNotEmpty()) return fresh.take(8)
         }
+        // 3. Next history seed's own queue (each watched video is a new branch root).
+        while (seedCursor < allSeeds.size) {
+            val id = allSeeds[seedCursor++]
+            if (id.isBlank() || seenIds.contains(id)) continue
+            seenIds.add(id)
+            val res = safeDetail(id) ?: continue
+            if (res.continuation.isNotBlank()) continuations.add(res.continuation)
+            res.frontierIds.filter { !seenIds.contains(it) }.take(6).forEach { frontier.add(it) }
+            val fresh = res.videos.filter { !seenIds.contains(it.id) }
+            if (fresh.isNotEmpty()) return fresh.take(8)
+        }
+        // 4. Fresh-search pagination (rotating query's next page).
+        val q = searchQuery
+        val sc = searchCont
+        if (q != null && sc != null) {
+            searchCont = null // consume; re-armed below if another page exists
+            val page = safeSearchPage(q, sc)
+            if (page != null) {
+                searchCont = page.continuation.takeIf { it.isNotBlank() }
+                val fresh = page.videos.filter { !seenIds.contains(it.id) }
+                if (fresh.isNotEmpty()) return fresh.take(8)
+            }
+        }
+        // 5. Remaining subscribed channels (beyond the first window).
+        if (pendingSubs.isNotEmpty()) {
+            val batch = ArrayList<SubscriptionRow>()
+            repeat(3) { pendingSubs.removeFirstOrNull()?.let { batch.add(it) } }
+            val vids = fetchSubsVideos(batch)
+            val fresh = vids.filter { !seenIds.contains(it.id) }
+            if (fresh.isNotEmpty()) return fresh
+        }
         return emptyList()
     }
 
     // ── Source fetchers (all failure-safe) ───────────────────────
 
-    private suspend fun fetchSubsVideos(subs: List<Pair<String, String>>): List<UiVideo> {
+    /**
+     * First subs window for the initial feed; leftovers wait in [pendingSubs]
+     * for step 5 of pagination. Rotated per refresh so leads differ.
+     */
+    private fun firstSubsBatch(subs: List<SubscriptionRow>): List<SubscriptionRow> {
+        pendingSubs.clear()
         if (subs.isEmpty()) return emptyList()
-        // Rotate window per refresh so different channels lead each launch.
         val start = (refreshCount * 3) % subs.size
-        val rotated = (subs.drop(start) + subs.take(start)).take(MAX_SUB_CHANNELS)
+        val rotated = subs.drop(start) + subs.take(start)
+        val batch = rotated.take(MAX_SUB_CHANNELS)
+        rotated.drop(MAX_SUB_CHANNELS).forEach { pendingSubs.add(it) }
+        return batch
+    }
+
+    private suspend fun fetchSubsVideos(rows: List<SubscriptionRow>): List<UiVideo> {
+        if (rows.isEmpty()) return emptyList()
         return supervisorScope {
-            rotated.map { (id, title) ->
+            rows.map { row ->
                 async {
                     try {
                         withTimeoutOrNull(12_000) {
-                            channelRepo.fetchVideos(id).videos.take(PER_CHANNEL).map { v ->
-                                if (v.channelId.isBlank() || v.author.isBlank()) v.copy(channelId = id, author = title) else v
+                            channelRepo.fetchVideos(row.channelId).videos.take(PER_CHANNEL).map { v ->
+                                // Backfill identity AND avatar from the local sub —
+                                // channel video rows often carry neither.
+                                v.copy(
+                                    channelId = v.channelId.ifBlank { row.channelId },
+                                    author = v.author.ifBlank { row.title },
+                                    avatarUrl = v.avatarUrl.ifBlank { row.avatarUrl },
+                                    avatarsJson = if (v.avatarsJson.isBlank() || v.avatarsJson == "[]") row.avatarsJson else v.avatarsJson
+                                )
                             }
                         } ?: emptyList()
                     } catch (_: Exception) { emptyList() }
@@ -342,15 +435,38 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         } catch (_: Exception) { null }
     }
 
-    private suspend fun fetchSearchFresh(queries: List<String>, round: Int): List<UiVideo> {
+    private data class SearchPage(
+        val videos: List<UiVideo>,
+        val query: String,
+        val continuation: String
+    )
+
+    private suspend fun fetchSearchFresh(queries: List<String>, round: Int): SearchPage? {
         // Rotate query each refresh → different results, no boredom.
         val q = queries.getOrNull(if (queries.isNotEmpty()) round % queries.size else -1)
-            ?: return emptyList()
+            ?: return null
         return try {
             withTimeoutOrNull(12_000) {
-                searchRepo.search(q).videos.filter { it.id.isNotBlank() }.take(8)
-            } ?: emptyList()
-        } catch (_: Exception) { emptyList() }
+                val r = searchRepo.search(q)
+                SearchPage(
+                    r.videos.filter { it.id.isNotBlank() }.take(8),
+                    q, r.continuation
+                )
+            }
+        } catch (_: Exception) { null }
+    }
+
+    private suspend fun safeSearchPage(query: String, continuation: String): SearchPage? {
+        if (query.isBlank() || continuation.isBlank()) return null
+        return try {
+            withTimeoutOrNull(12_000) {
+                val r = searchRepo.search(query, "", continuation)
+                SearchPage(
+                    r.videos.filter { it.id.isNotBlank() }.take(10),
+                    query, r.continuation
+                )
+            }
+        } catch (_: Exception) { null }
     }
 
     private suspend fun fetchSearchShorts(queries: List<String>): List<UiShort> {
