@@ -11,10 +11,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
@@ -87,34 +85,7 @@ class MainActivity : ComponentActivity() {
                     // This fixes the "extra space above header" from nested scaffolds
                     contentWindowInsets = WindowInsets(0.dp),
                     bottomBar = {
-                        Column {
-                            AnimatedVisibility(
-                                visible = showMini,
-                                enter = slideInVertically { it } + fadeIn(),
-                                exit = slideOutVertically { it } + fadeOut()
-                            ) {
-                                miniDetail?.let { d ->
-                                    // Floating card docked bottom-end above the nav bar (Flow-style).
-                                    Box(
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .padding(end = 12.dp, bottom = 8.dp),
-                                        contentAlignment = Alignment.BottomEnd
-                                    ) {
-                                        Miniplayer(
-                                            detail = d,
-                                            onExpand = {
-                                                try {
-                                                    nav.navigate(Screen.Video.route(d.videoId)) {
-                                                        launchSingleTop = true
-                                                    }
-                                                } catch (_: Exception) {}
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                            if (showBottom) {
+                        if (showBottom) {
                             NavigationBar(
                                 containerColor = MaterialTheme.colorScheme.surface,
                                 tonalElevation = 0.dp
@@ -197,8 +168,6 @@ class MainActivity : ComponentActivity() {
                                     )
                                 )
                             }
-                            } // showBottom
-                        } // Column: miniplayer + nav bar
                     }
                 ) { inner ->
                     // Only apply bottom padding (nav bar) — top is handled inside each screen
@@ -211,6 +180,29 @@ class MainActivity : ComponentActivity() {
                         AppNavHost(nav)
                         // Global video overflow sheet (save/like/add-to-playlist from any ⋮)
                         com.teamshryne.wediyo.ui.components.VideoSheetHost()
+                        // Floating miniplayer overlay (Flow-style): floats over content,
+                        // reserves zero layout space — no full-width strip.
+                        AnimatedVisibility(
+                            visible = showMini,
+                            enter = slideInVertically { it } + fadeIn(),
+                            exit = slideOutVertically { it } + fadeOut(),
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(end = 12.dp, bottom = 8.dp)
+                        ) {
+                            miniDetail?.let { d ->
+                                Miniplayer(
+                                    detail = d,
+                                    onExpand = {
+                                        try {
+                                            nav.navigate(Screen.Video.route(d.videoId)) {
+                                                launchSingleTop = true
+                                            }
+                                        } catch (_: Exception) {}
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
