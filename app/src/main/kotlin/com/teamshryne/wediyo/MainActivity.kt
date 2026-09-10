@@ -168,6 +168,7 @@ class MainActivity : ComponentActivity() {
                                     )
                                 )
                             }
+                        }
                     }
                 ) { inner ->
                     // Only apply bottom padding (nav bar) — top is handled inside each screen
