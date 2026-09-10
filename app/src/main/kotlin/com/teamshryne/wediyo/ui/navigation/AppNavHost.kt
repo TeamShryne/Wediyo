@@ -1,5 +1,9 @@
 package com.teamshryne.wediyo.ui.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -92,13 +96,38 @@ fun AppNavHost(nav: NavHostController, start: String = Screen.Home.route) {
             val pid = backStackEntry.arguments?.getString("playlistId") ?: ""
             PodcastScreen(playlistId = pid, onBack = { nav.popBackStack() })
         }
-        composable(Screen.Video.route) { backStackEntry ->
+        composable(
+            Screen.Video.route,
+            // Flow-like watch open/close: page rises from the miniplayer on open and
+            // sinks back down on close (system back / swipe-down minimize).
+            enterTransition = {
+                slideIntoContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Up,
+                    animationSpec = tween(300)
+                ) + fadeIn(animationSpec = tween(300))
+            },
+            exitTransition = { fadeOut(animationSpec = tween(200)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(200)) },
+            popExitTransition = {
+                slideOutOfContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Down,
+                    animationSpec = tween(300)
+                ) + fadeOut(animationSpec = tween(300))
+            }
+        ) { backStackEntry ->
             val vid = backStackEntry.arguments?.getString("videoId") ?: ""
             VideoScreen(
                 videoId = vid,
                 onBack = { nav.popBackStack() },
                 onChannelClick = { bid -> nav.navigate(Screen.Channel.route(bid)) },
-                onVideoClick = { nid -> nav.navigate(Screen.Video.route(nid)) }
+                // Up-next replaces the watch page (Flow/YouTube): back from the new video
+                // minimizes into the miniplayer instead of reopening the previous video.
+                onVideoClick = { nid ->
+                    nav.navigate(Screen.Video.route(nid)) {
+                        popUpTo(Screen.Video.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
             )
         }
         composable(Screen.Settings.route) { SettingsScreen(onBack = { nav.popBackStack() }) }
