@@ -13,6 +13,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -34,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,7 +70,9 @@ fun VideoScreen(
     onBack: () -> Unit,
     onChannelClick: (String) -> Unit = {},
     onVideoClick: (String) -> Unit = {},
-    vm: VideoViewModel = viewModel()
+    // Flow-style: activity-scoped so detail/related/comments survive navigation and the
+    // reuse gate in load() can show the same video instantly without refetching.
+    vm: VideoViewModel = viewModel(viewModelStoreOwner = LocalContext.current as androidx.activity.ComponentActivity)
 ) {
     val state by vm.state.collectAsState()
     val ctx = LocalContext.current
@@ -130,6 +134,19 @@ fun VideoScreen(
         if (total > 0 && lastVisible >= total - 6) {
             if (state.relatedContinuation != null && !state.relatedLoading) vm.loadMoreRelated()
         }
+    }
+    // Flow-style swipe-down-to-minimize: drag the sticky player down to collapse into the
+    // miniplayer (playback continues). System back already does the same via onBack().
+    val density = LocalDensity.current
+    val minimizeThresholdPx = with(density) { 110.dp.toPx() }
+    val minimizeModifier = Modifier.pointerInput(onBack, minimizeThresholdPx) {
+        var totalY = 0f
+        detectVerticalDragGestures(
+            onDragStart = { totalY = 0f },
+            onDragCancel = { totalY = 0f },
+            onDragEnd = { if (totalY > minimizeThresholdPx) onBack(); totalY = 0f },
+            onVerticalDrag = { _, dy -> if (dy > 0) totalY += dy }
+        )
     }
 
     // Fullscreen overlay - reuses same PlayerManager instance, no restart
@@ -214,6 +231,7 @@ fun VideoScreen(
                                     .statusBarsPadding()
                                     .background(Color.Black)
                                     .aspectRatio(16f / 9f)
+                                    .then(minimizeModifier)
                             ) {
                                 WediyoPlayer(detail = d, isShorts = false, modifier = Modifier.fillMaxSize(), isFullscreen = false, onFullscreenToggle = { isFullscreen = true })
                             }
@@ -238,6 +256,7 @@ fun VideoScreen(
                                 .statusBarsPadding()
                                 .background(Color.Black)
                                 .aspectRatio(16f / 9f)
+                                .then(minimizeModifier)
                         ) {
                             WediyoPlayer(detail = d, isShorts = false, modifier = Modifier.fillMaxSize(), isFullscreen = false, onFullscreenToggle = { isFullscreen = true })
                             if (d.isLive) {

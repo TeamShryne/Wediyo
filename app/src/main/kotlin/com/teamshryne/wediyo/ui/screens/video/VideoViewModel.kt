@@ -33,9 +33,21 @@ class VideoViewModel : ViewModel() {
     private val _state = MutableStateFlow(VideoUiState())
     val state: StateFlow<VideoUiState> = _state
 
-    fun load(videoId: String) {
+    // Flow-style reuse gate: this ViewModel is activity-scoped (see VideoScreen), so the
+    // current video's detail survives navigation. Reopening the same video shows it
+    // instantly — no spinner, no metadata refetch, no player rebuild.
+    fun load(videoId: String, force: Boolean = false) {
         if (videoId.isBlank()) {
             _state.value = _state.value.copy(isLoading = false, error = "Invalid video id")
+            return
+        }
+        val cur = _state.value
+        if (!force && !cur.isLoading && cur.error == null && cur.detail?.videoId == videoId) {
+            if (cur.videoId != videoId) _state.value = cur.copy(videoId = videoId)
+            // Top up comments if the previous visit never loaded them.
+            if (cur.comments.isEmpty()) {
+                cur.detail?.commentsContinuation?.takeIf { it.isNotBlank() }?.let { loadComments(it, initial = true) }
+            }
             return
         }
         _state.value = VideoUiState(isLoading = true, videoId = videoId)
@@ -145,6 +157,6 @@ class VideoViewModel : ViewModel() {
     }
 
     fun retry() {
-        load(_state.value.videoId)
+        load(_state.value.videoId, force = true)
     }
 }
