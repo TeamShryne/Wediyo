@@ -214,7 +214,8 @@ fun SubscriptionsScreen(
                                     video = v,
                                     thumbQuality = thumbQ,
                                     avatarQuality = avatarQ,
-                                    onClick = { onVideoClick(v.id) }
+                                    onClick = { onVideoClick(v.id) },
+                                    showAvatar = false
                                 )
                             }
                         }

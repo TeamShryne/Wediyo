@@ -19,7 +19,7 @@ import coil.compose.AsyncImage
 import com.teamshryne.wediyo.data.model.UiVideo
 import com.teamshryne.wediyo.util.bestThumbUrl
 @Composable
-fun VideoCard(video: UiVideo, thumbQuality: String, avatarQuality: String, onClick: () -> Unit) {
+fun VideoCard(video: UiVideo, thumbQuality: String, avatarQuality: String, onClick: () -> Unit, showAvatar: Boolean = true) {
     Column(Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 6.dp)) {
         Box(Modifier.fillMaxWidth().aspectRatio(16f/9f).clip(RoundedCornerShape(12.dp)).background(Color(0xFF111111))) {
             AsyncImage(
@@ -46,13 +46,15 @@ fun VideoCard(video: UiVideo, thumbQuality: String, avatarQuality: String, onCli
             }
         }
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
-            AsyncImage(
-                model = bestThumbUrl(video.avatarsJson, video.avatarUrl, avatarQuality),
-                contentDescription = null,
-                modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF222222)),
-                contentScale = ContentScale.Crop
-            )
-            Spacer(Modifier.width(12.dp))
+            if (showAvatar) {
+                AsyncImage(
+                    model = bestThumbUrl(video.avatarsJson, video.avatarUrl, avatarQuality),
+                    contentDescription = null,
+                    modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF222222)),
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(Modifier.width(12.dp))
+            }
             Column(Modifier.weight(1f)) {
                 Text(video.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(2.dp))
