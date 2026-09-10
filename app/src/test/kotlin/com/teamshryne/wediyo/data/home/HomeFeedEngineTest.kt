@@ -86,8 +86,10 @@ class HomeFeedEngineTest {
         val (videos, _) = HomeFeedEngine.rankAndMix(
             subs = same, queue = other, seed = 9L
         )
-        assertTrue(videos.take(15).count { it.channelId == "spam" } <= 2)
-        // Nothing dropped entirely — extras sink to the tail.
+        // Head holds 2 spam + 6 others (8 slots); extras sink to the tail.
+        assertTrue(videos.take(8).count { it.channelId == "spam" } <= 2)
+        assertEquals(4, videos.drop(8).count { it.channelId == "spam" })
+        // Nothing dropped entirely.
         assertEquals(12, videos.size)
     }
 
