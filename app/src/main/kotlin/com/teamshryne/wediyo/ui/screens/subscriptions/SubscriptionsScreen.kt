@@ -157,7 +157,7 @@ fun SubscriptionsScreen(
             FilterRow(filter = filter, onPick = { h.tap(); vm.selectFilter(it) })
 
             val videos = vm.filteredVideos(feed, selectedChannel, filter)
-            val shorts = vm.filteredShorts(feed, selectedChannel, filter)
+            val shorts = vm.filteredShorts(feed, selectedChannel)
             val isEmptyFeed = when (filter) {
                 SubFilter.SHORTS -> shorts.isEmpty()
                 SubFilter.ALL -> videos.isEmpty() && shorts.isEmpty()
