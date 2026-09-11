@@ -64,9 +64,9 @@ class HomeFeedEngineTest {
     @Test
     fun subbedChannelRanksFirst() {
         val subs = listOf(vid("s1", channel = "sub1"))
-        val search = listOf(vid("x1", channel = "other"))
+        val queue = listOf(vid("x1", channel = "other"))
         val (videos, _) = HomeFeedEngine.rankAndMix(
-            subs = subs, search = search, subIds = setOf("sub1"), seed = 7L
+            subs = subs, queue = queue, subIds = setOf("sub1"), seed = 7L
         )
         assertEquals("s1", videos.first().id)
     }

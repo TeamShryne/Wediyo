@@ -4,7 +4,7 @@ import com.teamshryne.wediyo.data.model.UiVideo
 import kotlin.random.Random
 
 /** Source tag for ranking + local chip filtering. */
-enum class FeedSource { SUBS, QUEUE, SEARCH, HISTORY }
+enum class FeedSource { SUBS, QUEUE, HISTORY }
 
 /**
  * Pure ranking/merging for the home feed. No Android, no network —
@@ -18,14 +18,13 @@ object HomeFeedEngine {
     fun rankAndMix(
         subs: List<UiVideo> = emptyList(),
         queue: List<UiVideo> = emptyList(),
-        search: List<UiVideo> = emptyList(),
         historyFallback: List<UiVideo> = emptyList(),
         subIds: Set<String> = emptySet(),
         topChannelIds: Set<String> = emptySet(),
         watchedIds: Set<String> = emptySet(),
         seed: Long = System.currentTimeMillis(),
     ): Pair<List<UiVideo>, Map<String, FeedSource>> {
-        // Dedupe by id, first occurrence wins (SUBS > QUEUE > SEARCH > HISTORY).
+        // Dedupe by id, first occurrence wins (SUBS > QUEUE > HISTORY).
         val ordered = LinkedHashMap<String, Scored>()
         fun put(list: List<UiVideo>, src: FeedSource) {
             for (v in list) {
@@ -35,7 +34,6 @@ object HomeFeedEngine {
         }
         put(subs, FeedSource.SUBS)
         put(queue, FeedSource.QUEUE)
-        put(search, FeedSource.SEARCH)
         put(historyFallback, FeedSource.HISTORY)
 
         val sorted = ordered.values.sortedByDescending { it.score }
@@ -73,7 +71,6 @@ object HomeFeedEngine {
         var s = when (src) {
             FeedSource.SUBS -> 2.0
             FeedSource.QUEUE -> 1.2
-            FeedSource.SEARCH -> 0.6
             FeedSource.HISTORY -> 0.1
         }
         if (v.channelId in subIds) s += 2.0
