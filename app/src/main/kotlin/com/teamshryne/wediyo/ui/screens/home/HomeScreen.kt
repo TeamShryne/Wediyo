@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -18,6 +19,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,8 +61,22 @@ fun HomeScreen(
     val settings = remember(ctx) { SettingsManager(ctx) }
     val thumbQuality by settings.thumbQuality.collectAsState(initial = "high")
     val avatarQuality by settings.avatarQuality.collectAsState(initial = "high")
+    val listState = rememberLazyListState()
 
     LaunchedEffect(Unit) { vm.refresh() }
+
+    // True infinite scroll: when the last visible item gets close to the
+    // end, pull the next deep-branched page. loadMore() itself guards
+    // against concurrent / exhausted loads, so this is safe to fire often.
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            val info = listState.layoutInfo
+            val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+            lastVisible to info.totalItemsCount
+        }.collect { (lastVisible, total) ->
+            if (total > 0 && lastVisible >= total - 4) vm.loadMore()
+        }
+    }
 
     Scaffold(
         topBar = { HomeTopBar(onSearch = onSearch, onSettings = onSettings) },
@@ -101,7 +117,8 @@ fun HomeScreen(
                 )
             } else {
                 LazyColumn(
-                    Modifier.fillMaxSize(),
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 24.dp, top = 4.dp)
                 ) {
                     // Resume hero — last session's unfinished video.
@@ -166,12 +183,14 @@ fun HomeScreen(
                             }
                         }
                     }
-                    // Pagination footer — entering viewport auto-loads more.
+                    // Pagination footer — re-triggers on every new page while
+                    // visible, so chained deep-branch pages stream in.
                     item(key = "footer") {
                         HomeFooter(
                             loadingMore = state.isLoadingMore,
                             canLoadMore = state.canLoadMore,
                             hasItems = videos.isNotEmpty(),
+                            totalItems = videos.size,
                             onLoadMore = vm::loadMore
                         )
                     }
@@ -350,6 +369,7 @@ private fun HomeFooter(
     loadingMore: Boolean,
     canLoadMore: Boolean,
     hasItems: Boolean,
+    totalItems: Int,
     onLoadMore: () -> Unit
 ) {
     Box(
@@ -361,8 +381,9 @@ private fun HomeFooter(
         when {
             loadingMore -> CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.5.dp)
             canLoadMore && hasItems -> {
-                // Auto-expand frontier when footer becomes visible.
-                LaunchedEffect(Unit) { onLoadMore() }
+                // Keyed on page growth: while the footer stays visible each
+                // new page re-fires the next deep-branch fetch (infinite).
+                LaunchedEffect(totalItems, canLoadMore) { onLoadMore() }
                 TextButton(onClick = onLoadMore) { Text("Load more") }
             }
             hasItems -> Text(

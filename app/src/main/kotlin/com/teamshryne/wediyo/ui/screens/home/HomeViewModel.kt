@@ -11,6 +11,7 @@ import com.teamshryne.wediyo.data.local.SubscriptionRow
 import com.teamshryne.wediyo.data.model.UiShort
 import com.teamshryne.wediyo.data.model.UiVideo
 import com.teamshryne.wediyo.data.repository.ChannelRepository
+import com.teamshryne.wediyo.util.upgradeThumbsToHighRes
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -127,12 +128,22 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _state.update { it.copy(isLoadingMore = true) }
             try {
-                val added = expandOnce()
-                if (added.isEmpty()) {
-                    _state.update { it.copy(isLoadingMore = false, canLoadMore = false) }
+                // Deep fetch: chain several expansions per trigger so one
+                // scroll event yields a full screen+ of videos and the
+                // frontier compounds instead of trickling 8 at a time.
+                val collected = ArrayList<UiVideo>()
+                for (round in 0 until LOAD_MORE_ROUNDS) {
+                    if (!hasMore()) break
+                    val added = expandOnce()
+                    if (added.isNotEmpty()) collected.addAll(added)
+                    if (collected.size >= LOAD_MORE_TARGET) break
+                    if (added.isEmpty()) break
+                }
+                if (collected.isEmpty()) {
+                    _state.update { it.copy(isLoadingMore = false, canLoadMore = hasMore()) }
                 } else {
-                    appendVideos(added, FeedSource.QUEUE)
-                    _state.update { it.copy(isLoadingMore = false) }
+                    appendVideos(collected, FeedSource.QUEUE)
+                    _state.update { it.copy(isLoadingMore = false, canLoadMore = hasMore()) }
                 }
             } catch (_: Exception) {
                 _state.update { it.copy(isLoadingMore = false) }
@@ -423,6 +434,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
      * Fan out across several recent seeds in parallel, then interleave.
      * Each seed contributes its related queue + continuation + frontier ids,
      * so the home feed starts from a wide branching base instead of one video.
+     *
+     * Queue rows carry tiny thumbnails — upgraded to high-res here,
+     * home-only (other screens keep backend data untouched).
      */
     private suspend fun fetchQueueSeeds(seedIds: List<String>): QueueBatch? {
         val seeds = seedIds.filter { it.isNotBlank() }.take(MAX_QUEUE_SEEDS)
@@ -433,7 +447,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
                     try {
                         withTimeoutOrNull(15_000) {
                             val d = com.teamshryne.wediyo.data.engine.WediyoEngine.fetchVideoDetail(seed)
-                            val vids = d.relatedVideos.filter { it.id.isNotBlank() && it.id != seed }
+                            val vids = upgradeQueueThumbs(
+                                d.relatedVideos.filter { it.id.isNotBlank() && it.id != seed }
+                            )
                             QueueResult(vids, d.relatedContinuation, vids.take(10).map { it.id })
                         }
                     } catch (_: Exception) { null }
@@ -444,6 +460,19 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             val continuations = results.mapNotNull { it.continuation.takeIf { c -> c.isNotBlank() } }.distinct()
             val frontier = results.flatMap { it.frontierIds }.distinct()
             QueueBatch(mergedVideos, continuations, frontier, seedsConsumed = seeds.size)
+        }
+    }
+
+    /** Home-only: swap tiny related thumbs for guaranteed sd/hq variants. */
+    private fun upgradeQueueThumbs(list: List<UiVideo>): List<UiVideo> {
+        if (list.isEmpty()) return list
+        return list.map { v ->
+            if (v.id.isBlank()) return@map v
+            try {
+                val (url, json) = upgradeThumbsToHighRes(v.id, v.thumbnailsJson, v.thumbnailUrl)
+                if (url == v.thumbnailUrl && json == v.thumbnailsJson) v
+                else v.copy(thumbnailUrl = url, thumbnailsJson = json)
+            } catch (_: Exception) { v }
         }
     }
 
@@ -467,9 +496,10 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         return try {
             withTimeoutOrNull(12_000) {
                 val m = com.teamshryne.wediyo.data.engine.WediyoEngine.fetchRelated(cont)
+                val vids = upgradeQueueThumbs(m.relatedVideos.filter { it.id.isNotBlank() })
                 QueueResult(
-                    m.relatedVideos.filter { it.id.isNotBlank() },
-                    m.relatedContinuation, m.relatedVideos.take(8).map { it.id }
+                    vids,
+                    m.relatedContinuation, vids.take(8).map { it.id }
                 )
             }
         } catch (_: Exception) { null }
@@ -480,9 +510,10 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         return try {
             withTimeoutOrNull(15_000) {
                 val d = com.teamshryne.wediyo.data.engine.WediyoEngine.fetchVideoDetail(id)
+                val vids = upgradeQueueThumbs(d.relatedVideos.filter { it.id.isNotBlank() && it.id != id })
                 QueueResult(
-                    d.relatedVideos.filter { it.id.isNotBlank() && it.id != id },
-                    d.relatedContinuation, d.relatedVideos.take(8).map { it.id }
+                    vids,
+                    d.relatedContinuation, vids.take(8).map { it.id }
                 )
             }
         } catch (_: Exception) { null }
@@ -520,15 +551,18 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         private const val MAX_SHORTS_CHANNELS = 4
         private const val PER_CHANNEL_SHORTS = 3
         // Queue branching: wide start, deep follow-up.
-        private const val MAX_QUEUE_SEEDS = 3
-        private const val QUEUE_PER_SEED = 10
-        private const val FRONTIER_INITIAL = 24
-        private const val FRONTIER_PER_PAGE = 8
-        private const val FRONTIER_PER_BRANCH = 8
-        private const val FRONTIER_PER_SEED = 8
-        private const val BRANCHES_PER_PAGE = 8
-        private const val SEEDS_PER_PAGE = 3
-        private const val PAGE_SIZE = 10
-        private const val MAX_BRANCHES = 40
+        private const val MAX_QUEUE_SEEDS = 4
+        private const val QUEUE_PER_SEED = 12
+        private const val FRONTIER_INITIAL = 32
+        private const val FRONTIER_PER_PAGE = 10
+        private const val FRONTIER_PER_BRANCH = 10
+        private const val FRONTIER_PER_SEED = 10
+        private const val BRANCHES_PER_PAGE = 10
+        private const val SEEDS_PER_PAGE = 4
+        private const val PAGE_SIZE = 12
+        private const val MAX_BRANCHES = 120
+        // Infinite scroll: chain expansions per loadMore trigger.
+        private const val LOAD_MORE_ROUNDS = 4
+        private const val LOAD_MORE_TARGET = 24
     }
 }

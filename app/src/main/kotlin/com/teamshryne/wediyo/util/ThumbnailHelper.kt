@@ -50,3 +50,33 @@ fun bestThumbUrl(thumbsJson: String, fallback: String, quality: String): String 
     if (picked.isNotEmpty()) return picked
     return normalizeUrl(fallback)
 }
+
+// ── Home queue upgrade ───────────────────────────────────────────
+// Related/queue rows from compactVideoRenderer often carry only tiny
+// thumbnails (168–336px). Video IDs have predictable high-res images,
+// so home-only we synthesize guaranteed variants (sd/hq/mq always exist;
+// maxres does NOT, so it is deliberately excluded to avoid 404s).
+// Existing entries are preserved (deduped) so nothing is lost.
+fun upgradeThumbsToHighRes(videoId: String, thumbsJson: String, fallback: String): Pair<String, String> {
+    if (videoId.isBlank()) return fallback to thumbsJson
+    val synth = listOf(
+        Thumb("https://i.ytimg.com/vi/$videoId/sddefault.jpg", 640, 480),
+        Thumb("https://i.ytimg.com/vi/$videoId/hqdefault.jpg", 480, 360),
+        Thumb("https://i.ytimg.com/vi/$videoId/mqdefault.jpg", 320, 180)
+    )
+    val existing = parseThumbs(thumbsJson)
+    val known = existing.map { it.url }.toSet()
+    val merged = (synth.filter { it.url !in known } + existing).distinctBy { it.url }
+    val json = try {
+        val arr = org.json.JSONArray()
+        for (t in merged) {
+            val o = org.json.JSONObject()
+            o.put("url", t.url)
+            o.put("width", t.width)
+            o.put("height", t.height)
+            arr.put(o)
+        }
+        arr.toString()
+    } catch (_: Exception) { thumbsJson }
+    return "https://i.ytimg.com/vi/$videoId/sddefault.jpg" to json
+}

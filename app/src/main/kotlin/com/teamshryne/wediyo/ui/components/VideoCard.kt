@@ -46,9 +46,12 @@ fun VideoCard(video: UiVideo, thumbQuality: String, avatarQuality: String, showA
             }
         }
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
-            if (showAvatar) {
+            // Queue rows often have no channel avatar — hide instead of
+            // showing an empty grey circle.
+            val avatarModel = bestThumbUrl(video.avatarsJson, video.avatarUrl, avatarQuality)
+            if (showAvatar && avatarModel.isNotBlank()) {
                 AsyncImage(
-                    model = bestThumbUrl(video.avatarsJson, video.avatarUrl, avatarQuality),
+                    model = avatarModel,
                     contentDescription = null,
                     modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF222222)),
                     contentScale = ContentScale.Crop
